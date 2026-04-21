@@ -257,11 +257,10 @@ app = FastAPI(
 
 logger = logging.getLogger("stock_scanner_api")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-allowed_origins = parse_allowed_origins(os.getenv("ALLOWED_ORIGINS"))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
