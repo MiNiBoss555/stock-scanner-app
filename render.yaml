@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: stock-scanner-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: STOCK_SCANNER_DB
+        value: /var/data/stock_scanner.db
+      - key: AUTH_TOKEN_TTL_HOURS
+        value: "12"
+      - key: PIN_HASH_ITERATIONS
+        value: "120000"
+      - key: EXPORT_LINK_TTL_MINUTES
+        value: "10"
+      - key: ALLOWED_ORIGINS
+        value: "*"
