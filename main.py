@@ -333,6 +333,8 @@ def utc_now() -> datetime:
 
 
 def db_connection() -> sqlite3.Connection:
+    if DB_PATH.parent != Path("."):
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
