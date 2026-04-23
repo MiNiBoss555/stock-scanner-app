@@ -7,7 +7,11 @@ import "config.dart";
 import "models.dart";
 
 class StockApiService {
-  static const Duration _requestTimeout = Duration(seconds: 8);
+  static const Duration _requestTimeout = Duration(seconds: 18);
+  static const String _loginTimeoutMessage =
+      "Server is taking longer than usual. Please wait a moment and try again.";
+  static const String _timeoutMessage =
+      "เซิร์ฟเวอร์ใช้เวลาตอบกลับนานกว่าปกติ อาจกำลังเริ่มทำงานอยู่ กรุณารอสักครู่แล้วลองใหม่";
   String? _accessToken;
 
   void setAccessToken(String? value) {
@@ -18,6 +22,8 @@ class StockApiService {
   void clearAccessToken() {
     _accessToken = null;
   }
+
+  String? get accessToken => _accessToken;
 
   Map<String, String> _headers([Map<String, String>? extra]) {
     final headers = <String, String>{};
@@ -34,6 +40,55 @@ class StockApiService {
     return Uri.parse("${AppConfig.baseUrl}$path").replace(
       queryParameters: queryParameters,
     );
+  }
+
+  Uri websocketUri(String path, [Map<String, String>? queryParameters]) {
+    final base = Uri.parse(AppConfig.baseUrl);
+    return base.replace(
+      scheme: base.scheme == "https" ? "wss" : "ws",
+      path: path,
+      queryParameters: queryParameters,
+    );
+  }
+
+  Future<void> _warmUpServer() async {
+    try {
+      await http
+          .get(_uri("/health"), headers: _headers())
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Best effort only. The actual login call below will surface the real error.
+    }
+  }
+
+  Future<http.Response> _postLogin(Map<String, dynamic> payload) async {
+    try {
+      return await http
+          .post(
+            _uri("/auth/login"),
+            headers: _headers({"Content-Type": "application/json"}),
+            body: jsonEncode(payload),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw Exception(
+        "เซิร์ฟเวอร์ใช้เวลาตอบกลับนานกว่าปกติ อาจกำลังเริ่มทำงานอยู่ กรุณารอสักครู่แล้วลองใหม่",
+      );
+    }
+  }
+
+  Future<http.Response> _postLoginFriendly(Map<String, dynamic> payload) async {
+    try {
+      return await http
+          .post(
+            _uri("/auth/login"),
+            headers: _headers({"Content-Type": "application/json"}),
+            body: jsonEncode(payload),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw Exception(_loginTimeoutMessage);
+    }
   }
 
   Future<http.Response> _get(String path, [Map<String, String>? queryParameters]) async {
@@ -72,6 +127,37 @@ class StockApiService {
         .toList();
   }
 
+  Future<http.Response> _patchJson(
+    String path,
+    Map<String, dynamic> payload, [
+    Map<String, String>? queryParameters,
+  ]) async {
+    try {
+      return await http
+          .patch(
+            _uri(path, queryParameters),
+            headers: _headers({"Content-Type": "application/json"}),
+            body: jsonEncode(payload),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw Exception(_timeoutMessage);
+    }
+  }
+
+  Future<http.Response> _delete(
+    String path, [
+    Map<String, String>? queryParameters,
+  ]) async {
+    try {
+      return await http
+          .delete(_uri(path, queryParameters), headers: _headers())
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw Exception(_timeoutMessage);
+    }
+  }
+
   Future<String> getNextBarcode() async {
     final response = await _get("/products/barcode/next");
     final body = _decode(response) as Map<String, dynamic>;
@@ -90,10 +176,20 @@ class StockApiService {
     required String userId,
     required String pin,
   }) async {
-    final response = await _postJson("/auth/login", {
+    final payload = {
       "user_id": userId,
       "pin": pin,
-    });
+    };
+
+    http.Response response;
+    try {
+      response = await _postLoginFriendly(payload);
+    } catch (_) {
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      await _warmUpServer();
+      response = await _postLoginFriendly(payload);
+    }
+
     final session = LoginSession.fromJson(_decode(response) as Map<String, dynamic>);
     setAccessToken(session.accessToken);
     return session;
@@ -104,9 +200,35 @@ class StockApiService {
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
+  Future<AppUser> updateMyProfile({
+    required String userName,
+  }) async {
+    final response = await _patchJson("/auth/profile", {
+      "user_name": userName,
+    });
+    if (response.statusCode == 404) {
+      throw Exception(
+        "เซิร์ฟเวอร์ที่ใช้อยู่ยังไม่รองรับการแก้ชื่อ กรุณาอัปเดต backend แล้วลองใหม่",
+      );
+    }
+    return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
   Future<void> logout() async {
     await _postJson("/auth/logout", {});
     clearAccessToken();
+  }
+
+  Future<String> changePin({
+    required String currentPin,
+    required String newPin,
+  }) async {
+    final response = await _postJson("/auth/change-pin", {
+      "current_pin": currentPin,
+      "new_pin": newPin,
+    });
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "PIN changed successfully.";
   }
 
   Future<AppUser> upsertUser({
@@ -128,6 +250,22 @@ class StockApiService {
       "profile_image_url": profileImageUrl,
     });
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<String> deleteUser({
+    required String requesterId,
+    required String userId,
+    bool deleteMovements = false,
+  }) async {
+    final response = await _delete(
+      "/users/$userId",
+      {
+        "requester_id": requesterId,
+        "delete_movements": deleteMovements.toString(),
+      },
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "Deleted user";
   }
 
   Future<AppUser> uploadProfileImage({

@@ -1,8 +1,10 @@
+﻿import "dart:async";
 import "dart:io";
 import "dart:typed_data";
 import "dart:ui" as ui;
 
 import "package:barcode_widget/barcode_widget.dart";
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/rendering.dart";
 import "package:flutter/services.dart";
@@ -20,13 +22,131 @@ import "models.dart";
 const _sessionUserIdKey = "session_user_id";
 const _sessionPinKey = "session_pin";
 const _sessionAccessTokenKey = "session_access_token";
-const _brandPrimary = Color(0xFF01579B);
-const _brandSurface = Color(0xFFE0F7FA);
-const _brandSurfaceStrong = Color(0xFFB2EBF2);
-const _brandTextOnLight = Color(0xFF0D2A3A);
-const _brandDeep = Color(0xFF003C6C);
-const _brandInk = Color(0xFF12384D);
-const _brandCard = Color(0xFFF4FDFF);
+const _brandPrimary = Color(0xFF8A5A3C);
+const _brandSurface = Color(0xFFE8D8C3);
+const _brandSurfaceStrong = Color(0xFFB48A61);
+const _brandTextOnLight = Color(0xFF3F2B1D);
+const _brandDeep = Color(0xFF3F2B1D);
+const _brandInk = Color(0xFF3F2B1D);
+const _brandCard = Color(0xFFF3E7D8);
+const _profileTeal = Color(0xFF7D6852);
+const _profileAccent = Color(0xFFD1AA7C);
+const double _spaceXs = 8;
+const double _spaceSm = 12;
+const double _spaceMd = 16;
+const double _spaceLg = 20;
+const double _spaceXl = 24;
+const double _radiusSm = 12;
+const double _radiusMd = 18;
+const double _radiusLg = 24;
+const double _radiusXl = 28;
+const _pagePadding = EdgeInsets.all(_spaceMd);
+const _cardPadding = EdgeInsets.all(_spaceMd);
+
+BoxDecoration _softPanelDecoration({
+  Color tone = _brandPrimary,
+  double surfaceStrength = 0.55,
+  double radius = _radiusLg,
+}) {
+  final tint = (surfaceStrength * 0.17).clamp(0.08, 0.20);
+  final panelColor = Color.lerp(_brandSurface, tone, tint)!;
+  final borderColor = Color.lerp(panelColor, tone, 0.30)!.withOpacity(0.70);
+  return BoxDecoration(
+    color: panelColor,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: borderColor),
+    boxShadow: [
+      BoxShadow(
+        color: tone.withOpacity(0.06),
+        blurRadius: 16,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
+}
+
+String _normalizeFeedbackMessage(String message) {
+  final cleaned = message.replaceFirst("Exception: ", "").trim();
+  if (cleaned.isEmpty) {
+    return "เกิดข้อผิดพลาดบางอย่าง กรุณาลองใหม่อีกครั้ง";
+  }
+
+  final lowered = cleaned.toLowerCase();
+  if (cleaned.contains("เน€") ||
+      lowered.contains("server is taking longer") ||
+      lowered.contains("responding more slowly") ||
+      lowered.contains("timeout") ||
+      lowered.contains("backend")) {
+    return "เซิร์ฟเวอร์อาจกำลังเริ่มทำงานอยู่ กรุณารอสักครู่แล้วลองใหม่";
+  }
+  if (lowered.contains("current pin is incorrect")) {
+    return "PIN ปัจจุบันไม่ถูกต้อง";
+  }
+  if (lowered.contains("new pin must be different")) {
+    return "PIN ใหม่ต้องไม่ซ้ำกับ PIN เดิม";
+  }
+  if (lowered.contains("invalid user id or pin")) {
+    return "User ID หรือ PIN ไม่ถูกต้อง";
+  }
+  if (lowered.contains("user is inactive")) {
+    return "บัญชีนี้ถูกปิดการใช้งาน";
+  }
+  if (lowered.contains("authentication required")) {
+    return "กรุณาเข้าสู่ระบบใหม่อีกครั้ง";
+  }
+
+  return cleaned;
+}
+
+void _showAppSnack(
+  BuildContext context,
+  String message, {
+  bool isError = false,
+}) {
+  final displayMessage = _normalizeFeedbackMessage(message);
+  final messenger = ScaffoldMessenger.of(context);
+  final backgroundColor = isError ? _brandInk : _brandDeep;
+
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(_spaceMd, 0, _spaceMd, _spaceMd),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 4),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(
+                Icons.info_outline_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                displayMessage,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
+
+String _roleLabel(String role) {
+  return role.trim().toLowerCase() == "admin" ? "ผู้ดูแลระบบ" : "พนักงาน";
+}
 
 void main() {
   runApp(const StockScannerApp());
@@ -144,7 +264,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "แอปสต๊อกสินค้า",
+      title: "\u0e41\u0e2d\u0e1b\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -164,10 +284,20 @@ class _StockScannerAppState extends State<StockScannerApp> {
                 fontWeight: FontWeight.w700,
                 color: _brandDeep,
               ),
+              titleSmall: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _brandDeep,
+              ),
               bodyMedium: const TextStyle(
                 fontSize: 14,
                 height: 1.4,
                 color: _brandInk,
+              ),
+              bodySmall: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: _brandInk.withOpacity(0.72),
               ),
             ),
         cardTheme: CardThemeData(
@@ -175,36 +305,54 @@ class _StockScannerAppState extends State<StockScannerApp> {
           elevation: 0,
           shadowColor: _brandPrimary.withOpacity(0.10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(_radiusLg),
             side: BorderSide(color: _brandPrimary.withOpacity(0.10)),
           ),
         ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _brandDeep,
+          contentTextStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            height: 1.35,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_radiusMd),
+          ),
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        ),
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: _brandCard,
-          indicatorColor: _brandSurfaceStrong.withOpacity(0.75),
+          indicatorColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.70)!.withOpacity(0.90),
           labelTextStyle: WidgetStateProperty.resolveWith(
             (states) => TextStyle(
-              color: states.contains(WidgetState.selected) ? _brandPrimary : _brandInk,
+              color: states.contains(WidgetState.selected) ? _brandDeep : _brandInk,
               fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white.withOpacity(0.82),
+          fillColor: Color.lerp(_brandSurface, Colors.white, 0.58)!,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(_radiusMd),
             borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(_radiusMd),
             borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
           ),
           focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
+            borderRadius: BorderRadius.all(Radius.circular(_radiusMd)),
             borderSide: BorderSide(color: _brandPrimary, width: 1.4),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: _spaceMd,
+            vertical: _spaceMd,
+          ),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
@@ -213,7 +361,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
             elevation: 0,
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(_radiusMd),
             ),
           ),
         ),
@@ -223,7 +371,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
             side: const BorderSide(color: _brandPrimary),
             minimumSize: const Size.fromHeight(48),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(_radiusMd),
             ),
           ),
         ),
@@ -262,6 +410,31 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _pinController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePin = true;
+  String? _userIdError;
+  String? _pinError;
+
+  void _handleUserIdChanged(String value) {
+    final normalized = value.toUpperCase().replaceAll(" ", "");
+    if (normalized != value) {
+      _userIdController.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+    }
+    if (_userIdError != null) {
+      setState(() {
+        _userIdError = null;
+      });
+    }
+  }
+
+  void _handlePinChanged(String value) {
+    if (_pinError != null) {
+      setState(() {
+        _pinError = null;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -271,10 +444,30 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    final userId = _userIdController.text.trim();
+    final userId = _userIdController.text.trim().toUpperCase();
     final pin = _pinController.text.trim();
-    if (userId.isEmpty || pin.length < 4) {
-      _showSnack("กรอก user id และ PIN ให้ครบ");
+
+    setState(() {
+      _userIdError = null;
+      _pinError = null;
+    });
+
+    if (userId.isEmpty) {
+      setState(() {
+        _userIdError = "\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 User ID";
+      });
+      return;
+    }
+    if (pin.isEmpty) {
+      setState(() {
+        _pinError = "\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 PIN";
+      });
+      return;
+    }
+    if (pin.length < 4) {
+      setState(() {
+        _pinError = "PIN \u0e15\u0e49\u0e2d\u0e07\u0e21\u0e35\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 4 \u0e2b\u0e25\u0e31\u0e01";
+      });
       return;
     }
 
@@ -286,7 +479,22 @@ class _LoginPageState extends State<LoginPage> {
       final session = await widget.api.login(userId: userId, pin: pin);
       await widget.onLogin(session);
     } catch (error) {
-      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+      final message = error.toString().replaceFirst("Exception: ", "");
+      if (message.contains("Invalid user id or PIN")) {
+        setState(() {
+          _userIdError =
+              "\u0e44\u0e21\u0e48\u0e1e\u0e1a User ID \u0e19\u0e35\u0e49 \u0e2b\u0e23\u0e37\u0e2d PIN \u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e15\u0e49\u0e2d\u0e07";
+          _pinError =
+              "\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a PIN \u0e41\u0e25\u0e49\u0e27\u0e25\u0e2d\u0e07\u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07";
+        });
+      } else if (message.contains("inactive")) {
+        setState(() {
+          _userIdError =
+              "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e16\u0e39\u0e01\u0e1b\u0e34\u0e14\u0e01\u0e32\u0e23\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19";
+        });
+      } else {
+        _showSnack(message);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -297,33 +505,133 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _showAppSnack(context, message, isError: true);
   }
 
   @override
   Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    final keyboardBottom = viewInsets.bottom;
+
+    if (false) return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + safeBottom + keyboardBottom),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight - 24),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("เน€เธโฌเน€เธยเน€เธยเน€เธเธ’เน€เธเธเน€เธเธเน€เธยเน€เธเธเน€เธเธเน€เธยเน€เธย", style: Theme.of(context).textTheme.headlineSmall),
+                            const SizedBox(height: 8),
+                            const Text("เน€เธโฌเน€เธยเน€เธยเน€เธเธ’เน€เธเธเน€เธเธเน€เธยเน€เธเธเน€เธเธเน€เธยเน€เธยเน€เธโ€เน€เธยเน€เธเธเน€เธเธเน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธยเน€เธเธ…เน€เธเธ PIN"),
+                            const SizedBox(height: 20),
+                            TextField(
+                              controller: _userIdController,
+                              decoration: const InputDecoration(
+                                labelText: "เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _pinController,
+                              obscureText: _obscurePin,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: "PIN",
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePin = !_obscurePin;
+                                    });
+                                  },
+                                  icon: Icon(_obscurePin ? Icons.visibility : Icons.visibility_off),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: _isLoading ? null : _login,
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.login),
+                              label: const Text("เน€เธโฌเน€เธยเน€เธยเน€เธเธ’เน€เธเธเน€เธเธเน€เธยเน€เธเธเน€เธเธเน€เธยเน€เธย"),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              "เน€เธโ€ขเน€เธเธ‘เน€เธเธเน€เธเธเน€เธเธเน€เธยเน€เธเธ’เน€เธยเน€เธโ€”เน€เธโ€เน€เธเธเน€เธเธเน€เธย: EMP001 / 1234",
+                              style: TextStyle(color: _brandPrimary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + safeBottom),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + safeBottom),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("เข้าสู่ระบบ", style: Theme.of(context).textTheme.headlineSmall),
+                    Text("\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a", style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 8),
-                    const Text("เข้าสู่ระบบด้วยรหัสผู้ใช้และ PIN"),
+                    const Text("\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a\u0e14\u0e49\u0e27\u0e22\u0e23\u0e2b\u0e31\u0e2a\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e41\u0e25\u0e30 PIN"),
                     const SizedBox(height: 20),
                     TextField(
                       controller: _userIdController,
-                      decoration: const InputDecoration(
-                        labelText: "รหัสผู้ใช้",
-                        border: OutlineInputBorder(),
+                      textCapitalization: TextCapitalization.characters,
+                      onChanged: _handleUserIdChanged,
+                      decoration: InputDecoration(
+                        labelText: "User ID",
+                        hintText: "EMP001",
+                        helperText: _userIdError == null
+                            ? "ใช้ตัวอักษรและตัวเลข เช่น EMP001"
+                            : null,
+                        errorText: _userIdError,
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -331,8 +639,10 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _pinController,
                       obscureText: _obscurePin,
                       keyboardType: TextInputType.number,
+                      onChanged: _handlePinChanged,
                       decoration: InputDecoration(
                         labelText: "PIN",
+                        errorText: _pinError,
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           onPressed: () {
@@ -354,14 +664,26 @@ class _LoginPageState extends State<LoginPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.login),
-                      label: const Text("เข้าสู่ระบบ"),
+                      label: Text(
+                        _isLoading
+                            ? "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a..."
+                            : "\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a",
+                      ),
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      "ตัวอย่างทดสอบ: EMP001 / 1234",
+                      "\u0e15\u0e31\u0e27\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e17\u0e14\u0e2a\u0e2d\u0e1a: EMP001 / 1234",
                       style: TextStyle(color: _brandPrimary),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "\u0e16\u0e49\u0e32\u0e40\u0e0a\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e15\u0e37\u0e48\u0e19 \u0e04\u0e23\u0e31\u0e49\u0e07\u0e41\u0e23\u0e01\u0e2d\u0e32\u0e08\u0e43\u0e0a\u0e49\u0e40\u0e27\u0e25\u0e32 10-20 \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35",
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -392,6 +714,71 @@ class StockHomePage extends StatefulWidget {
 
 class _StockHomePageState extends State<StockHomePage> {
   int _currentIndex = 0;
+  final ValueNotifier<int> _realtimeRevision = ValueNotifier<int>(0);
+  WebSocket? _realtimeSocket;
+  Timer? _realtimeReconnectTimer;
+  bool _realtimeShouldReconnect = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectRealtime();
+  }
+
+  @override
+  void dispose() {
+    _realtimeShouldReconnect = false;
+    _realtimeReconnectTimer?.cancel();
+    _realtimeSocket?.close();
+    _realtimeRevision.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connectRealtime() async {
+    final token = widget.api.accessToken;
+    if (!_realtimeShouldReconnect || token == null || token.isEmpty) {
+      return;
+    }
+
+    try {
+      final socket = await WebSocket.connect(
+        widget.api
+            .websocketUri("/ws/realtime", {"token": token})
+            .toString(),
+      );
+      if (!mounted || !_realtimeShouldReconnect) {
+        await socket.close();
+        return;
+      }
+
+      _realtimeSocket = socket;
+      socket.listen(
+        (dynamic _) {
+          if (!mounted) {
+            return;
+          }
+          _realtimeRevision.value = _realtimeRevision.value + 1;
+        },
+        onDone: _scheduleRealtimeReconnect,
+        onError: (_, __) => _scheduleRealtimeReconnect(),
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _scheduleRealtimeReconnect();
+    }
+  }
+
+  void _scheduleRealtimeReconnect() {
+    _realtimeSocket = null;
+    if (!_realtimeShouldReconnect || !mounted) {
+      return;
+    }
+    _realtimeReconnectTimer?.cancel();
+    _realtimeReconnectTimer = Timer(
+      const Duration(seconds: 3),
+      _connectRealtime,
+    );
+  }
 
   Future<void> _openMorePage(BuildContext context) {
     return Navigator.of(context).push(
@@ -401,6 +788,7 @@ class _StockHomePageState extends State<StockHomePage> {
           currentUser: widget.currentUser,
           onLogout: widget.onLogout,
           onRefreshSession: widget.onRefreshSession,
+          refreshSignal: _realtimeRevision,
         ),
       ),
     );
@@ -409,20 +797,21 @@ class _StockHomePageState extends State<StockHomePage> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      DashboardPage(api: widget.api),
+      DashboardPage(
+        api: widget.api,
+        refreshSignal: _realtimeRevision,
+        currentUser: widget.currentUser,
+      ),
       ScanPage(api: widget.api, currentUser: widget.currentUser),
-      HistoryPage(api: widget.api),
+      HistoryPage(api: widget.api, refreshSignal: _realtimeRevision),
     ];
 
     return Scaffold(
-      extendBody: true,
+      extendBody: false,
       body: Stack(
         children: [
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 104),
-              child: pages[_currentIndex],
-            ),
+            child: pages[_currentIndex],
           ),
           SafeArea(
             child: Align(
@@ -432,7 +821,12 @@ class _StockHomePageState extends State<StockHomePage> {
                 child: IconButton.filledTonal(
                   onPressed: () => _openMorePage(context),
                   icon: const Icon(Icons.grid_view_rounded),
-                  tooltip: "เพิ่มเติม",
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.92),
+                    foregroundColor: _brandDeep,
+                    side: BorderSide(color: _brandPrimary.withOpacity(0.12)),
+                  ),
+                  tooltip: "\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21",
                 ),
               ),
             ),
@@ -440,22 +834,22 @@ class _StockHomePageState extends State<StockHomePage> {
         ],
       ),
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Container(
           decoration: BoxDecoration(
             color: _brandCard.withOpacity(0.96),
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: _brandPrimary.withOpacity(0.10)),
             boxShadow: [
               BoxShadow(
                 color: _brandPrimary.withOpacity(0.10),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
           child: NavigationBar(
-            height: 72,
+            height: 64,
             backgroundColor: Colors.transparent,
             elevation: 0,
             selectedIndex: _currentIndex,
@@ -469,17 +863,17 @@ class _StockHomePageState extends State<StockHomePage> {
               NavigationDestination(
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard),
-                label: "ภาพรวม",
+                label: "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21",
               ),
               NavigationDestination(
                 icon: Icon(Icons.qr_code_scanner_outlined),
                 selectedIcon: Icon(Icons.qr_code_scanner),
-                label: "สแกน",
+                label: "\u0e2a\u0e41\u0e01\u0e19",
               ),
               NavigationDestination(
                 icon: Icon(Icons.history_outlined),
                 selectedIcon: Icon(Icons.history),
-                label: "ประวัติ",
+                label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
               ),
             ],
           ),
@@ -509,20 +903,41 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<AppUser>> _usersFuture;
+  late AppUser _profileUser;
   final TextEditingController _userIdController = TextEditingController();
   final TextEditingController _userNameController = TextEditingController();
   final TextEditingController _pinController = TextEditingController();
+  final TextEditingController _currentPinController = TextEditingController();
+  final TextEditingController _newPinController = TextEditingController();
+  final TextEditingController _confirmPinController = TextEditingController();
   final TextEditingController _profileImageUrlController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
   String _role = "staff";
   bool _active = true;
   bool _isSaving = false;
+  bool _isChangingPin = false;
   bool _isUploadingProfileImage = false;
+  bool _obscureCurrentPin = true;
+  bool _obscureNewPin = true;
+  bool _obscureConfirmPin = true;
 
   @override
   void initState() {
     super.initState();
+    _profileUser = widget.currentUser;
     _usersFuture = widget.api.getUsers(activeOnly: false);
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentUser.userId != widget.currentUser.userId ||
+        oldWidget.currentUser.userName != widget.currentUser.userName ||
+        oldWidget.currentUser.profileImageUrl != widget.currentUser.profileImageUrl ||
+        oldWidget.currentUser.role != widget.currentUser.role ||
+        oldWidget.currentUser.active != widget.currentUser.active) {
+      _profileUser = widget.currentUser;
+    }
   }
 
   @override
@@ -530,6 +945,9 @@ class _ProfilePageState extends State<ProfilePage> {
     _userIdController.dispose();
     _userNameController.dispose();
     _pinController.dispose();
+    _currentPinController.dispose();
+    _newPinController.dispose();
+    _confirmPinController.dispose();
     _profileImageUrlController.dispose();
     super.dispose();
   }
@@ -539,18 +957,200 @@ class _ProfilePageState extends State<ProfilePage> {
       _usersFuture = widget.api.getUsers(activeOnly: false);
     });
     await _usersFuture;
+    final refreshedUser = await widget.api.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _profileUser = refreshedUser;
+      });
+    }
     await widget.onRefreshSession();
+  }
+
+  Future<void> _openDisplayNameEditor() async {
+    final controller = TextEditingController(text: _profileUser.userName);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        bool isSaving = false;
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> save() async {
+              FocusScope.of(sheetContext).unfocus();
+              final userName = controller.text.trim();
+              if (userName.isEmpty) {
+                setSheetState(() {
+                  errorText = "กรุณากรอกชื่อที่แสดง";
+                });
+                return;
+              }
+              if (userName == _profileUser.userName) {
+                Navigator.of(sheetContext).pop();
+                return;
+              }
+
+              setSheetState(() {
+                isSaving = true;
+                errorText = null;
+              });
+
+              try {
+                final updatedUser = await widget.api.updateMyProfile(userName: userName);
+                if (mounted) {
+                  setState(() {
+                    _profileUser = updatedUser;
+                  });
+                }
+                await widget.onRefreshSession();
+                _showSnack("บันทึกชื่อเรียบร้อย");
+                if (sheetContext.mounted) {
+                  Navigator.of(sheetContext).pop();
+                }
+              } catch (error) {
+                final message = error.toString().replaceFirst("Exception: ", "");
+                setSheetState(() {
+                  errorText = _normalizeFeedbackMessage(message);
+                });
+              } finally {
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    isSaving = false;
+                  });
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: Material(
+                color: _brandCard,
+                borderRadius: BorderRadius.circular(_radiusXl),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "แก้ไขชื่อที่แสดง",
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontSize: 22,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => save(),
+                        decoration: InputDecoration(
+                          labelText: "ชื่อที่แสดง",
+                          errorText: errorText,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
+                              child: const Text("ยกเลิก"),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton(
+                              onPressed: isSaving ? null : save,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text("บันทึก"),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
+  Future<void> _changePin() async {
+    final currentPin = _currentPinController.text.trim();
+    final newPin = _newPinController.text.trim();
+    final confirmPin = _confirmPinController.text.trim();
+
+    if (currentPin.isEmpty || newPin.isEmpty || confirmPin.isEmpty) {
+      _showSnack("กรุณากรอก PIN ให้ครบทุกช่อง");
+      return;
+    }
+    if (newPin.length < 4) {
+      _showSnack("PIN ใหม่ต้องมีอย่างน้อย 4 หลัก");
+      return;
+    }
+    if (newPin != confirmPin) {
+      _showSnack("PIN ใหม่และการยืนยัน PIN ไม่ตรงกัน");
+      return;
+    }
+
+    setState(() {
+      _isChangingPin = true;
+    });
+
+    try {
+      final message = await widget.api.changePin(
+        currentPin: currentPin,
+        newPin: newPin,
+      );
+      _currentPinController.clear();
+      _newPinController.clear();
+      _confirmPinController.clear();
+      _showSnack(message);
+    } catch (error) {
+      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingPin = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveUser() async {
     final userId = _userIdController.text.trim();
     final userName = _userNameController.text.trim();
     if (userId.isEmpty || userName.isEmpty) {
-      _showSnack("กรอกรหัสผู้ใช้และชื่อผู้ใช้ให้ครบ");
+      _showSnack("\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01\u0e23\u0e2b\u0e31\u0e2a\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e41\u0e25\u0e30\u0e0a\u0e37\u0e48\u0e2d\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e43\u0e2b\u0e49\u0e04\u0e23\u0e1a");
       return;
     }
     if (_pinController.text.trim().length < 4) {
-      _showSnack("PIN ต้องมีอย่างน้อย 4 หลัก");
+      _showSnack("PIN \u0e15\u0e49\u0e2d\u0e07\u0e21\u0e35\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 4 \u0e2b\u0e25\u0e31\u0e01");
       return;
     }
 
@@ -579,7 +1179,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _active = true;
       });
       await _reload();
-      _showSnack("บันทึกผู้ใช้งานเรียบร้อย");
+      _showSnack("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22");
     } catch (error) {
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
@@ -592,6 +1192,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _toggleUser(AppUser user) async {
+    if (user.userId == widget.currentUser.userId) {
+      _showSnack("\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e1b\u0e34\u0e14\u0e44\u0e14\u0e49");
+      return;
+    }
     try {
       await widget.api.upsertUser(
         requesterId: widget.currentUser.userId,
@@ -601,6 +1205,73 @@ class _ProfilePageState extends State<ProfilePage> {
         active: !user.active,
       );
       await _reload();
+    } catch (error) {
+      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _deleteUser(AppUser user) async {
+    if (user.userId == widget.currentUser.userId) {
+      _showSnack("\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e25\u0e1a\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e44\u0e14\u0e49");
+      return;
+    }
+
+    bool deleteMovements = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text("\u0e25\u0e1a\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19 ${user.userName}"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("\u0e15\u0e49\u0e2d\u0e07\u0e01\u0e32\u0e23\u0e25\u0e1a\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e02\u0e2d\u0e07 ${user.userId} \u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e23\u0e30\u0e1a\u0e1a\u0e2b\u0e23\u0e37\u0e2d\u0e44\u0e21\u0e48"),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: deleteMovements,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text("\u0e25\u0e1a\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34\u0e01\u0e32\u0e23\u0e17\u0e33\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e02\u0e2d\u0e07\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19\u0e04\u0e19\u0e19\u0e35\u0e49\u0e14\u0e49\u0e27\u0e22"),
+                    subtitle: const Text("\u0e40\u0e2b\u0e21\u0e32\u0e30\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19\u0e40\u0e01\u0e48\u0e32\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e01\u0e47\u0e1a\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e22\u0e49\u0e2d\u0e19\u0e2b\u0e25\u0e31\u0e07"),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        deleteMovements = value ?? false;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text("\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01"),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text("\u0e25\u0e1a\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final message = await widget.api.deleteUser(
+        requesterId: widget.currentUser.userId,
+        userId: user.userId,
+        deleteMovements: deleteMovements,
+      );
+      await _reload();
+      _showSnack(message);
     } catch (error) {
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     }
@@ -627,7 +1298,7 @@ class _ProfilePageState extends State<ProfilePage> {
         filePath: file.path,
       );
       await _reload();
-      _showSnack("อัปโหลดรูปโปรไฟล์เรียบร้อย");
+      _showSnack("\u0e2d\u0e31\u0e1b\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b\u0e42\u0e1b\u0e23\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22");
     } catch (error) {
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
@@ -640,93 +1311,567 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _showAppSnack(context, message);
   }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _reload,
-      child: FutureBuilder<List<AppUser>>(
-        future: _usersFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _ErrorState(message: snapshot.error.toString());
-          }
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: RefreshIndicator(
+          onRefresh: _reload,
+          child: FutureBuilder<List<AppUser>>(
+            future: _usersFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return _ErrorState(message: snapshot.error.toString());
+              }
 
-          final users = snapshot.data ?? [];
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
+              final users = snapshot.data ?? [];
+              final displayRole = _roleLabel(_profileUser.role);
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
               _PageHeader(
-                title: widget.currentUser.isAdmin ? "โปรไฟล์และผู้ใช้" : "โปรไฟล์",
-                subtitle: widget.currentUser.isAdmin
-                    ? "ดูข้อมูลของคุณและจัดการผู้ใช้งานได้"
-                    : "ดูข้อมูลของคุณและออกจากระบบ",
+                title: _profileUser.isAdmin ? "\u0e42\u0e1b\u0e23\u0e44\u0e1f\u0e25\u0e4c\u0e41\u0e25\u0e30\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49" : "\u0e42\u0e1b\u0e23\u0e44\u0e1f\u0e25\u0e4c",
+                subtitle: _profileUser.isAdmin
+                    ? "\u0e14\u0e39\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e02\u0e2d\u0e07\u0e04\u0e38\u0e13\u0e41\u0e25\u0e30\u0e08\u0e31\u0e14\u0e01\u0e32\u0e23\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e44\u0e14\u0e49"
+                    : "\u0e14\u0e39\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e02\u0e2d\u0e07\u0e04\u0e38\u0e13\u0e41\u0e25\u0e30\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e23\u0e30\u0e1a\u0e1a",
                 showBackButton: true,
               ),
               const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _UserAvatar(
-                            imageUrl: widget.api.resolveAssetUrl(
-                              widget.currentUser.profileImageUrl,
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Color.lerp(_brandSurface, _profileAccent, 0.18)!,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(_radiusXl),
+                  border: Border.all(color: _profileTeal.withOpacity(0.10)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _profileTeal.withOpacity(0.12),
+                      blurRadius: 30,
+                      offset: const Offset(0, 16),
+                    ),
+                    BoxShadow(
+                      color: _profileAccent.withOpacity(0.10),
+                      blurRadius: 26,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          height: 170,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                _profileTeal.withOpacity(0.92),
+                                _brandPrimary.withOpacity(0.88),
+                                _profileTeal.withOpacity(0.96),
+                              ],
                             ),
-                            name: widget.currentUser.userName,
-                            radius: 34,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(_radiusXl),
+                            ),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              "ผู้ใช้ปัจจุบัน",
-                              style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 28,
+                          right: 28,
+                          child: Container(
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.34),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(999),
+                                bottomRight: Radius.circular(999),
+                              ),
                             ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 18,
+                          right: 22,
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.10),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 38,
+                          left: 26,
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: _brandPrimary.withOpacity(0.42),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 98,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        _profileAccent.withOpacity(0.95),
+                                        _profileAccent.withOpacity(0.72),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 168),
+                              Expanded(
+                                child: Container(
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        _profileAccent.withOpacity(0.72),
+                                        _profileAccent.withOpacity(0.95),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          bottom: -66,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  _brandPrimary,
+                                  _profileAccent,
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _profileTeal.withOpacity(0.18),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(color: _profileTeal.withOpacity(0.08)),
+                              ),
+                              child: _UserAvatar(
+                                imageUrl: widget.api.resolveAssetUrl(
+                                  _profileUser.profileImageUrl,
+                                ),
+                                name: _profileUser.userName,
+                                radius: 58,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 78, 20, 24),
+                      child: Column(
+                        children: [
+                          Text(
+                            _profileUser.userName,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: _brandDeep,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  _brandPrimary,
+                                  _profileAccent,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _brandPrimary.withOpacity(0.22),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              displayRole,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: _brandDeep,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            height: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            color: _profileTeal.withOpacity(0.08),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: _profileAccent.withOpacity(0.55),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: _brandPrimary.withOpacity(0.28),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: _profileAccent.withOpacity(0.55),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text("ชื่อ: ${widget.currentUser.userName}"),
-                      Text("รหัส: ${widget.currentUser.userId}"),
-                      Text("สิทธิ์: ${widget.currentUser.role}"),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: _isUploadingProfileImage
-                            ? null
-                            : () => _pickAndUploadProfileImage(widget.currentUser),
-                        icon: _isUploadingProfileImage
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.add_a_photo_outlined),
-                        label: const Text("อัปโหลดรูปโปรไฟล์จากมือถือ"),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: _openDisplayNameEditor,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: _brandDeep,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: _brandPrimary.withOpacity(0.44)),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_radiusMd),
+                        ),
+                        shadowColor: _brandPrimary.withOpacity(0.10),
                       ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: widget.onLogout,
-                        icon: const Icon(Icons.logout),
-                        label: const Text("ออกจากระบบ"),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text("\u0e41\u0e01\u0e49\u0e44\u0e02\u0e0a\u0e37\u0e48\u0e2d"),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: _isUploadingProfileImage
+                          ? null
+                          : () => _pickAndUploadProfileImage(_profileUser),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: _brandDeep,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: _profileTeal.withOpacity(0.36)),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_radiusMd),
+                        ),
+                        shadowColor: _profileTeal.withOpacity(0.10),
                       ),
-                    ],
+                      icon: _isUploadingProfileImage
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add_a_photo_outlined),
+                      label: const Text("\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19\u0e23\u0e39\u0e1b"),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: widget.onLogout,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _brandDeep,
+                  backgroundColor: _brandSurface,
+                  side: BorderSide(color: _brandPrimary.withOpacity(0.34)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_radiusMd),
                   ),
                 ),
+                icon: const Icon(Icons.logout),
+                label: const Text("\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e23\u0e30\u0e1a\u0e1a"),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      Color.lerp(_brandSurface, _profileAccent, 0.24)!,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(_radiusXl),
+                  border: Border.all(color: _profileTeal.withOpacity(0.12)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _profileTeal.withOpacity(0.08),
+                      blurRadius: 22,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        inputDecorationTheme: InputDecorationTheme(
+                          filled: true,
+                          fillColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.14)!,
+                          labelStyle: TextStyle(
+                            color: _profileTeal.withOpacity(0.78),
+                            fontWeight: FontWeight.w700,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_radiusMd),
+                            borderSide: BorderSide(color: _profileTeal.withOpacity(0.12)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_radiusMd),
+                            borderSide: BorderSide(color: _profileTeal.withOpacity(0.12)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(_radiusMd),
+                            borderSide: const BorderSide(color: _profileTeal, width: 1.4),
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    _brandPrimary,
+                                    _profileAccent,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.lock_outline_rounded,
+                                color: _brandDeep,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "\u0e40\u0e1b\u0e25\u0e35\u0e48\u0e22\u0e19 PIN",
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          color: _brandDeep,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15 PIN \u0e02\u0e2d\u0e07\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e43\u0e2b\u0e49\u0e1b\u0e25\u0e2d\u0e14\u0e20\u0e31\u0e22\u0e02\u0e36\u0e49\u0e19",
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: _brandInk.withOpacity(0.72),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          height: 1,
+                          color: _profileTeal.withOpacity(0.08),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          "\u0e43\u0e0a\u0e49 PIN \u0e1b\u0e31\u0e08\u0e08\u0e38\u0e1a\u0e31\u0e19\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19 \u0e41\u0e25\u0e49\u0e27\u0e15\u0e31\u0e49\u0e07 PIN \u0e43\u0e2b\u0e21\u0e48\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 4 \u0e2b\u0e25\u0e31\u0e01",
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: _brandInk.withOpacity(0.70),
+                                height: 1.4,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _currentPinController,
+                          keyboardType: TextInputType.number,
+                          obscureText: _obscureCurrentPin,
+                          decoration: InputDecoration(
+                            labelText: "PIN \u0e1b\u0e31\u0e08\u0e08\u0e38\u0e1a\u0e31\u0e19",
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscureCurrentPin = !_obscureCurrentPin;
+                                });
+                              },
+                              icon: Icon(
+                                _obscureCurrentPin
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _newPinController,
+                          keyboardType: TextInputType.number,
+                          obscureText: _obscureNewPin,
+                          decoration: InputDecoration(
+                            labelText: "PIN \u0e43\u0e2b\u0e21\u0e48",
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscureNewPin = !_obscureNewPin;
+                                });
+                              },
+                              icon: Icon(
+                                _obscureNewPin
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _confirmPinController,
+                          keyboardType: TextInputType.number,
+                          obscureText: _obscureConfirmPin,
+                          decoration: InputDecoration(
+                            labelText: "\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19 PIN \u0e43\u0e2b\u0e21\u0e48",
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscureConfirmPin = !_obscureConfirmPin;
+                                });
+                              },
+                              icon: Icon(
+                                _obscureConfirmPin
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: _isChangingPin ? null : _changePin,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _brandDeep,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(_radiusMd),
+                            ),
+                            elevation: 0,
+                            shadowColor: _profileTeal.withOpacity(0.18),
+                          ),
+                          icon: _isChangingPin
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.lock_reset_outlined),
+                          label: Text(
+                            _isChangingPin
+                                ? "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01..."
+                                : "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 PIN \u0e43\u0e2b\u0e21\u0e48",
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               ),
               if (!widget.currentUser.isAdmin) ...[
                 const SizedBox(height: 12),
                 const Card(
                   child: Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text("บัญชีนี้ไม่มีสิทธิ์จัดการผู้ใช้"),
+                    child: Text("\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e08\u0e31\u0e14\u0e01\u0e32\u0e23\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49"),
                   ),
                 ),
               ] else ...[
@@ -737,12 +1882,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("เพิ่มผู้ใช้งาน", style: Theme.of(context).textTheme.titleMedium),
+                        Text("\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19", style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _userIdController,
                           decoration: const InputDecoration(
-                            labelText: "รหัสผู้ใช้",
+                            labelText: "\u0e23\u0e2b\u0e31\u0e2a\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49",
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -750,7 +1895,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         TextField(
                           controller: _userNameController,
                           decoration: const InputDecoration(
-                            labelText: "ชื่อผู้ใช้",
+                            labelText: "\u0e0a\u0e37\u0e48\u0e2d\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49",
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -776,12 +1921,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         DropdownButtonFormField<String>(
                           value: _role,
                           decoration: const InputDecoration(
-                            labelText: "สิทธิ์",
+                            labelText: "\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c",
                             border: OutlineInputBorder(),
                           ),
                           items: const [
-                            DropdownMenuItem(value: "staff", child: Text("พนักงาน")),
-                            DropdownMenuItem(value: "admin", child: Text("ผู้ดูแล")),
+                            DropdownMenuItem(value: "staff", child: Text("\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19")),
+                            DropdownMenuItem(value: "admin", child: Text("\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25")),
                           ],
                           onChanged: (value) {
                             if (value != null) {
@@ -793,7 +1938,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("เปิดใช้งาน"),
+                          title: const Text("\u0e40\u0e1b\u0e34\u0e14\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19"),
                           value: _active,
                           onChanged: (value) {
                             setState(() {
@@ -810,62 +1955,251 @@ class _ProfilePageState extends State<ProfilePage> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.person_add_alt_1),
-                          label: const Text("บันทึกผู้ใช้งาน"),
+                          label: const Text("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19"),
                         ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text("รายชื่อผู้ใช้งาน", style: Theme.of(context).textTheme.titleMedium),
+                Text("\u0e23\u0e32\u0e22\u0e0a\u0e37\u0e48\u0e2d\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                if (users.isEmpty)
-                  const _EmptyTile(message: "ยังไม่มีผู้ใช้ในระบบ")
-                else
-                  ...users.map(
-                    (user) => Card(
-                      child: ListTile(
-                        leading: _UserAvatar(
-                          imageUrl: widget.api.resolveAssetUrl(user.profileImageUrl),
-                          name: user.userName,
-                          radius: 22,
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(_radiusMd),
+                    border: Border.all(color: _brandPrimary.withOpacity(0.16)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandPrimary.withOpacity(0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: _brandSurfaceStrong.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _brandPrimary.withOpacity(0.10)),
                         ),
-                        title: Text(user.userName),
-                        subtitle: Text("${user.userId} • ${user.role}"),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        child: const Icon(
+                          Icons.info_outline_rounded,
+                          color: _brandPrimary,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              tooltip: "อัปโหลดรูป",
-                              onPressed: _isUploadingProfileImage
-                                  ? null
-                                  : () => _pickAndUploadProfileImage(user),
-                              icon: const Icon(Icons.add_photo_alternate_outlined),
+                            Text(
+                              "\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38",
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: _brandDeep,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
-                            Switch(
-                              value: user.active,
-                              onChanged: user.userId == widget.currentUser.userId
-                                  ? null
-                                  : (_) => _toggleUser(user),
+                            const SizedBox(height: 4),
+                            Text(
+                              "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e08\u0e30\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e1b\u0e34\u0e14\u0e2b\u0e23\u0e37\u0e2d\u0e25\u0e1a\u0e44\u0e14\u0e49",
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: _brandInk,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.45,
+                                  ),
                             ),
                           ],
                         ),
                       ),
-                    ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (users.isEmpty)
+                  const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e43\u0e19\u0e23\u0e30\u0e1a\u0e1a")
+                else
+                  ...users.map(
+                    (user) {
+                      final isCurrentUser = user.userId == widget.currentUser.userId;
+                      final isAdmin = user.role.trim().toLowerCase() == "admin";
+                      final badgeColor = isAdmin ? _brandDeep : _brandInk;
+                      final badgeBackground = isAdmin
+                          ? _brandPrimary.withOpacity(0.24)
+                          : _brandSurfaceStrong.withOpacity(0.26);
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                          child: Row(
+                            children: [
+                              _UserAvatar(
+                                imageUrl: widget.api.resolveAssetUrl(user.profileImageUrl),
+                                name: user.userName,
+                                radius: 24,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            user.userName,
+                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                  fontSize: 17,
+                                                ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: badgeBackground,
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            isAdmin ? "ADMIN" : "STAFF",
+                                            style: TextStyle(
+                                              color: badgeColor,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.6,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      user.userId,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            color: _brandInk.withOpacity(0.72),
+                                          ),
+                                    ),
+                                    if (isCurrentUser) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: _brandSurfaceStrong.withOpacity(0.26),
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                        child: const Text(
+                                          "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19",
+                                          style: TextStyle(
+                                            color: _brandPrimary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  PopupMenuButton<String>(
+                                    tooltip: "\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01",
+                                    onSelected: (value) {
+                                      if (value == "upload") {
+                                        _pickAndUploadProfileImage(user);
+                                      } else if (value == "delete") {
+                                        _deleteUser(user);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem<String>(
+                                        value: "upload",
+                                        child: ListTile(
+                                          leading: Icon(Icons.add_photo_alternate_outlined),
+                                          title: Text("\u0e2d\u0e31\u0e1b\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b"),
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
+                                      if (!isCurrentUser)
+                                        const PopupMenuItem<String>(
+                                          value: "delete",
+                                          child: ListTile(
+                                            leading: Icon(Icons.delete_outline),
+                                            title: Text("\u0e25\u0e1a\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19"),
+                                            contentPadding: EdgeInsets.zero,
+                                          ),
+                                        ),
+                                    ],
+                                    child: Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.78),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(Icons.more_horiz_rounded, color: _brandInk),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isCurrentUser)
+                                        const Padding(
+                                          padding: EdgeInsets.only(right: 6),
+                                          child: Tooltip(
+                                            message: "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e17\u0e35\u0e48\u0e01\u0e33\u0e25\u0e31\u0e07\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e25\u0e1a\u0e2b\u0e23\u0e37\u0e2d\u0e1b\u0e34\u0e14\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49",
+                                            child: Icon(Icons.lock_outline, size: 18, color: _brandInk),
+                                          ),
+                                        ),
+                                      Transform.scale(
+                                        scale: 0.92,
+                                        child: Switch.adaptive(
+                                          value: user.active,
+                                          onChanged: isCurrentUser ? null : (_) => _toggleUser(user),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
               ],
-            ],
-          );
-        },
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, required this.api});
+  const DashboardPage({
+    super.key,
+    required this.api,
+    required this.refreshSignal,
+    required this.currentUser,
+  });
 
   final StockApiService api;
+  final ValueListenable<int> refreshSignal;
+  final AppUser currentUser;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -878,6 +2212,22 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _future = _load();
+    widget.refreshSignal.addListener(_handleRealtimeRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal.removeListener(_handleRealtimeRefresh);
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _future = _load();
+    });
   }
 
   Future<DashboardData> _load() async {
@@ -913,58 +2263,75 @@ class _DashboardPageState extends State<DashboardPage> {
           }
 
           final data = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const _PageHeader(
-                title: "ภาพรวมสต๊อก",
-                subtitle: "ภาพรวมสต๊อกและรายการที่ต้องดูแล",
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _MetricCard(
-                    title: "สินค้า",
-                    value: "${data.summary.totalProducts}",
-                    icon: Icons.inventory_2_outlined,
-                  ),
-                  _MetricCard(
-                    title: "จำนวนรวม",
-                    value: "${data.summary.totalUnits}",
-                    icon: Icons.layers_outlined,
-                  ),
-                  _MetricCard(
-                    title: "สต๊อกต่ำ",
-                    value: "${data.summary.lowStockCount}",
-                    icon: Icons.warning_amber_outlined,
-                    tone: _brandPrimary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text("สินค้าสต๊อกต่ำ", style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              if (data.summary.lowStockItems.isEmpty)
-                const _EmptyTile(message: "ยังไม่มีสินค้าที่ต่ำกว่าจุดเตือน")
-              else
-                ...data.summary.lowStockItems.map(
-                  (item) => _ProductTile(
-                    product: item,
-                    onOpenCode: () => _showProductCodeSheet(context, item),
-                  ),
+          return ColoredBox(
+            color: _brandSurface,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const _PageHeader(
+                  title: "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e2a\u0e15\u0e4a\u0e2d\u0e01",
+                  subtitle: "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e41\u0e25\u0e30\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e14\u0e39\u0e41\u0e25",
                 ),
-              const SizedBox(height: 20),
-              Text("แจ้งเตือนล่าสุด", style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              if (data.notifications.isEmpty)
-                const _EmptyTile(message: "ยังไม่มีประวัติการยิงรายการ")
-              else
-                ...data.notifications.map(
-                  (item) => _NotificationTile(notification: item),
+                const SizedBox(height: 16),
+                _DashboardIdentityCard(
+                  imageUrl: widget.api.resolveAssetUrl(widget.currentUser.profileImageUrl),
+                  name: widget.currentUser.userName,
+                  roleLabel: _roleLabel(widget.currentUser.role),
                 ),
-            ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MetricCard(
+                        title: "\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
+                        value: "${data.summary.totalProducts}",
+                        icon: Icons.inventory_2_outlined,
+                        tone: _profileTeal,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricCard(
+                        title: "\u0e08\u0e33\u0e19\u0e27\u0e19\u0e23\u0e27\u0e21",
+                        value: "${data.summary.totalUnits}",
+                        icon: Icons.layers_outlined,
+                        tone: _profileAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricCard(
+                        title: "\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e15\u0e48\u0e33",
+                        value: "${data.summary.lowStockCount}",
+                        icon: Icons.warning_amber_outlined,
+                        tone: _brandPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text("\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e15\u0e48\u0e33", style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                if (data.summary.lowStockItems.isEmpty)
+                  const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e17\u0e35\u0e48\u0e15\u0e48\u0e33\u0e01\u0e27\u0e48\u0e32\u0e08\u0e38\u0e14\u0e40\u0e15\u0e37\u0e2d\u0e19")
+                else
+                  ...data.summary.lowStockItems.map(
+                    (item) => _ProductTile(
+                      product: item,
+                      onOpenCode: () => _showProductCodeSheet(context, item),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                Text("\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14", style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                if (data.notifications.isEmpty)
+                  const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19")
+                else
+                  ...data.notifications.map(
+                    (item) => _NotificationTile(notification: item),
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -1019,7 +2386,7 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _showAppSnack(context, message);
   }
 
   Future<void> _generateBarcode({bool silent = false}) async {
@@ -1035,7 +2402,7 @@ class _ScanPageState extends State<ScanPage> {
         _barcodeController.text = barcode;
       });
       if (!silent) {
-        _showSnack("สร้าง barcode ใหม่แล้ว");
+        _showSnack("\u0e2a\u0e23\u0e49\u0e32\u0e07 barcode \u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e49\u0e27");
       }
     } catch (error) {
       if (!silent) {
@@ -1055,15 +2422,15 @@ class _ScanPageState extends State<ScanPage> {
     final shouldCreateProduct = _newProductMode && widget.currentUser.isAdmin;
 
     if (_barcodeController.text.trim().isEmpty || quantity == null || quantity <= 0) {
-      _showSnack("กรอก barcode และจำนวนให้ครบ");
+      _showSnack("\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 barcode \u0e41\u0e25\u0e30\u0e08\u0e33\u0e19\u0e27\u0e19\u0e43\u0e2b\u0e49\u0e04\u0e23\u0e1a");
       return;
     }
     if (_newProductMode && !widget.currentUser.isAdmin) {
-      _showSnack("เฉพาะ admin เท่านั้นที่สร้างสินค้าใหม่ได้");
+      _showSnack("\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49");
       return;
     }
     if (shouldCreateProduct && _productNameController.text.trim().isEmpty) {
-      _showSnack("กรอกชื่อสินค้าเมื่อเปิดโหมดสินค้าใหม่");
+      _showSnack("\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e40\u0e21\u0e37\u0e48\u0e2d\u0e40\u0e1b\u0e34\u0e14\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48");
       return;
     }
 
@@ -1091,11 +2458,11 @@ class _ScanPageState extends State<ScanPage> {
         _lastResult = result;
       });
       if (result.productCreated) {
-        _showSnack("สร้างสินค้าใหม่และบันทึกรายการเรียบร้อย");
+        _showSnack("\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e30\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22");
       } else if (result.lowStock) {
-        _showSnack("บันทึกแล้ว และสินค้านี้อยู่ในระดับเตือน");
+        _showSnack("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27 \u0e41\u0e25\u0e30\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e19\u0e35\u0e49\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e15\u0e37\u0e2d\u0e19");
       } else {
-        _showSnack("บันทึกรายการเรียบร้อย");
+        _showSnack("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22");
       }
     } catch (error) {
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
@@ -1110,26 +2477,28 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    return ColoredBox(
+      color: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.24)!,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
         _PageHeader(
-          title: "สแกนและบันทึก",
+          title: "\u0e2a\u0e41\u0e01\u0e19\u0e41\u0e25\u0e30\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01",
           subtitle: widget.currentUser.isAdmin
-              ? "คุณใช้ได้ทั้งโหมดสแกนปกติและโหมดสินค้าใหม่"
-              : "บัญชีนี้สแกนรับเข้า จ่ายออก และเบิกใช้ได้",
+              ? "\u0e04\u0e38\u0e13\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49\u0e17\u0e31\u0e49\u0e07\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e41\u0e01\u0e19\u0e1b\u0e01\u0e15\u0e34\u0e41\u0e25\u0e30\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48"
+              : "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e2a\u0e41\u0e01\u0e19\u0e23\u0e31\u0e1a\u0e40\u0e02\u0e49\u0e32 \u0e08\u0e48\u0e32\u0e22\u0e2d\u0e2d\u0e01 \u0e41\u0e25\u0e30\u0e40\u0e1a\u0e34\u0e01\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49",
         ),
         const SizedBox(height: 16),
         SegmentedButton<bool>(
           segments: const [
-            ButtonSegment(value: false, label: Text("สแกนเข้า/ออก"), icon: Icon(Icons.qr_code_scanner)),
-            ButtonSegment(value: true, label: Text("สินค้าใหม่"), icon: Icon(Icons.add_box_outlined)),
+            ButtonSegment(value: false, label: Text("\u0e2a\u0e41\u0e01\u0e19\u0e40\u0e02\u0e49\u0e32/\u0e2d\u0e2d\u0e01"), icon: Icon(Icons.qr_code_scanner)),
+            ButtonSegment(value: true, label: Text("\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48"), icon: Icon(Icons.add_box_outlined)),
           ],
           selected: {_newProductMode},
           onSelectionChanged: (selection) {
             final wantsNewMode = selection.first;
             if (wantsNewMode && !widget.currentUser.isAdmin) {
-              _showSnack("เฉพาะ admin เท่านั้นที่เปิดโหมดสินค้าใหม่ได้");
+              _showSnack("\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49");
               return;
             }
             setState(() {
@@ -1142,7 +2511,7 @@ class _ScanPageState extends State<ScanPage> {
         ),
         if (!widget.currentUser.isAdmin) ...[
           const SizedBox(height: 8),
-          const Text("บัญชีนี้ไม่มีสิทธิ์สร้างสินค้าใหม่"),
+          const Text("\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48"),
         ],
         const SizedBox(height: 16),
         ClipRRect(
@@ -1193,7 +2562,7 @@ class _ScanPageState extends State<ScanPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.auto_awesome),
-                    tooltip: "สร้าง barcode อัตโนมัติ",
+                    tooltip: "\u0e2a\u0e23\u0e49\u0e32\u0e07 barcode \u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34",
                   )
                 : null,
           ),
@@ -1205,7 +2574,7 @@ class _ScanPageState extends State<ScanPage> {
             child: TextButton.icon(
               onPressed: _isGeneratingBarcode ? null : _generateBarcode,
               icon: const Icon(Icons.qr_code_2_outlined),
-              label: const Text("สร้าง barcode สินค้าใหม่อัตโนมัติ"),
+              label: const Text("\u0e2a\u0e23\u0e49\u0e32\u0e07 barcode \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34"),
             ),
           ),
         ],
@@ -1213,9 +2582,9 @@ class _ScanPageState extends State<ScanPage> {
         if (!_newProductMode) ...[
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: "in", label: Text("รับเข้า"), icon: Icon(Icons.call_received)),
-              ButtonSegment(value: "out", label: Text("จ่ายออก"), icon: Icon(Icons.call_made)),
-              ButtonSegment(value: "issue", label: Text("เบิกใช้"), icon: Icon(Icons.assignment_turned_in_outlined)),
+              ButtonSegment(value: "in", label: Text("\u0e23\u0e31\u0e1a\u0e40\u0e02\u0e49\u0e32"), icon: Icon(Icons.call_received)),
+              ButtonSegment(value: "out", label: Text("\u0e08\u0e48\u0e32\u0e22\u0e2d\u0e2d\u0e01"), icon: Icon(Icons.call_made)),
+              ButtonSegment(value: "issue", label: Text("\u0e40\u0e1a\u0e34\u0e01\u0e43\u0e0a\u0e49"), icon: Icon(Icons.assignment_turned_in_outlined)),
             ],
             selected: {_action},
             onSelectionChanged: (selection) {
@@ -1233,7 +2602,7 @@ class _ScanPageState extends State<ScanPage> {
                 controller: _qtyController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: "จำนวน",
+                  labelText: "\u0e08\u0e33\u0e19\u0e27\u0e19",
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1243,7 +2612,7 @@ class _ScanPageState extends State<ScanPage> {
               child: TextField(
                 controller: _referenceController,
                 decoration: const InputDecoration(
-                  labelText: "เลขอ้างอิง",
+                  labelText: "\u0e40\u0e25\u0e02\u0e2d\u0e49\u0e32\u0e07\u0e2d\u0e34\u0e07",
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1255,7 +2624,7 @@ class _ScanPageState extends State<ScanPage> {
           controller: _noteController,
           maxLines: 2,
           decoration: const InputDecoration(
-            labelText: "หมายเหตุ",
+            labelText: "\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38",
             border: OutlineInputBorder(),
           ),
         ),
@@ -1264,7 +2633,7 @@ class _ScanPageState extends State<ScanPage> {
           TextField(
             controller: _productNameController,
             decoration: const InputDecoration(
-              labelText: "ชื่อสินค้า",
+              labelText: "\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
               border: OutlineInputBorder(),
             ),
           ),
@@ -1285,7 +2654,7 @@ class _ScanPageState extends State<ScanPage> {
                 child: TextField(
                   controller: _productUnitController,
                   decoration: const InputDecoration(
-                    labelText: "หน่วย",
+                    labelText: "\u0e2b\u0e19\u0e48\u0e27\u0e22",
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -1296,7 +2665,7 @@ class _ScanPageState extends State<ScanPage> {
           TextField(
             controller: _productCategoryController,
             decoration: const InputDecoration(
-              labelText: "หมวดหมู่",
+              labelText: "\u0e2b\u0e21\u0e27\u0e14\u0e2b\u0e21\u0e39\u0e48",
               border: OutlineInputBorder(),
             ),
           ),
@@ -1304,7 +2673,7 @@ class _ScanPageState extends State<ScanPage> {
           TextField(
             controller: _productLocationController,
             decoration: const InputDecoration(
-              labelText: "ตำแหน่งจัดเก็บ",
+              labelText: "\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e08\u0e31\u0e14\u0e40\u0e01\u0e47\u0e1a",
               border: OutlineInputBorder(),
             ),
           ),
@@ -1319,7 +2688,7 @@ class _ScanPageState extends State<ScanPage> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.send),
-          label: Text(_newProductMode ? "สร้างสินค้าใหม่และรับเข้า" : "บันทึกรายการ"),
+          label: Text(_newProductMode ? "\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e30\u0e23\u0e31\u0e1a\u0e40\u0e02\u0e49\u0e32" : "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23"),
         ),
         if (_lastResult != null) ...[
           const SizedBox(height: 20),
@@ -1332,14 +2701,20 @@ class _ScanPageState extends State<ScanPage> {
           ),
         ],
       ],
+      ),
     );
   }
 }
 
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key, required this.api});
+  const HistoryPage({
+    super.key,
+    required this.api,
+    required this.refreshSignal,
+  });
 
   final StockApiService api;
+  final ValueListenable<int> refreshSignal;
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -1352,6 +2727,22 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     _future = widget.api.getMovements();
+    widget.refreshSignal.addListener(_handleRealtimeRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal.removeListener(_handleRealtimeRefresh);
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _future = widget.api.getMovements();
+    });
   }
 
   @override
@@ -1373,19 +2764,22 @@ class _HistoryPageState extends State<HistoryPage> {
             return _ErrorState(message: snapshot.error.toString());
           }
           final items = snapshot.data ?? [];
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const _PageHeader(
-                title: "ประวัติการเคลื่อนไหว",
-                subtitle: "ดูว่าใครเป็นคนยิงสินค้าเข้า ออก หรือเบิกใช้",
-              ),
-              const SizedBox(height: 16),
-              if (items.isEmpty)
-                const _EmptyTile(message: "ยังไม่มี movement ในระบบ")
-              else
-                ...items.map((item) => _MovementTile(item: item)),
-            ],
+          return ColoredBox(
+            color: _brandSurface,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const _PageHeader(
+                  title: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34\u0e01\u0e32\u0e23\u0e40\u0e04\u0e25\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e2b\u0e27",
+                  subtitle: "\u0e14\u0e39\u0e27\u0e48\u0e32\u0e43\u0e04\u0e23\u0e40\u0e1b\u0e47\u0e19\u0e04\u0e19\u0e22\u0e34\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e40\u0e02\u0e49\u0e32 \u0e2d\u0e2d\u0e01 \u0e2b\u0e23\u0e37\u0e2d\u0e40\u0e1a\u0e34\u0e01\u0e43\u0e0a\u0e49",
+                ),
+                const SizedBox(height: 16),
+                if (items.isEmpty)
+                  const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35 movement \u0e43\u0e19\u0e23\u0e30\u0e1a\u0e1a")
+                else
+                  ...items.map((item) => _MovementTile(item: item)),
+              ],
+            ),
           );
         },
       ),
@@ -1400,12 +2794,14 @@ class MorePage extends StatelessWidget {
     required this.currentUser,
     required this.onLogout,
     required this.onRefreshSession,
+    this.refreshSignal,
   });
 
   final StockApiService api;
   final AppUser currentUser;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshSession;
+  final ValueListenable<int>? refreshSignal;
 
   Future<void> _openPage(BuildContext context, Widget page) {
     return Navigator.of(context).push(
@@ -1417,26 +2813,32 @@ class MorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <_MoreAction>[
       _MoreAction(
-        title: "โปรไฟล์",
-        subtitle: "ดูข้อมูลผู้ใช้ อัปโหลดรูป และออกจากระบบ",
+        title: "\u0e42\u0e1b\u0e23\u0e44\u0e1f\u0e25\u0e4c",
+        subtitle: "\u0e14\u0e39\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49 \u0e2d\u0e31\u0e1b\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b \u0e41\u0e25\u0e30\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e23\u0e30\u0e1a\u0e1a",
         icon: Icons.person_outline,
         onTap: () => _openPage(
           context,
           ProfilePage(
             currentUser: currentUser,
             api: api,
-            onLogout: onLogout,
+            onLogout: () async {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              await onLogout();
+            },
             onRefreshSession: onRefreshSession,
           ),
         ),
       ),
       _MoreAction(
-        title: "แจ้งเตือน",
-        subtitle: "ดูรายการแจ้งเตือนล่าสุดจากการยิงสินค้า",
+        title: "\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19",
+        subtitle: "\u0e14\u0e39\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14\u0e08\u0e32\u0e01\u0e01\u0e32\u0e23\u0e22\u0e34\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
         icon: Icons.notifications_none_outlined,
         onTap: () => _openPage(
           context,
-          NotificationsPage(api: api),
+          NotificationsPage(
+            api: api,
+            refreshSignal: refreshSignal,
+          ),
         ),
       ),
     ];
@@ -1444,8 +2846,8 @@ class MorePage extends StatelessWidget {
     if (currentUser.isAdmin) {
       items.add(
         _MoreAction(
-          title: "ผู้ดูแลระบบ",
-          subtitle: "ซิงก์ Google Sheets และส่งออกข้อมูล",
+          title: "\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25\u0e23\u0e30\u0e1a\u0e1a",
+          subtitle: "\u0e0b\u0e34\u0e07\u0e01\u0e4c Google Sheets \u0e41\u0e25\u0e30\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25",
           icon: Icons.admin_panel_settings_outlined,
           onTap: () => _openPage(
             context,
@@ -1455,32 +2857,37 @@ class MorePage extends StatelessWidget {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const _PageHeader(
-          title: "เพิ่มเติม",
-          subtitle: "รวมเมนูที่ใช้ไม่บ่อยไว้ในหน้าเดียว เพื่อให้แถบล่างดูสบายตาขึ้น",
-          showBackButton: true,
-        ),
-        const SizedBox(height: 16),
-        ...items.map(
-          (item) => Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              leading: CircleAvatar(
-                backgroundColor: _brandSurfaceStrong,
-                child: Icon(item.icon, color: _brandPrimary),
-              ),
-              title: Text(item.title),
-              subtitle: Text(item.subtitle),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: item.onTap,
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: ListView(
+          padding: _pagePadding,
+          children: [
+            const _PageHeader(
+              title: "\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21",
+              subtitle: "\u0e23\u0e27\u0e21\u0e40\u0e21\u0e19\u0e39\u0e17\u0e35\u0e48\u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e1a\u0e48\u0e2d\u0e22\u0e44\u0e27\u0e49\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e40\u0e14\u0e35\u0e22\u0e27 \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e43\u0e2b\u0e49\u0e41\u0e16\u0e1a\u0e25\u0e48\u0e32\u0e07\u0e14\u0e39\u0e2a\u0e1a\u0e32\u0e22\u0e15\u0e32\u0e02\u0e36\u0e49\u0e19",
+              showBackButton: true,
             ),
-          ),
+            const SizedBox(height: 16),
+            ...items.map(
+              (item) => Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  leading: CircleAvatar(
+                    backgroundColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.75),
+                    child: Icon(item.icon, color: _brandDeep),
+                  ),
+                  title: Text(item.title),
+                  subtitle: Text(item.subtitle),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: item.onTap,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1500,9 +2907,14 @@ class _MoreAction {
 }
 
 class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({super.key, required this.api});
+  const NotificationsPage({
+    super.key,
+    required this.api,
+    this.refreshSignal,
+  });
 
   final StockApiService api;
+  final ValueListenable<int>? refreshSignal;
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
@@ -1515,43 +2927,64 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     _future = widget.api.getNotifications();
+    widget.refreshSignal?.addListener(_handleRealtimeRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal?.removeListener(_handleRealtimeRefresh);
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _future = widget.api.getNotifications();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        setState(() {
-          _future = widget.api.getNotifications();
-        });
-        await _future;
-      },
-      child: FutureBuilder<List<AppNotification>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _ErrorState(message: snapshot.error.toString());
-          }
-          final items = snapshot.data ?? [];
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const _PageHeader(
-                title: "การแจ้งเตือน",
-                subtitle: "ฟีดแจ้งเตือนจากการยิงสินค้าแต่ละรายการ",
-                showBackButton: true,
-              ),
-              const SizedBox(height: 16),
-              if (items.isEmpty)
-                const _EmptyTile(message: "ยังไม่มี notification")
-              else
-                ...items.map((item) => _NotificationTile(notification: item)),
-            ],
-          );
-        },
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            setState(() {
+              _future = widget.api.getNotifications();
+            });
+            await _future;
+          },
+          child: FutureBuilder<List<AppNotification>>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return _ErrorState(message: snapshot.error.toString());
+              }
+              final items = snapshot.data ?? [];
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const _PageHeader(
+                    title: "\u0e01\u0e32\u0e23\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19",
+                    subtitle: "\u0e1f\u0e35\u0e14\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e08\u0e32\u0e01\u0e01\u0e32\u0e23\u0e22\u0e34\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e41\u0e15\u0e48\u0e25\u0e30\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23",
+                    showBackButton: true,
+                  ),
+                  const SizedBox(height: 16),
+                  if (items.isEmpty)
+                    const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e01\u0e32\u0e23\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19")
+                  else
+                    ...items.map((item) => _NotificationTile(notification: item)),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -1614,7 +3047,7 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _runAction(Future<String> Function() action) async {
     if (!widget.currentUser.isAdmin) {
-      _showSnack("เฉพาะ admin เท่านั้นที่ใช้งานหน้านี้ได้");
+      _showSnack("\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49\u0e44\u0e14\u0e49");
       return;
     }
 
@@ -1639,23 +3072,30 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _showAppSnack(context, message);
   }
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom + 28;
+
     if (!widget.currentUser.isAdmin) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          _PageHeader(
-            title: "ผู้ดูแลระบบ",
-            subtitle: "หน้านี้สำหรับผู้ดูแลระบบเท่านั้น",
-            showBackButton: true,
+      return SafeArea(
+        child: ColoredBox(
+          color: _brandSurface,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset),
+            children: const [
+              _PageHeader(
+                title: "\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25\u0e23\u0e30\u0e1a\u0e1a",
+                subtitle: "\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25\u0e23\u0e30\u0e1a\u0e1a\u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19",
+                showBackButton: true,
+              ),
+              SizedBox(height: 16),
+              _EmptyTile(message: "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e1f\u0e31\u0e07\u0e01\u0e4c\u0e0a\u0e31\u0e19 admin"),
+            ],
           ),
-          SizedBox(height: 16),
-          _EmptyTile(message: "บัญชีนี้ไม่มีสิทธิ์ใช้งานฟังก์ชัน admin"),
-        ],
+        ),
       );
     }
 
@@ -1677,22 +3117,25 @@ class _AdminPageState extends State<AdminPage> {
       requesterId: requesterId,
     );
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const _PageHeader(
-          title: "ผู้ดูแลระบบ",
-          subtitle: "งาน sync ข้อมูลและลิงก์ export สำหรับผู้ดูแลระบบ",
-          showBackButton: true,
-        ),
-        const SizedBox(height: 16),
-        Card(
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset),
+          children: [
+            const _PageHeader(
+              title: "\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25\u0e23\u0e30\u0e1a\u0e1a",
+              subtitle: "\u0e07\u0e32\u0e19 sync \u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e41\u0e25\u0e30\u0e25\u0e34\u0e07\u0e01\u0e4c export \u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1c\u0e39\u0e49\u0e14\u0e39\u0e41\u0e25\u0e23\u0e30\u0e1a\u0e1a",
+              showBackButton: true,
+            ),
+            const SizedBox(height: 16),
+            Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("คำสั่ง Google Sheets", style: Theme.of(context).textTheme.titleMedium),
+                Text("\u0e04\u0e33\u0e2a\u0e31\u0e48\u0e07 Google Sheets", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: _isRunning
@@ -1700,7 +3143,7 @@ class _AdminPageState extends State<AdminPage> {
                       : () => _runAction(
                             () => widget.api.syncProducts(requesterId: requesterId),
                           ),
-                  child: const Text("ซิงก์สินค้า"),
+                  child: const Text("\u0e0b\u0e34\u0e07\u0e01\u0e4c\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32"),
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
@@ -1709,7 +3152,7 @@ class _AdminPageState extends State<AdminPage> {
                       : () => _runAction(
                             () => widget.api.syncUsers(requesterId: requesterId),
                           ),
-                  child: const Text("ซิงก์ผู้ใช้"),
+                  child: const Text("\u0e0b\u0e34\u0e07\u0e01\u0e4c\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49"),
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
@@ -1718,7 +3161,7 @@ class _AdminPageState extends State<AdminPage> {
                       : () => _runAction(
                             () => widget.api.syncStocks(requesterId: requesterId),
                           ),
-                  child: const Text("อัปเดตยอดคงเหลือ"),
+                  child: const Text("\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15\u0e22\u0e2d\u0e14\u0e04\u0e07\u0e40\u0e2b\u0e25\u0e37\u0e2d"),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
@@ -1727,52 +3170,52 @@ class _AdminPageState extends State<AdminPage> {
                       : () => _runAction(
                             () => widget.api.appendTest(requesterId: requesterId),
                           ),
-                  child: const Text("ทดสอบเพิ่มแถว"),
+                  child: const Text("\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e41\u0e16\u0e27"),
                 ),
                 if (_lastMessage != null) ...[
                   const SizedBox(height: 12),
-                  Text("ล่าสุด: $_lastMessage"),
+                  Text("\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: $_lastMessage"),
                 ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 16),
-        Card(
+            Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("ลิงก์ส่งออกข้อมูล", style: Theme.of(context).textTheme.titleMedium),
+                Text("\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                const Text("เปิดลิงก์เหล่านี้ในเบราว์เซอร์ที่เข้าถึง backend ได้"),
+                const Text("\u0e40\u0e1b\u0e34\u0e14\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e35\u0e49\u0e43\u0e19\u0e40\u0e1a\u0e23\u0e32\u0e27\u0e4c\u0e40\u0e0b\u0e2d\u0e23\u0e4c\u0e17\u0e35\u0e48\u0e40\u0e02\u0e49\u0e32\u0e16\u0e36\u0e07 backend \u0e44\u0e14\u0e49"),
                 const SizedBox(height: 12),
-                _SelectableUrl(label: "สินค้า CSV", url: productExport),
-                _SelectableUrl(label: "ผู้ใช้ CSV", url: userExport),
-                _SelectableUrl(label: "ประวัติ CSV", url: movementExport),
-                _SelectableUrl(label: "ไฟล์ Excel ทั้งหมด", url: excelExport),
+                _SelectableUrl(label: "\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32 CSV", url: productExport),
+                _SelectableUrl(label: "\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49 CSV", url: userExport),
+                _SelectableUrl(label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34 CSV", url: movementExport),
+                _SelectableUrl(label: "\u0e44\u0e1f\u0e25\u0e4c Excel \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14", url: excelExport),
               ],
             ),
           ),
         ),
         const SizedBox(height: 16),
-        Card(
+            Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("ลิงก์ชั่วคราวแบบปลอดภัย", style: Theme.of(context).textTheme.titleMedium),
+                Text("\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27\u0e41\u0e1a\u0e1a\u0e1b\u0e25\u0e2d\u0e14\u0e20\u0e31\u0e22", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                const Text("ลิงก์ชุดนี้ซ่อน requester_id และใช้ได้ช่วงสั้น ๆ"),
+                const Text("\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e0a\u0e38\u0e14\u0e19\u0e35\u0e49\u0e0b\u0e48\u0e2d\u0e19 requester_id \u0e41\u0e25\u0e30\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49\u0e0a\u0e48\u0e27\u0e07\u0e2a\u0e31\u0e49\u0e19 \u0e46"),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
                     onPressed: _refreshExportLinks,
                     icon: const Icon(Icons.refresh),
-                    label: const Text("สร้างลิงก์ใหม่"),
+                    label: const Text("\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e43\u0e2b\u0e21\u0e48"),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1788,7 +3231,7 @@ class _AdminPageState extends State<AdminPage> {
                     if (snapshot.hasError || !snapshot.hasData) {
                       return _EmptyTile(
                         message: snapshot.error == null
-                            ? "ไม่สามารถสร้างลิงก์ชั่วคราวได้"
+                            ? "\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e0a\u0e31\u0e48\u0e27\u0e04\u0e23\u0e32\u0e27\u0e44\u0e14\u0e49"
                             : snapshot.error.toString().replaceFirst("Exception: ", ""),
                       );
                     }
@@ -1798,22 +3241,22 @@ class _AdminPageState extends State<AdminPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _SelectableUrl(
-                          label: "สินค้า CSV",
+                          label: "\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32 CSV",
                           url: links["products"]!.url,
                           expiresAt: links["products"]!.expiresAt,
                         ),
                         _SelectableUrl(
-                          label: "ผู้ใช้ CSV",
+                          label: "\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49 CSV",
                           url: links["users"]!.url,
                           expiresAt: links["users"]!.expiresAt,
                         ),
                         _SelectableUrl(
-                          label: "ประวัติ CSV",
+                          label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34 CSV",
                           url: links["movements"]!.url,
                           expiresAt: links["movements"]!.expiresAt,
                         ),
                         _SelectableUrl(
-                          label: "ไฟล์ Excel ทั้งหมด",
+                          label: "\u0e44\u0e1f\u0e25\u0e4c Excel \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14",
                           url: links["excel"]!.url,
                           expiresAt: links["excel"]!.expiresAt,
                         ),
@@ -1825,7 +3268,9 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
         ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1866,19 +3311,17 @@ class _PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headerColor = Color.lerp(_brandSurfaceStrong, _brandPrimary, 0.34)!;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+      padding: const EdgeInsets.fromLTRB(_spaceLg, _spaceLg, _spaceLg, _spaceMd),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_brandPrimary, _brandDeep],
-        ),
-        borderRadius: BorderRadius.circular(28),
+        color: headerColor,
+        borderRadius: BorderRadius.circular(_radiusXl),
+        border: Border.all(color: _brandPrimary.withOpacity(0.16)),
         boxShadow: [
           BoxShadow(
-            color: _brandPrimary.withOpacity(0.18),
-            blurRadius: 22,
+            color: _brandPrimary.withOpacity(0.10),
+            blurRadius: 18,
             offset: const Offset(0, 10),
           ),
         ],
@@ -1890,25 +3333,34 @@ class _PageHeader extends StatelessWidget {
             IconButton(
               onPressed: () => Navigator.of(context).maybePop(),
               icon: const Icon(Icons.arrow_back_rounded),
-              color: Colors.white,
+              color: _brandDeep,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.12),
+                backgroundColor: Colors.white.withOpacity(0.82),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: _spaceXs),
           ],
           Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+                  color: _brandDeep,
                 ),
           ),
           const SizedBox(height: 6),
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.86),
+                  color: _brandInk.withOpacity(0.82),
                 ),
+          ),
+          const SizedBox(height: _spaceSm),
+          Container(
+            width: 64,
+            height: 4,
+            decoration: BoxDecoration(
+              color: _brandPrimary,
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
         ],
       ),
@@ -1931,49 +3383,263 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconChipColor = Color.lerp(_brandSurface, tone, 0.16)!;
+    final iconColor = Color.lerp(_brandDeep, tone, 0.55)!;
     return Container(
-      width: 160,
-      padding: const EdgeInsets.all(16),
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, _spaceSm),
+      decoration: _softPanelDecoration(
+        tone: tone,
+        radius: 20,
+        surfaceStrength: 0.80,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: iconChipColor,
+              borderRadius: BorderRadius.circular(_spaceSm),
+            ),
+            child: Icon(icon, color: iconColor, size: 18),
+          ),
+          const SizedBox(height: _spaceXs),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: _brandDeep,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 30,
+                  ),
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _brandInk.withOpacity(0.9),
+                  fontSize: 12,
+                  height: 1.1,
+                ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardIdentityCard extends StatelessWidget {
+  const _DashboardIdentityCard({
+    required this.imageUrl,
+    required this.name,
+    required this.roleLabel,
+  });
+
+  final String? imageUrl;
+  final String name;
+  final String roleLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final woodTone = Color.lerp(_brandPrimary, _brandSurfaceStrong, 0.34)!;
+    final woodDeep = Color.lerp(_brandDeep, _brandPrimary, 0.20)!;
+
+    return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.95),
-            _brandSurfaceStrong.withOpacity(0.80),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: tone.withOpacity(0.12)),
+        color: _brandCard,
+        borderRadius: BorderRadius.circular(_radiusXl),
+        border: Border.all(color: _brandPrimary.withOpacity(0.14)),
         boxShadow: [
           BoxShadow(
-            color: tone.withOpacity(0.10),
+            color: _brandDeep.withOpacity(0.08),
             blurRadius: 18,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: tone.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: tone),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: _brandDeep,
-                  fontWeight: FontWeight.w800,
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: 132,
+                decoration: BoxDecoration(
+                  color: woodTone,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(_radiusXl),
+                  ),
                 ),
+              ),
+              Positioned(
+                top: 16,
+                left: 18,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: _brandPrimary.withOpacity(0.55),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 18,
+                right: 18,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 58,
+                left: 0,
+                child: Container(
+                  width: 96,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _profileAccent.withOpacity(0.90),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(999),
+                      bottomRight: Radius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 58,
+                right: 0,
+                child: Container(
+                  width: 96,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _profileAccent.withOpacity(0.90),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(999),
+                      bottomLeft: Radius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -52,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandDeep.withOpacity(0.10),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: woodTone, width: 3),
+                      color: woodTone,
+                    ),
+                    child: _UserAvatar(
+                      imageUrl: imageUrl,
+                      name: name,
+                      radius: 44,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          Text(title, style: Theme.of(context).textTheme.bodyMedium),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 64, 18, 18),
+            child: Column(
+              children: [
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontSize: 22,
+                        color: _brandDeep,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: woodDeep,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandDeep.withOpacity(0.10),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    roleLabel,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: _brandSurface,
+                          fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _profileAccent.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _brandSurfaceStrong.withOpacity(0.62),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _profileAccent.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2026,7 +3692,14 @@ class _ProductTile extends StatelessWidget {
       child: ListTile(
         onTap: onOpenCode,
         title: Text(product.name),
-        subtitle: Text("${product.barcode} • ${product.location ?? "ไม่ระบุตำแหน่ง"}"),
+        subtitle: Text("${product.barcode} • ${product.location ?? "\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07"}"),
+        leading: CircleAvatar(
+          backgroundColor: (product.isLowStock ? _brandPrimary : _brandDeep).withOpacity(0.10),
+          child: Icon(
+            product.isLowStock ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
+            color: product.isLowStock ? _brandPrimary : _brandDeep,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2048,7 +3721,7 @@ class _ProductTile extends StatelessWidget {
               IconButton(
                 onPressed: onOpenCode,
                 icon: const Icon(Icons.qr_code_2_outlined),
-                tooltip: "ดู barcode",
+                tooltip: "\u0e14\u0e39 barcode",
               ),
             ],
           ],
@@ -2068,9 +3741,9 @@ class _MovementTile extends StatelessWidget {
       case "in":
         return _brandPrimary;
       case "out":
-        return const Color(0xFF0277BD);
+        return _brandDeep;
       default:
-        return const Color(0xFF0288D1);
+        return _brandInk;
     }
   }
 
@@ -2087,7 +3760,13 @@ class _MovementTile extends StatelessWidget {
         subtitle: Text(
           "${item.actorName} (${item.actorId}) • ${item.action} • ${_formatDateTime(item.createdAt)}",
         ),
-        trailing: Text("${item.beforeStock} -> ${item.afterStock}"),
+        trailing: Text(
+          "${item.beforeStock} -> ${item.afterStock}",
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _tone(),
+                fontWeight: FontWeight.w700,
+              ),
+        ),
       ),
     );
   }
@@ -2103,10 +3782,16 @@ class _NotificationTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        leading: const Icon(Icons.notifications_active_outlined),
+        leading: CircleAvatar(
+          backgroundColor: _brandPrimary.withOpacity(0.10),
+          child: const Icon(Icons.notifications_active_outlined, color: _brandPrimary),
+        ),
         title: Text(notification.title),
         subtitle: Text(notification.message),
-        trailing: Text(_formatDateTime(notification.createdAt)),
+        trailing: Text(
+          _formatDateTime(notification.createdAt),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ),
     );
   }
@@ -2123,50 +3808,37 @@ class _ScanResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = result.lowStock ? _brandPrimary : const Color(0xFF0277BD);
+    final tone = result.lowStock ? _brandPrimary : _brandDeep;
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.95),
-            _brandSurfaceStrong.withOpacity(0.70),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: tone.withOpacity(0.4)),
-        boxShadow: [
-          BoxShadow(
-            color: tone.withOpacity(0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+      padding: _cardPadding,
+      decoration: _softPanelDecoration(
+        tone: tone,
+        surfaceStrength: 0.70,
+      ).copyWith(
+        border: Border.all(color: tone.withOpacity(0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             result.productCreated
-                ? "สร้างสินค้าใหม่และบันทึกรายการสำเร็จ"
+                ? "\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e30\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08"
                 : result.lowStock
-                    ? "บันทึกแล้ว: สินค้าอยู่ในระดับเตือน"
-                    : "บันทึกสำเร็จ",
+                    ? "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27: \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e15\u0e37\u0e2d\u0e19"
+                    : "\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
             style: Theme.of(context).textTheme.titleMedium?.copyWith(color: tone),
           ),
           const SizedBox(height: 8),
           Text(result.product.name),
-          Text("บาร์โค้ด: ${result.product.barcode}"),
-          Text("คงเหลือ: ${result.product.currentStock} ${result.product.unit}"),
-          Text("ผู้ทำรายการ: ${result.movement.actorName}"),
+          Text("\u0e1a\u0e32\u0e23\u0e4c\u0e42\u0e04\u0e49\u0e14: ${result.product.barcode}"),
+          Text("\u0e04\u0e07\u0e40\u0e2b\u0e25\u0e37\u0e2d: ${result.product.currentStock} ${result.product.unit}"),
+          Text("\u0e1c\u0e39\u0e49\u0e17\u0e33\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23: ${result.movement.actorName}"),
           if (onOpenCode != null) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: onOpenCode,
               icon: const Icon(Icons.qr_code_2_outlined),
-              label: const Text("ดู barcode / QR"),
+              label: const Text("\u0e14\u0e39 barcode / QR"),
             ),
           ],
         ],
@@ -2205,14 +3877,14 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
 
       final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
-        throw Exception("ไม่พบภาพสำหรับส่งออก");
+        throw Exception("\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e20\u0e32\u0e1e\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01");
       }
 
       final image = await boundary.toImage(pixelRatio: 3);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData?.buffer.asUint8List();
       if (bytes == null) {
-        throw Exception("สร้างไฟล์ภาพไม่สำเร็จ");
+        throw Exception("\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e44\u0e1f\u0e25\u0e4c\u0e20\u0e32\u0e1e\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08");
       }
 
       final tempDir = await getTemporaryDirectory();
@@ -2224,8 +3896,9 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
       );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString().replaceFirst("Exception: ", ""))),
+        _showAppSnack(
+          context,
+          error.toString().replaceFirst("Exception: ", ""),
         );
       }
     } finally {
@@ -2258,7 +3931,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        "Barcode และ QR สินค้า",
+                        "Barcode \u0e41\u0e25\u0e30 QR \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
@@ -2311,7 +3984,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          "สแกนได้ทั้ง Barcode และ QR",
+                          "\u0e2a\u0e41\u0e01\u0e19\u0e44\u0e14\u0e49\u0e17\u0e31\u0e49\u0e07 Barcode \u0e41\u0e25\u0e30 QR",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -2331,7 +4004,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.ios_share_outlined),
-                        label: const Text("แชร์ / ส่งออกป้าย"),
+                        label: const Text("\u0e41\u0e0a\u0e23\u0e4c / \u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e1b\u0e49\u0e32\u0e22"),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -2339,13 +4012,14 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: product.barcode));
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("คัดลอก barcode แล้ว")),
+                          _showAppSnack(
+                            context,
+                            "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01 barcode \u0e41\u0e25\u0e49\u0e27",
                           );
                         }
                       },
                       icon: const Icon(Icons.copy_all_outlined),
-                      tooltip: "คัดลอกรหัส",
+                      tooltip: "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e23\u0e2b\u0e31\u0e2a",
                     ),
                   ],
                 ),
@@ -2372,9 +4046,7 @@ class _SelectableUrl extends StatelessWidget {
   Future<void> _openUrl(BuildContext context) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("ลิงก์ไม่ถูกต้อง")),
-      );
+      _showAppSnack(context, "\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e15\u0e49\u0e2d\u0e07");
       return;
     }
 
@@ -2383,8 +4055,9 @@ class _SelectableUrl extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("ไม่สามารถเปิดลิงก์ดาวน์โหลดได้")),
+      _showAppSnack(
+        context,
+        "\u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e40\u0e1b\u0e34\u0e14\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e14\u0e49",
       );
     }
   }
@@ -2392,22 +4065,19 @@ class _SelectableUrl extends StatelessWidget {
   Future<void> _copyUrl(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: url));
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("คัดลอกลิงก์แล้ว")),
-      );
+      _showAppSnack(context, "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e41\u0e25\u0e49\u0e27");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: _spaceSm),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.72),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _brandPrimary.withOpacity(0.10)),
+        decoration: _softPanelDecoration(
+          radius: _radiusMd,
+          surfaceStrength: 0.32,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2416,14 +4086,14 @@ class _SelectableUrl extends StatelessWidget {
             if (expiresAt != null) ...[
               const SizedBox(height: 4),
               Text(
-                "หมดอายุ ${_formatDateTime(expiresAt!)}",
+                "\u0e2b\u0e21\u0e14\u0e2d\u0e32\u0e22\u0e38 ${_formatDateTime(expiresAt!)}",
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
             const SizedBox(height: 6),
             InkWell(
               onTap: () => _openUrl(context),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_radiusSm),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text(
@@ -2442,14 +4112,14 @@ class _SelectableUrl extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: () => _openUrl(context),
                     icon: const Icon(Icons.download_outlined),
-                    label: const Text("ดาวน์โหลดเลย"),
+                    label: const Text("\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e40\u0e25\u0e22"),
                   ),
                 ),
                 const SizedBox(width: 10),
                 IconButton.filledTonal(
                   onPressed: () => _copyUrl(context),
                   icon: const Icon(Icons.copy_all_outlined),
-                  tooltip: "คัดลอกลิงก์",
+                  tooltip: "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e25\u0e34\u0e07\u0e01\u0e4c",
                 ),
               ],
             ),
@@ -2468,18 +4138,49 @@ class _EmptyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.90),
-            _brandSurfaceStrong.withOpacity(0.55),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _brandPrimary.withOpacity(0.08)),
+      padding: const EdgeInsets.symmetric(horizontal: _spaceLg, vertical: 22),
+      decoration: _softPanelDecoration(surfaceStrength: 0.45),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _brandPrimary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.notifications_none_rounded,
+              color: _brandPrimary.withOpacity(0.82),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23",
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: _brandInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: _brandInk.withOpacity(0.70),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      child: Text(message),
     );
   }
 }
@@ -2492,20 +4193,46 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: _pagePadding,
       children: [
         const SizedBox(height: 80),
-        Icon(Icons.cloud_off, size: 48, color: Colors.red.shade400),
-        const SizedBox(height: 12),
-        Text(
-          "เชื่อมต่อ API ไม่สำเร็จ",
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          message.replaceFirst("Exception: ", ""),
-          textAlign: TextAlign.center,
+        Container(
+          padding: _cardPadding,
+          decoration: _softPanelDecoration(
+            tone: _profileAccent,
+            surfaceStrength: 0.30,
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _profileAccent.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.cloud_off_rounded,
+                  color: _brandTextOnLight,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: _spaceSm),
+              Text(
+                "\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e15\u0e48\u0e2d API \u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08",
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: _spaceXs),
+              Text(
+                message.replaceFirst("Exception: ", ""),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: _brandInk.withOpacity(0.72),
+                    ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -2520,3 +4247,4 @@ String _formatDateTime(DateTime value) {
       "${value.minute.toString().padLeft(2, "0")}";
   return "$date $time";
 }
+

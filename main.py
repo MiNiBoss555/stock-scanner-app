@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -75,6 +75,13 @@ class UserUpsert(BaseModel):
     profile_image_url: str | None = None
 
 
+class UserDeleteResponse(BaseModel):
+    status: Literal["ok"] = "ok"
+    message: str
+    deleted_user_id: str
+    deleted_movements: int = 0
+
+
 class LoginRequest(BaseModel):
     user_id: str = Field(..., min_length=1)
     pin: str = Field(..., min_length=4)
@@ -85,6 +92,20 @@ class LoginResponse(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     expires_at: datetime
     user: UserPublic
+
+
+class ChangePinRequest(BaseModel):
+    current_pin: str = Field(..., min_length=4)
+    new_pin: str = Field(..., min_length=4)
+
+
+class ProfileUpdateRequest(BaseModel):
+    user_name: str = Field(..., min_length=1)
+
+
+class StatusMessage(BaseModel):
+    status: Literal["ok"] = "ok"
+    message: str
 
 
 class ExportLinkRequest(BaseModel):
@@ -246,6 +267,12 @@ class BarcodeSuggestion(BaseModel):
     message: str
 
 
+class RealtimeEvent(BaseModel):
+    type: str
+    timestamp: datetime
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 app = FastAPI(
     title="Stock Scanner API",
     description=(
@@ -265,6 +292,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class RealtimeConnectionManager:
+    def __init__(self) -> None:
+        self._connections: set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self._connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self._connections.discard(websocket)
+
+    async def broadcast(self, event: RealtimeEvent) -> None:
+        dead_connections: list[WebSocket] = []
+        message = event.model_dump(mode="json")
+        for websocket in list(self._connections):
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                dead_connections.append(websocket)
+        for websocket in dead_connections:
+            self.disconnect(websocket)
+
+
+realtime_manager = RealtimeConnectionManager()
 
 UPLOADS_DIR = Path("uploads")
 PROFILE_UPLOADS_DIR = UPLOADS_DIR / "profile_images"
@@ -667,6 +720,35 @@ def save_user(user: User) -> None:
         )
 
 
+def active_admin_count(exclude_user_id: str | None = None) -> int:
+    return sum(
+        1
+        for user in users.values()
+        if user.active
+        and user.role.strip().lower() == "admin"
+        and user.user_id != exclude_user_id
+    )
+
+
+def ensure_admin_account_retained(
+    target_user_id: str,
+    target_role: str,
+    target_active: bool,
+) -> None:
+    existing = users.get(target_user_id)
+    if not existing:
+        return
+    if existing.role.strip().lower() != "admin" or not existing.active:
+        return
+    if target_role.strip().lower() == "admin" and target_active:
+        return
+    if active_admin_count(exclude_user_id=target_user_id) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="The system must keep at least one active admin account.",
+        )
+
+
 def save_movement(record: MovementRecord) -> None:
     with db_connection() as connection:
         connection.execute(
@@ -735,6 +817,18 @@ def user_from_token(token: str | None) -> User | None:
 def delete_session(token: str) -> None:
     with db_connection() as connection:
         connection.execute("DELETE FROM auth_sessions WHERE token = ?", (token,))
+
+
+def delete_user_record(user_id: str, delete_movements: bool = False) -> int:
+    removed_movements = 0
+    with db_connection() as connection:
+        connection.execute("DELETE FROM auth_sessions WHERE user_id = ?", (user_id,))
+        connection.execute("DELETE FROM export_tokens WHERE user_id = ?", (user_id,))
+        if delete_movements:
+            cursor = connection.execute("DELETE FROM movements WHERE actor_id = ?", (user_id,))
+            removed_movements = cursor.rowcount if cursor.rowcount != -1 else 0
+        connection.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+    return removed_movements
 
 
 def create_export_token(user_id: str, export_name: str, params: dict[str, Any]) -> tuple[str, datetime]:
@@ -1220,6 +1314,16 @@ def create_notification(record: MovementRecord) -> dict:
     }
 
 
+async def broadcast_realtime_event(event_type: str, payload: dict[str, Any]) -> None:
+    await realtime_manager.broadcast(
+        RealtimeEvent(
+            type=event_type,
+            timestamp=utc_now(),
+            payload=payload,
+        )
+    )
+
+
 def sheet_client() -> GoogleSheetsClient:
     return GoogleSheetsClient(sheet_mapping)
 
@@ -1258,8 +1362,9 @@ def csv_response(filename: str, headers: list[str], rows: list[list[Any]]) -> Re
     writer = csv.writer(buffer)
     writer.writerow(headers)
     writer.writerows(rows)
+    csv_content = "\ufeff" + buffer.getvalue()
     return Response(
-        content=buffer.getvalue(),
+        content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
@@ -1327,6 +1432,30 @@ def startup_refresh_state() -> None:
     load_state_from_db()
 
 
+@app.websocket("/ws/realtime")
+async def realtime_socket(websocket: WebSocket, token: str | None = Query(None)) -> None:
+    user = user_from_token(token)
+    if not user:
+        await websocket.close(code=1008, reason="Invalid or expired access token.")
+        return
+
+    await realtime_manager.connect(websocket)
+    await websocket.send_json(
+        RealtimeEvent(
+            type="connected",
+            timestamp=utc_now(),
+            payload={"user_id": user.user_id},
+        ).model_dump(mode="json")
+    )
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        realtime_manager.disconnect(websocket)
+    except Exception:
+        realtime_manager.disconnect(websocket)
+
+
 @app.get("/")
 def root() -> dict:
     return {
@@ -1378,7 +1507,7 @@ def get_product(barcode: str) -> Product:
 
 
 @app.post("/products/upsert", response_model=Product)
-def upsert_product(
+async def upsert_product(
     payload: ProductUpsert,
     request: Request,
     requester_id: str | None = Query(None, min_length=1),
@@ -1399,6 +1528,13 @@ def upsert_product(
     )
     products[payload.barcode] = product
     save_product(product)
+    await broadcast_realtime_event(
+        "product_updated",
+        {
+            "barcode": product.barcode,
+            "product": product.model_dump(mode="json"),
+        },
+    )
     return product
 
 
@@ -1431,6 +1567,57 @@ def logout(request: Request) -> dict:
     return {"status": "ok", "message": "Logged out successfully."}
 
 
+@app.post("/auth/change-pin", response_model=StatusMessage)
+def change_pin(payload: ChangePinRequest, request: Request) -> StatusMessage:
+    current_user = resolve_request_user(request)
+    if not verify_pin(payload.current_pin, current_user.pin_hash):
+        raise HTTPException(status_code=400, detail="Current PIN is incorrect.")
+    if payload.current_pin == payload.new_pin:
+        raise HTTPException(status_code=400, detail="The new PIN must be different from the current PIN.")
+
+    updated_user = current_user.model_copy(update={"pin_hash": hash_pin(payload.new_pin)})
+    users[updated_user.user_id] = updated_user
+    save_user(updated_user)
+
+    try:
+        client = sheet_client()
+        if client.status().configured:
+            client.upsert_user(updated_user)
+    except Exception as exc:
+        logger.warning("Failed to sync updated PIN for user %s to Google Sheets: %s", updated_user.user_id, exc)
+
+    return StatusMessage(message="PIN changed successfully.")
+
+
+@app.patch("/auth/profile", response_model=UserPublic)
+async def update_own_profile(payload: ProfileUpdateRequest, request: Request) -> UserPublic:
+    current_user = resolve_request_user(request)
+    updated_name = payload.user_name.strip()
+    if not updated_name:
+        raise HTTPException(status_code=400, detail="User name is required.")
+
+    updated_user = current_user.model_copy(update={"user_name": updated_name})
+    users[updated_user.user_id] = updated_user
+    save_user(updated_user)
+
+    try:
+        client = sheet_client()
+        if client.status().configured:
+            client.upsert_user(updated_user)
+    except Exception as exc:
+        logger.warning("Failed to sync updated profile for user %s to Google Sheets: %s", updated_user.user_id, exc)
+
+    public_user = to_public_user(updated_user)
+    await broadcast_realtime_event(
+        "user_updated",
+        {
+            "user_id": updated_user.user_id,
+            "user": public_user.model_dump(mode="json"),
+        },
+    )
+    return public_user
+
+
 @app.get("/users", response_model=list[UserPublic])
 def list_users(active_only: bool = True) -> list[UserPublic]:
     items = list(users.values())
@@ -1440,9 +1627,10 @@ def list_users(active_only: bool = True) -> list[UserPublic]:
 
 
 @app.post("/users/upsert", response_model=UserPublic)
-def upsert_user(payload: UserUpsert, request: Request) -> UserPublic:
+async def upsert_user(payload: UserUpsert, request: Request) -> UserPublic:
     require_admin_request(request, payload.requester_id)
     existing = users.get(payload.user_id)
+    ensure_admin_account_retained(payload.user_id, payload.role, payload.active)
     pin_hash = hash_pin(payload.pin) if payload.pin else (existing.pin_hash if existing else None)
     if not pin_hash:
         raise HTTPException(status_code=400, detail="PIN is required for new users.")
@@ -1465,7 +1653,59 @@ def upsert_user(payload: UserUpsert, request: Request) -> UserPublic:
     except Exception as exc:
         logger.warning("Failed to sync user %s to Google Sheets: %s", user.user_id, exc)
 
-    return to_public_user(user)
+    public_user = to_public_user(user)
+    await broadcast_realtime_event(
+        "user_updated",
+        {
+            "user_id": user.user_id,
+            "user": public_user.model_dump(mode="json"),
+        },
+    )
+    return public_user
+
+
+@app.delete("/users/{user_id}", response_model=UserDeleteResponse)
+async def delete_user(
+    user_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+    delete_movements: bool = False,
+) -> UserDeleteResponse:
+    requester = require_admin_request(request, requester_id)
+    target_user = users.get(user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User {user_id} not found.")
+    if requester.user_id == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete the account currently in use.")
+
+    ensure_admin_account_retained(user_id, target_user.role, False)
+
+    profile_image_url = target_user.profile_image_url or ""
+    if profile_image_url.startswith("/uploads/"):
+        relative_path = profile_image_url.removeprefix("/uploads/")
+        image_path = UPLOADS_DIR / relative_path
+        if image_path.exists() and image_path.is_file():
+            image_path.unlink(missing_ok=True)
+
+    users.pop(user_id, None)
+    deleted_movements = delete_user_record(user_id, delete_movements=delete_movements)
+    if delete_movements:
+        global movements
+        movements = [record for record in movements if record.actor_id != user_id]
+
+    await broadcast_realtime_event(
+        "user_deleted",
+        {
+            "user_id": user_id,
+            "delete_movements": delete_movements,
+            "deleted_movements": deleted_movements,
+        },
+    )
+    return UserDeleteResponse(
+        message="User deleted successfully.",
+        deleted_user_id=user_id,
+        deleted_movements=deleted_movements,
+    )
 
 
 @app.post("/users/upload-profile-image", response_model=UserPublic)
@@ -1500,11 +1740,19 @@ async def upload_profile_image(
             client.upsert_user(user)
     except Exception as exc:
         logger.warning("Failed to sync profile image for %s: %s", user.user_id, exc)
-    return to_public_user(user)
+    public_user = to_public_user(user)
+    await broadcast_realtime_event(
+        "user_updated",
+        {
+            "user_id": user.user_id,
+            "user": public_user.model_dump(mode="json"),
+        },
+    )
+    return public_user
 
 
 @app.post("/scan")
-def scan_item(payload: ScanRequest, request: Request) -> dict:
+async def scan_item(payload: ScanRequest, request: Request) -> dict:
     request_user = resolve_request_user(request, payload.actor_id)
     if request.headers.get("Authorization") and request_user.user_id != payload.actor_id:
         raise HTTPException(status_code=403, detail="Authenticated user does not match actor_id.")
@@ -1562,6 +1810,19 @@ def scan_item(payload: ScanRequest, request: Request) -> dict:
     except Exception as exc:
         google_sheets_error = str(exc)
 
+    notification = create_notification(record)
+    await broadcast_realtime_event(
+        "stock_changed",
+        {
+            "barcode": product.barcode,
+            "product": product.model_dump(mode="json"),
+            "movement": record.model_dump(mode="json"),
+            "notification": notification,
+            "product_created": product_created,
+            "low_stock": after_stock <= product.minimum_stock,
+        },
+    )
+
     return {
         "status": "ok",
         "product": product,
@@ -1570,7 +1831,7 @@ def scan_item(payload: ScanRequest, request: Request) -> dict:
             product_create_status.model_dump() if product_create_status else None
         ),
         "movement": record,
-        "notification": create_notification(record),
+        "notification": notification,
         "low_stock": after_stock <= product.minimum_stock,
         "google_sheets": append_status.model_dump() if append_status else None,
         "google_sheets_stock_update": (
@@ -1807,19 +2068,167 @@ def create_export_link(
 def download_export_by_token(token: str) -> Response:
     export_name, params, _user = consume_export_token(token)
     if export_name == "products_csv":
-        return build_products_csv_response()
+        rows = [
+            [
+                product.barcode,
+                product.sku or "",
+                product.name,
+                product.unit,
+                product.current_stock,
+                product.category or "",
+                product.location or "",
+            ]
+            for product in sorted(products.values(), key=lambda item: item.name.lower())
+        ]
+        return csv_response(
+            "products.csv",
+            ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"],
+            rows,
+        )
     if export_name == "users_csv":
-        return build_users_csv_response()
+        rows = [
+            [
+                user.user_id,
+                user.user_name,
+                user.role,
+                "TRUE" if user.active else "FALSE",
+                user.profile_image_url or "",
+            ]
+            for user in sorted(users.values(), key=lambda item: item.user_name.lower())
+        ]
+        return csv_response(
+            "users.csv",
+            ["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"],
+            rows,
+        )
     if export_name == "movements_csv":
         movement_limit = int(params.get("movement_limit") or 500)
-        return build_movements_csv_response(
-            limit=min(max(movement_limit, 1), 5000),
-            barcode=params.get("barcode"),
-            actor_id=params.get("actor_id"),
+        result = movements
+        barcode = params.get("barcode")
+        actor_id = params.get("actor_id")
+        if barcode:
+            result = [item for item in result if item.barcode == barcode]
+        if actor_id:
+            result = [item for item in result if item.actor_id == actor_id]
+        rows = [
+            [
+                item.id,
+                item.created_at.isoformat(),
+                item.barcode,
+                item.product_name,
+                item.action.value,
+                item.quantity,
+                item.before_stock,
+                item.after_stock,
+                item.actor_id,
+                item.actor_name,
+                item.note or "",
+                item.reference or "",
+            ]
+            for item in result[: min(max(movement_limit, 1), 5000)]
+        ]
+        return csv_response(
+            "movements.csv",
+            [
+                "รหัสรายการ",
+                "วันเวลา",
+                "บาร์โค้ด",
+                "ชื่อสินค้า",
+                "ประเภท",
+                "จำนวน",
+                "สต๊อกก่อนทำรายการ",
+                "สต๊อกหลังทำรายการ",
+                "รหัสผู้ทำรายการ",
+                "ชื่อผู้ทำรายการ",
+                "หมายเหตุ",
+                "เลขอ้างอิง",
+            ],
+            rows,
         )
     if export_name == "all_xlsx":
         movement_limit = int(params.get("movement_limit") or 5000)
-        return build_all_xlsx_response(movement_limit=min(max(movement_limit, 1), 20000))
+        try:
+            from openpyxl import Workbook
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Missing Excel export dependency. Install 'openpyxl'.",
+            ) from exc
+
+        workbook = Workbook()
+
+        products_sheet = workbook.active
+        products_sheet.title = "สินค้า"
+        products_sheet.append(
+            ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"]
+        )
+        for product in sorted(products.values(), key=lambda item: item.name.lower()):
+            products_sheet.append(
+                [
+                    product.barcode,
+                    product.sku or "",
+                    product.name,
+                    product.unit,
+                    product.current_stock,
+                    product.category or "",
+                    product.location or "",
+                ]
+            )
+        auto_fit_worksheet_columns(products_sheet)
+
+        users_sheet = workbook.create_sheet("ผู้ใช้")
+        users_sheet.append(["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"])
+        for user in sorted(users.values(), key=lambda item: item.user_name.lower()):
+            users_sheet.append(
+                [user.user_id, user.user_name, user.role, user.active, user.profile_image_url or ""]
+            )
+        auto_fit_worksheet_columns(users_sheet)
+
+        movements_sheet = workbook.create_sheet("ประวัติ")
+        movements_sheet.append(
+            [
+                "รหัสรายการ",
+                "วันเวลา",
+                "บาร์โค้ด",
+                "ชื่อสินค้า",
+                "ประเภท",
+                "จำนวน",
+                "สต๊อกก่อนทำรายการ",
+                "สต๊อกหลังทำรายการ",
+                "รหัสผู้ทำรายการ",
+                "ชื่อผู้ทำรายการ",
+                "หมายเหตุ",
+                "เลขอ้างอิง",
+            ]
+        )
+        for item in movements[: min(max(movement_limit, 1), 20000)]:
+            movements_sheet.append(
+                [
+                    item.id,
+                    item.created_at.isoformat(),
+                    item.barcode,
+                    item.product_name,
+                    item.action.value,
+                    item.quantity,
+                    item.before_stock,
+                    item.after_stock,
+                    item.actor_id,
+                    item.actor_name,
+                    item.note or "",
+                    item.reference or "",
+                ]
+            )
+        auto_fit_worksheet_columns(movements_sheet)
+
+        output = io.BytesIO()
+        workbook.save(output)
+        return Response(
+            content=output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": 'attachment; filename="stock-data.xlsx"',
+            },
+        )
     raise HTTPException(status_code=400, detail="Unsupported export type.")
 
 
@@ -2081,21 +2490,37 @@ def configure_google_sheets(
 
 
 @app.post("/integrations/google-sheets/sync/products", response_model=GoogleSheetSyncResult)
-def sync_products_from_google_sheets(
+async def sync_products_from_google_sheets(
     request: Request,
     requester_id: str | None = Query(None, min_length=1),
 ) -> GoogleSheetSyncResult:
     require_admin_request(request, requester_id)
-    return sheet_client().read_products()
+    result = sheet_client().read_products()
+    await broadcast_realtime_event(
+        "products_synced",
+        {
+            "imported_count": result.imported_count,
+            "skipped_rows": result.skipped_rows,
+        },
+    )
+    return result
 
 
 @app.post("/integrations/google-sheets/sync/users", response_model=GoogleSheetSyncResult)
-def sync_users_from_google_sheets(
+async def sync_users_from_google_sheets(
     request: Request,
     requester_id: str | None = Query(None, min_length=1),
 ) -> GoogleSheetSyncResult:
     require_admin_request(request, requester_id)
-    return sheet_client().read_users()
+    result = sheet_client().read_users()
+    await broadcast_realtime_event(
+        "users_synced",
+        {
+            "imported_count": result.imported_count,
+            "skipped_rows": result.skipped_rows,
+        },
+    )
+    return result
 
 
 @app.post("/integrations/google-sheets/append-test", response_model=GoogleSheetAppendResult)
@@ -2125,12 +2550,20 @@ def append_test_row(
     "/integrations/google-sheets/sync/stocks",
     response_model=GoogleSheetBulkSyncResult,
 )
-def sync_stock_balances_to_google_sheets(
+async def sync_stock_balances_to_google_sheets(
     request: Request,
     requester_id: str | None = Query(None, min_length=1),
 ) -> GoogleSheetBulkSyncResult:
     require_admin_request(request, requester_id)
-    return sheet_client().sync_all_product_stocks()
+    result = sheet_client().sync_all_product_stocks()
+    await broadcast_realtime_event(
+        "stocks_synced",
+        {
+            "updated_count": result.updated_count,
+            "skipped_count": result.skipped_count,
+        },
+    )
+    return result
 
 
 @app.post("/webhook")
