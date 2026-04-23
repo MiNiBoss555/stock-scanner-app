@@ -132,6 +132,38 @@ def test_admin_can_create_user_and_user_login_survives_reload(api_context: dict)
     assert login_payload["user"]["role"] == "staff"
 
 
+def test_staff_can_auto_create_product_via_scan(api_context: dict) -> None:
+    client = api_context["client"]
+    staff_token = login_and_get_token(client, user_id="EMP002", pin="1234")
+
+    response = client.post(
+        "/scan",
+        headers=auth_headers(staff_token),
+        json={
+            "barcode": "STK900001",
+            "action": "in",
+            "quantity": 2,
+            "actor_id": "EMP002",
+            "actor_name": "Mek",
+            "auto_create_product": True,
+            "product_name": "Motor",
+            "product_unit": "pcs",
+            "product_sku": "MOT-0001",
+            "product_category": "Parts",
+            "product_location": "Rack C1",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["product_created"] is True
+    assert payload["product"]["barcode"] == "STK900001"
+    assert payload["product"]["name"] == "Motor"
+    assert payload["product"]["sku"] == "MOT-0001"
+    assert payload["product"]["current_stock"] == 2
+    assert payload["movement"]["actor_id"] == "EMP002"
+
+
 def test_export_link_is_single_use_and_returns_file(api_context: dict) -> None:
     client = api_context["client"]
     admin_token = login_and_get_token(client, user_id="EMP001", pin="1234")

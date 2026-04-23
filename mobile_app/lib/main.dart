@@ -904,6 +904,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<AppUser>> _usersFuture;
   late AppUser _profileUser;
+  final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _userIdController = TextEditingController();
   final TextEditingController _userNameController = TextEditingController();
   final TextEditingController _pinController = TextEditingController();
@@ -917,14 +918,18 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isSaving = false;
   bool _isChangingPin = false;
   bool _isUploadingProfileImage = false;
+  bool _isEditingDisplayName = false;
+  bool _isUpdatingDisplayName = false;
   bool _obscureCurrentPin = true;
   bool _obscureNewPin = true;
   bool _obscureConfirmPin = true;
+  String? _displayNameError;
 
   @override
   void initState() {
     super.initState();
     _profileUser = widget.currentUser;
+    _displayNameController.text = _profileUser.userName;
     _usersFuture = widget.api.getUsers(activeOnly: false);
   }
 
@@ -937,11 +942,15 @@ class _ProfilePageState extends State<ProfilePage> {
         oldWidget.currentUser.role != widget.currentUser.role ||
         oldWidget.currentUser.active != widget.currentUser.active) {
       _profileUser = widget.currentUser;
+      if (!_isEditingDisplayName) {
+        _displayNameController.text = _profileUser.userName;
+      }
     }
   }
 
   @override
   void dispose() {
+    _displayNameController.dispose();
     _userIdController.dispose();
     _userNameController.dispose();
     _pinController.dispose();
@@ -966,138 +975,77 @@ class _ProfilePageState extends State<ProfilePage> {
     await widget.onRefreshSession();
   }
 
-  Future<void> _openDisplayNameEditor() async {
-    final controller = TextEditingController(text: _profileUser.userName);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
-    );
+  void _startDisplayNameEditing() {
+    setState(() {
+      _isEditingDisplayName = true;
+      _displayNameError = null;
+      _displayNameController.text = _profileUser.userName;
+      _displayNameController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _displayNameController.text.length,
+      );
+    });
+  }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        bool isSaving = false;
-        String? errorText;
+  void _cancelDisplayNameEditing() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isEditingDisplayName = false;
+      _displayNameError = null;
+      _displayNameController.text = _profileUser.userName;
+    });
+  }
 
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            Future<void> save() async {
-              FocusScope.of(sheetContext).unfocus();
-              final userName = controller.text.trim();
-              if (userName.isEmpty) {
-                setSheetState(() {
-                  errorText = "กรุณากรอกชื่อที่แสดง";
-                });
-                return;
-              }
-              if (userName == _profileUser.userName) {
-                Navigator.of(sheetContext).pop();
-                return;
-              }
+  Future<void> _saveDisplayName() async {
+    FocusScope.of(context).unfocus();
+    final userName = _displayNameController.text.trim();
 
-              setSheetState(() {
-                isSaving = true;
-                errorText = null;
-              });
+    if (userName.isEmpty) {
+      setState(() {
+        _displayNameError = "กรุณากรอกชื่อที่แสดง";
+      });
+      return;
+    }
 
-              try {
-                final updatedUser = await widget.api.updateMyProfile(userName: userName);
-                if (mounted) {
-                  setState(() {
-                    _profileUser = updatedUser;
-                  });
-                }
-                await widget.onRefreshSession();
-                _showSnack("บันทึกชื่อเรียบร้อย");
-                if (sheetContext.mounted) {
-                  Navigator.of(sheetContext).pop();
-                }
-              } catch (error) {
-                final message = error.toString().replaceFirst("Exception: ", "");
-                setSheetState(() {
-                  errorText = _normalizeFeedbackMessage(message);
-                });
-              } finally {
-                if (sheetContext.mounted) {
-                  setSheetState(() {
-                    isSaving = false;
-                  });
-                }
-              }
-            }
+    if (userName == _profileUser.userName) {
+      _cancelDisplayNameEditing();
+      return;
+    }
 
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                16 + MediaQuery.of(sheetContext).viewInsets.bottom,
-              ),
-              child: Material(
-                color: _brandCard,
-                borderRadius: BorderRadius.circular(_radiusXl),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "แก้ไขชื่อที่แสดง",
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontSize: 22,
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: controller,
-                        autofocus: true,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => save(),
-                        decoration: InputDecoration(
-                          labelText: "ชื่อที่แสดง",
-                          errorText: errorText,
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextButton(
-                              onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
-                              child: const Text("ยกเลิก"),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton(
-                              onPressed: isSaving ? null : save,
-                              child: isSaving
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Text("บันทึก"),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    setState(() {
+      _isUpdatingDisplayName = true;
+      _displayNameError = null;
+    });
 
-    controller.dispose();
+    try {
+      final updatedUser = await widget.api.updateMyProfile(userName: userName);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profileUser = updatedUser;
+        _isEditingDisplayName = false;
+        _displayNameController.text = updatedUser.userName;
+      });
+      await widget.onRefreshSession();
+      if (mounted) {
+        _showSnack("บันทึกชื่อเรียบร้อย");
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _displayNameError = _normalizeFeedbackMessage(
+            error.toString().replaceFirst("Exception: ", ""),
+          );
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingDisplayName = false;
+        });
+      }
+    }
   }
 
   Future<void> _changePin() async {
@@ -1604,7 +1552,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   Expanded(
                     child: FilledButton.tonalIcon(
-                      onPressed: _openDisplayNameEditor,
+                      onPressed: _isUpdatingDisplayName
+                          ? null
+                          : (_isEditingDisplayName
+                              ? _cancelDisplayNameEditing
+                              : _startDisplayNameEditing),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: _brandDeep,
@@ -1616,8 +1568,16 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         shadowColor: _brandPrimary.withOpacity(0.10),
                       ),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text("\u0e41\u0e01\u0e49\u0e44\u0e02\u0e0a\u0e37\u0e48\u0e2d"),
+                      icon: Icon(
+                        _isEditingDisplayName
+                            ? Icons.close_rounded
+                            : Icons.edit_outlined,
+                      ),
+                      label: Text(
+                        _isEditingDisplayName
+                            ? "\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01"
+                            : "\u0e41\u0e01\u0e49\u0e44\u0e02\u0e0a\u0e37\u0e48\u0e2d",
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1649,6 +1609,65 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ],
               ),
+              if (_isEditingDisplayName) ...[
+                const SizedBox(height: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(_radiusLg),
+                      border: Border.all(color: _brandPrimary.withOpacity(0.16)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _profileTeal.withOpacity(0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "\u0e41\u0e01\u0e49\u0e44\u0e02\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e41\u0e2a\u0e14\u0e07",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: _brandDeep,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _displayNameController,
+                          enabled: !_isUpdatingDisplayName,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _saveDisplayName(),
+                          decoration: InputDecoration(
+                            labelText: "\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e41\u0e2a\u0e14\u0e07",
+                            errorText: _displayNameError,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _isUpdatingDisplayName ? null : _saveDisplayName,
+                            child: _isUpdatingDisplayName
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e0a\u0e37\u0e48\u0e2d"),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: widget.onLogout,
@@ -2369,7 +2388,9 @@ class _ScanPageState extends State<ScanPage> {
   bool _isSubmitting = false;
   bool _isGeneratingBarcode = false;
   bool _scannerEnabled = true;
+  bool _isSkuManuallyEdited = false;
   ScanResult? _lastResult;
+  String? _lastAutoGeneratedSku;
 
   @override
   void dispose() {
@@ -2389,6 +2410,113 @@ class _ScanPageState extends State<ScanPage> {
     _showAppSnack(context, message);
   }
 
+  String _trimSkuSegment(String value, int maxLength) {
+    final cleaned = value.replaceAll(RegExp(r"[^A-Z0-9]"), "");
+    if (cleaned.isEmpty) {
+      return "";
+    }
+    return cleaned.length <= maxLength ? cleaned : cleaned.substring(0, maxLength);
+  }
+
+  String _buildAutoSku() {
+    final normalizedName = _productNameController.text.trim().toUpperCase();
+    final words = normalizedName
+        .split(RegExp(r"[^A-Z0-9]+"))
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    String namePart;
+    if (words.isEmpty) {
+      namePart = "ITEM";
+    } else if (words.length == 1) {
+      namePart = _trimSkuSegment(words.first, 6);
+    } else {
+      final first = _trimSkuSegment(words[0], 3);
+      final second = _trimSkuSegment(words[1], 3);
+      namePart = [first, second].where((item) => item.isNotEmpty).join("-");
+    }
+
+    if (namePart.isEmpty) {
+      namePart = "ITEM";
+    }
+
+    final barcodePart = _trimSkuSegment(
+      _barcodeController.text.trim().toUpperCase(),
+      24,
+    );
+    final tail = barcodePart.isEmpty
+        ? "AUTO"
+        : (barcodePart.length <= 4
+            ? barcodePart
+            : barcodePart.substring(barcodePart.length - 4));
+
+    return "$namePart-$tail";
+  }
+
+  void _syncAutoSku({bool force = false}) {
+    if (!_newProductMode) {
+      return;
+    }
+
+    final nextSku = _buildAutoSku();
+    final currentSku = _productSkuController.text.trim();
+    final shouldReplace = force ||
+        currentSku.isEmpty ||
+        (!_isSkuManuallyEdited && currentSku == (_lastAutoGeneratedSku ?? currentSku));
+
+    if (!shouldReplace) {
+      return;
+    }
+
+    _productSkuController.text = nextSku;
+    _productSkuController.selection = TextSelection.collapsed(offset: nextSku.length);
+    _lastAutoGeneratedSku = nextSku;
+    _isSkuManuallyEdited = false;
+  }
+
+  InputDecoration _scanInputDecoration(
+    String label, {
+    String? hintText,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.96),
+      labelStyle: TextStyle(
+        color: _brandInk.withOpacity(0.88),
+        fontWeight: FontWeight.w700,
+        fontSize: 14,
+      ),
+      floatingLabelStyle: const TextStyle(
+        color: _brandDeep,
+        fontWeight: FontWeight.w800,
+      ),
+      hintStyle: TextStyle(
+        color: _brandInk.withOpacity(0.52),
+        fontWeight: FontWeight.w500,
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: _spaceMd,
+        vertical: 18,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_radiusMd),
+        borderSide: BorderSide(color: _brandPrimary.withOpacity(0.16)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_radiusMd),
+        borderSide: BorderSide(color: _brandPrimary.withOpacity(0.16)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_radiusMd),
+        borderSide: const BorderSide(color: _brandPrimary, width: 1.5),
+      ),
+    );
+  }
+
   Future<void> _generateBarcode({bool silent = false}) async {
     try {
       setState(() {
@@ -2401,6 +2529,7 @@ class _ScanPageState extends State<ScanPage> {
       setState(() {
         _barcodeController.text = barcode;
       });
+      _syncAutoSku();
       if (!silent) {
         _showSnack("\u0e2a\u0e23\u0e49\u0e32\u0e07 barcode \u0e43\u0e2b\u0e21\u0e48\u0e41\u0e25\u0e49\u0e27");
       }
@@ -2419,14 +2548,14 @@ class _ScanPageState extends State<ScanPage> {
 
   Future<void> _submit() async {
     final quantity = int.tryParse(_qtyController.text.trim());
-    final shouldCreateProduct = _newProductMode && widget.currentUser.isAdmin;
+    final shouldCreateProduct = _newProductMode;
+
+    if (shouldCreateProduct && _productSkuController.text.trim().isEmpty) {
+      _syncAutoSku(force: true);
+    }
 
     if (_barcodeController.text.trim().isEmpty || quantity == null || quantity <= 0) {
       _showSnack("\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 barcode \u0e41\u0e25\u0e30\u0e08\u0e33\u0e19\u0e27\u0e19\u0e43\u0e2b\u0e49\u0e04\u0e23\u0e1a");
-      return;
-    }
-    if (_newProductMode && !widget.currentUser.isAdmin) {
-      _showSnack("\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49");
       return;
     }
     if (shouldCreateProduct && _productNameController.text.trim().isEmpty) {
@@ -2478,15 +2607,13 @@ class _ScanPageState extends State<ScanPage> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.24)!,
+      color: Color.lerp(_brandSurface, Colors.white, 0.14)!,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
         _PageHeader(
           title: "\u0e2a\u0e41\u0e01\u0e19\u0e41\u0e25\u0e30\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01",
-          subtitle: widget.currentUser.isAdmin
-              ? "\u0e04\u0e38\u0e13\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49\u0e17\u0e31\u0e49\u0e07\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e41\u0e01\u0e19\u0e1b\u0e01\u0e15\u0e34\u0e41\u0e25\u0e30\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48"
-              : "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e2a\u0e41\u0e01\u0e19\u0e23\u0e31\u0e1a\u0e40\u0e02\u0e49\u0e32 \u0e08\u0e48\u0e32\u0e22\u0e2d\u0e2d\u0e01 \u0e41\u0e25\u0e30\u0e40\u0e1a\u0e34\u0e01\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49",
+          subtitle: "\u0e04\u0e38\u0e13\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49\u0e17\u0e31\u0e49\u0e07\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e41\u0e01\u0e19\u0e1b\u0e01\u0e15\u0e34\u0e41\u0e25\u0e30\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48",
         ),
         const SizedBox(height: 16),
         SegmentedButton<bool>(
@@ -2497,22 +2624,16 @@ class _ScanPageState extends State<ScanPage> {
           selected: {_newProductMode},
           onSelectionChanged: (selection) {
             final wantsNewMode = selection.first;
-            if (wantsNewMode && !widget.currentUser.isAdmin) {
-              _showSnack("\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e42\u0e2b\u0e21\u0e14\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e14\u0e49");
-              return;
-            }
             setState(() {
               _newProductMode = wantsNewMode;
             });
             if (wantsNewMode && _barcodeController.text.trim().isEmpty) {
               _generateBarcode(silent: true);
+            } else if (wantsNewMode) {
+              _syncAutoSku();
             }
           },
         ),
-        if (!widget.currentUser.isAdmin) ...[
-          const SizedBox(height: 8),
-          const Text("\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48"),
-        ],
         const SizedBox(height: 16),
         ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -2535,6 +2656,7 @@ class _ScanPageState extends State<ScanPage> {
                   _barcodeController.text = value;
                   _scannerEnabled = false;
                 });
+                _syncAutoSku();
                 Future<void>.delayed(const Duration(seconds: 2), () {
                   if (mounted) {
                     setState(() {
@@ -2549,9 +2671,10 @@ class _ScanPageState extends State<ScanPage> {
         const SizedBox(height: 16),
         TextField(
           controller: _barcodeController,
-          decoration: InputDecoration(
-            labelText: "Barcode",
-            border: const OutlineInputBorder(),
+          onChanged: (_) => _syncAutoSku(),
+          decoration: _scanInputDecoration(
+            "Barcode",
+            hintText: "เช่น STK000001",
             suffixIcon: _newProductMode
                 ? IconButton(
                     onPressed: _isGeneratingBarcode ? null : _generateBarcode,
@@ -2601,9 +2724,9 @@ class _ScanPageState extends State<ScanPage> {
               child: TextField(
                 controller: _qtyController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "\u0e08\u0e33\u0e19\u0e27\u0e19",
-                  border: OutlineInputBorder(),
+                decoration: _scanInputDecoration(
+                  "\u0e08\u0e33\u0e19\u0e27\u0e19",
+                  hintText: "1",
                 ),
               ),
             ),
@@ -2611,9 +2734,9 @@ class _ScanPageState extends State<ScanPage> {
             Expanded(
               child: TextField(
                 controller: _referenceController,
-                decoration: const InputDecoration(
-                  labelText: "\u0e40\u0e25\u0e02\u0e2d\u0e49\u0e32\u0e07\u0e2d\u0e34\u0e07",
-                  border: OutlineInputBorder(),
+                decoration: _scanInputDecoration(
+                  "\u0e40\u0e25\u0e02\u0e2d\u0e49\u0e32\u0e07\u0e2d\u0e34\u0e07",
+                  hintText: "\u0e16\u0e49\u0e32\u0e21\u0e35",
                 ),
               ),
             ),
@@ -2623,18 +2746,19 @@ class _ScanPageState extends State<ScanPage> {
         TextField(
           controller: _noteController,
           maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: "\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38",
-            border: OutlineInputBorder(),
+          decoration: _scanInputDecoration(
+            "\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38",
+            hintText: "\u0e23\u0e32\u0e22\u0e25\u0e30\u0e40\u0e2d\u0e35\u0e22\u0e14\u0e40\u0e1e\u0e34\u0e48\u0e21",
           ),
         ),
         if (_newProductMode) ...[
           const SizedBox(height: 12),
           TextField(
             controller: _productNameController,
-            decoration: const InputDecoration(
-              labelText: "\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
-              border: OutlineInputBorder(),
+            onChanged: (_) => _syncAutoSku(),
+            decoration: _scanInputDecoration(
+              "\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
+              hintText: "\u0e40\u0e0a\u0e48\u0e19 Motor",
             ),
           ),
           const SizedBox(height: 12),
@@ -2643,9 +2767,19 @@ class _ScanPageState extends State<ScanPage> {
               Expanded(
                 child: TextField(
                   controller: _productSkuController,
-                  decoration: const InputDecoration(
-                    labelText: "SKU",
-                    border: OutlineInputBorder(),
+                  onChanged: (value) {
+                    final trimmed = value.trim();
+                    _isSkuManuallyEdited =
+                        trimmed.isNotEmpty && trimmed != _lastAutoGeneratedSku;
+                  },
+                  decoration: _scanInputDecoration(
+                    "SKU",
+                    hintText: "\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34",
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(() => _syncAutoSku(force: true)),
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      tooltip: "\u0e2a\u0e23\u0e49\u0e32\u0e07 SKU \u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34",
+                    ),
                   ),
                 ),
               ),
@@ -2653,28 +2787,36 @@ class _ScanPageState extends State<ScanPage> {
               Expanded(
                 child: TextField(
                   controller: _productUnitController,
-                  decoration: const InputDecoration(
-                    labelText: "\u0e2b\u0e19\u0e48\u0e27\u0e22",
-                    border: OutlineInputBorder(),
+                  decoration: _scanInputDecoration(
+                    "\u0e2b\u0e19\u0e48\u0e27\u0e22",
+                    hintText: "pcs",
                   ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            "\u0e1b\u0e25\u0e48\u0e2d\u0e22\u0e27\u0e48\u0e32\u0e07\u0e44\u0e14\u0e49 \u0e23\u0e30\u0e1a\u0e1a\u0e08\u0e30\u0e2a\u0e23\u0e49\u0e32\u0e07 SKU \u0e43\u0e2b\u0e49\u0e08\u0e32\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e41\u0e25\u0e30 barcode \u0e2d\u0e31\u0e15\u0e42\u0e19\u0e21\u0e31\u0e15\u0e34",
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _brandInk.withOpacity(0.84),
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _productCategoryController,
-            decoration: const InputDecoration(
-              labelText: "\u0e2b\u0e21\u0e27\u0e14\u0e2b\u0e21\u0e39\u0e48",
-              border: OutlineInputBorder(),
+            decoration: _scanInputDecoration(
+              "\u0e2b\u0e21\u0e27\u0e14\u0e2b\u0e21\u0e39\u0e48",
+              hintText: "\u0e40\u0e0a\u0e48\u0e19 \u0e44\u0e1f\u0e1f\u0e49\u0e32",
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _productLocationController,
-            decoration: const InputDecoration(
-              labelText: "\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e08\u0e31\u0e14\u0e40\u0e01\u0e47\u0e1a",
-              border: OutlineInputBorder(),
+            decoration: _scanInputDecoration(
+              "\u0e15\u0e33\u0e41\u0e2b\u0e19\u0e48\u0e07\u0e08\u0e31\u0e14\u0e40\u0e01\u0e47\u0e1a",
+              hintText: "\u0e40\u0e0a\u0e48\u0e19 Rack A1",
             ),
           ),
         ],

@@ -1758,8 +1758,6 @@ async def scan_item(payload: ScanRequest, request: Request) -> dict:
         raise HTTPException(status_code=403, detail="Authenticated user does not match actor_id.")
     user = get_user_or_404(payload.actor_id)
     payload.actor_name = user.user_name
-    if payload.auto_create_product:
-        require_admin_request(request, payload.actor_id)
 
     product, product_created, product_create_status = ensure_product_for_scan(payload)
 
