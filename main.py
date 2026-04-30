@@ -7,6 +7,8 @@ import hmac
 import logging
 import secrets
 import sqlite3
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
@@ -259,6 +261,29 @@ class GoogleSheetBulkSyncResult(BaseModel):
     skipped_count: int
     sheet_name: str
     message: str
+
+
+class ChatAssistantRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+
+
+class ChatAssistantAction(BaseModel):
+    type: Literal["stock_in", "stock_out", "stock_issue"]
+    barcode: str
+    product_name: str
+    quantity: int
+    previous_stock: int
+    current_stock: int
+    low_stock: bool
+    movement_id: str
+
+
+class ChatAssistantResponse(BaseModel):
+    message: str
+    matched_products: list[Product] = Field(default_factory=list)
+    action: ChatAssistantAction | None = None
+    ai_enabled: bool = False
+    used_ai: bool = False
 
 
 class BarcodeSuggestion(BaseModel):
@@ -1357,6 +1382,277 @@ def build_profile_image_url(filename: str) -> str:
     return f"/uploads/profile_images/{filename}"
 
 
+def ai_chat_enabled() -> bool:
+    return bool(os.getenv("OPENAI_API_KEY", "").strip())
+
+
+def normalize_chat_text(value: str) -> str:
+    return "".join(ch for ch in value.strip().lower() if ch.isalnum() or "\u0e00" <= ch <= "\u0e7f")
+
+
+def strip_chat_noise(value: str) -> str:
+    normalized = value
+    for token in [
+        "มี",
+        "สินค้า",
+        "ตัว",
+        "นี้",
+        "อัน",
+        "รายการ",
+        "ตอนนี้",
+        "หน่อย",
+        "บ้าง",
+        "ไหม",
+        "หรือยัง",
+        "หรือเปล่า",
+        "เท่าไหร่",
+        "เท่าไร",
+        "กี่ชิ้น",
+        "กี่อัน",
+        "กี่หน่วย",
+        "คงเหลือ",
+        "เหลือ",
+        "สต๊อก",
+        "สตอก",
+    ]:
+        normalized = normalized.replace(token, "")
+    return normalized.strip()
+
+
+def summarize_product(product: Product) -> str:
+    status = "LOW" if product.current_stock <= product.minimum_stock else "OK"
+    return (
+        f"{product.name} | barcode={product.barcode} | sku={product.sku or '-'} | "
+        f"stock={product.current_stock} {product.unit} | min={product.minimum_stock} | "
+        f"category={product.category or '-'} | location={product.location or '-'} | status={status}"
+    )
+
+
+def find_chat_products(question: str) -> list[Product]:
+    normalized_question = normalize_chat_text(question)
+    simplified_question = normalize_chat_text(strip_chat_noise(question))
+    compact_question = question.replace(" ", "").strip()
+    matches: list[Product] = []
+
+    for product in products.values():
+        fields = [
+            product.name,
+            product.barcode,
+            product.sku or "",
+            product.category or "",
+            product.location or "",
+        ]
+        normalized_fields = [normalize_chat_text(field) for field in fields]
+        if (
+            compact_question == product.barcode
+            or any(field and normalized_question in field for field in normalized_fields)
+            or any(field and field in normalized_question for field in normalized_fields)
+            or any(field and simplified_question and simplified_question in field for field in normalized_fields)
+        ):
+            matches.append(product)
+
+    matches.sort(
+        key=lambda item: (
+            normalize_chat_text(item.name) != normalized_question,
+            item.name.lower(),
+        )
+    )
+    return matches
+
+
+def build_stock_summary_payload() -> dict[str, Any]:
+    low_stock_items = [item for item in products.values() if item.current_stock <= item.minimum_stock]
+    return {
+        "total_products": len(products),
+        "total_units": sum(item.current_stock for item in products.values()),
+        "low_stock_count": len(low_stock_items),
+        "low_stock_items": low_stock_items,
+    }
+
+
+def detect_chat_action(message: str) -> tuple[MovementType, int, str] | None:
+    lowered = message.strip().lower()
+    intent_map = {
+        MovementType.IN: ["เพิ่ม", "รับเข้า", "เติม", "stockin", "นำเข้า", "เอาเข้า", "เพิ่มสต๊อก", "เพิ่มสตอก"],
+        MovementType.OUT: ["เบิก", "ตัด", "ลด", "จ่ายออก", "stockout", "เอาออก", "ลดสต๊อก", "ลดสตอก", "ตัดสต๊อก", "ตัดสตอก"],
+        MovementType.ISSUE: ["issue", "ใช้ไป", "นำออกใช้", "หยิบใช้", "เบิกใช้"],
+    }
+    selected_action: MovementType | None = None
+    for action, keywords in intent_map.items():
+        if any(keyword in lowered for keyword in keywords):
+            selected_action = action
+            break
+    if selected_action is None:
+        return None
+
+    quantity = None
+    for token in message.replace(",", " ").split():
+        if token.isdigit():
+            quantity = int(token)
+            break
+    if quantity is None or quantity <= 0:
+        return None
+
+    product_hint = message
+    for keyword_list in intent_map.values():
+        for keyword in keyword_list:
+            product_hint = product_hint.replace(keyword, " ")
+            product_hint = product_hint.replace(keyword.capitalize(), " ")
+    for token in product_hint.split():
+        if token.isdigit():
+            product_hint = product_hint.replace(token, " ")
+    cleaned_hint = product_hint.strip()
+    if not cleaned_hint:
+        return None
+    return selected_action, quantity, cleaned_hint
+
+
+def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Product], ChatAssistantAction | None, dict | None]:
+    detected = detect_chat_action(message)
+    if not detected:
+        return "", [], None, None
+
+    action, quantity, product_hint = detected
+    matches = find_chat_products(product_hint)
+    if not matches:
+        return (
+            "ยังหาสินค้าที่ต้องการสั่งงานไม่เจอ ลองระบุชื่อหรือบาร์โค้ดให้ชัดขึ้น",
+            [],
+            None,
+            None,
+        )
+    if len(matches) > 1:
+        preview = ", ".join(item.name for item in matches[:5])
+        return (
+            f"เจอหลายรายการที่ใกล้เคียงกัน: {preview} ลองระบุให้ชัดขึ้นก่อนสั่งงาน",
+            matches[:5],
+            None,
+            None,
+        )
+
+    product = matches[0]
+    before_stock = product.current_stock
+    delta = quantity if action == MovementType.IN else -quantity
+    after_stock = before_stock + delta
+    if after_stock < 0:
+        return (
+            f"สั่งงานไม่ได้ เพราะ {product.name} คงเหลือ {before_stock} {product.unit} แต่ขอใช้ {quantity} {product.unit}",
+            [product],
+            None,
+            None,
+        )
+
+    product.current_stock = after_stock
+    products[product.barcode] = product
+    save_product(product)
+
+    record = MovementRecord(
+        id=str(uuid4()),
+        barcode=product.barcode,
+        product_name=product.name,
+        action=action,
+        quantity=quantity,
+        before_stock=before_stock,
+        after_stock=after_stock,
+        actor_id=user.user_id,
+        actor_name=user.user_name,
+        note="Chat assistant action",
+        reference=message.strip(),
+        created_at=utc_now(),
+    )
+    movements.insert(0, record)
+    save_movement(record)
+    try:
+        client = sheet_client()
+        if client.status().configured:
+            client.append_movement(record)
+            client.update_product_stock(product)
+    except Exception as exc:
+        logger.warning("Failed to sync chat action for %s: %s", product.barcode, exc)
+    notification = create_notification(record)
+    return (
+        (
+            f"บันทึกสำเร็จ: {product.name} "
+            f"{'เพิ่ม' if action == MovementType.IN else 'ตัด'} {quantity} {product.unit} "
+            f"คงเหลือ {after_stock} {product.unit}"
+        ),
+        [product],
+        ChatAssistantAction(
+            type=(
+                "stock_in"
+                if action == MovementType.IN
+                else ("stock_issue" if action == MovementType.ISSUE else "stock_out")
+            ),
+            barcode=product.barcode,
+            product_name=product.name,
+            quantity=quantity,
+            previous_stock=before_stock,
+            current_stock=after_stock,
+            low_stock=after_stock <= product.minimum_stock,
+            movement_id=record.id,
+        ),
+        notification,
+    )
+
+
+def build_ai_chat_reply(message: str, matched_products: list[Product], summary: dict[str, Any]) -> str | None:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
+    inventory_lines = [summarize_product(item) for item in matched_products[:8]]
+    if not inventory_lines:
+        low_stock_items = summary["low_stock_items"][:8]
+        inventory_lines = [summarize_product(item) for item in low_stock_items]
+
+    system_prompt = (
+        "You are a Thai inventory assistant. Answer briefly in Thai using only the inventory data provided. "
+        "Do not invent products or quantities. If the data is insufficient, say so clearly."
+    )
+    user_prompt = (
+        f"Question: {message}\n"
+        f"Inventory summary: total_products={summary['total_products']}, total_units={summary['total_units']}, "
+        f"low_stock_count={summary['low_stock_count']}\n"
+        "Relevant inventory:\n"
+        + ("\n".join(inventory_lines) if inventory_lines else "No relevant products found.")
+    )
+    payload = json.dumps(
+        {
+            "model": model,
+            "input": [
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
+            ],
+            "max_output_tokens": 220,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+
+    output = body.get("output", [])
+    parts: list[str] = []
+    for item in output:
+        for content in item.get("content", []):
+            text = content.get("text")
+            if text:
+                parts.append(text.strip())
+    combined = " ".join(part for part in parts if part).strip()
+    return combined or None
+
+
 def csv_response(filename: str, headers: list[str], rows: list[list[Any]]) -> Response:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -1478,7 +1774,14 @@ def root() -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "timestamp": utc_now()}
+    return {
+        "status": "ok",
+        "timestamp": utc_now(),
+        "features": {
+            "assistant_chat": True,
+            "ai_chat": ai_chat_enabled(),
+        },
+    }
 
 
 @app.get("/products", response_model=list[Product])
@@ -1860,16 +2163,102 @@ def list_notifications(limit: int = Query(20, ge=1, le=100)) -> list[dict]:
 
 @app.get("/stock/summary")
 def stock_summary() -> dict:
-    total_products = len(products)
-    total_units = sum(item.current_stock for item in products.values())
-    low_stock = [item for item in products.values() if item.current_stock <= item.minimum_stock]
+    return build_stock_summary_payload()
 
-    return {
-        "total_products": total_products,
-        "total_units": total_units,
-        "low_stock_count": len(low_stock),
-        "low_stock_items": low_stock,
-    }
+
+@app.post("/assistant/chat", response_model=ChatAssistantResponse)
+async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> ChatAssistantResponse:
+    user = resolve_request_user(request)
+    action_message, action_products, action_result, notification = execute_chat_stock_action(
+        payload.message,
+        user,
+    )
+    if action_message:
+        if action_result and notification:
+            await broadcast_realtime_event(
+                "stock_changed",
+                {
+                    "barcode": action_result.barcode,
+                    "product": action_products[0].model_dump(mode="json"),
+                    "movement": movements[0].model_dump(mode="json"),
+                    "notification": notification,
+                    "product_created": False,
+                    "low_stock": action_result.low_stock,
+                },
+            )
+        return ChatAssistantResponse(
+            message=action_message,
+            matched_products=action_products,
+            action=action_result,
+            ai_enabled=ai_chat_enabled(),
+            used_ai=False,
+        )
+
+    summary = build_stock_summary_payload()
+    normalized = normalize_chat_text(payload.message)
+
+    if any(keyword in normalized for keyword in ["ใกล้หมด", "ของหมด", "สตอกต่ำ", "สต๊อกต่ำ", "lowstock", "หมดหรือยัง", "หมดยัง", "ต่ำกว่าขั้นต่ำ"]):
+        low_stock_items = sorted(
+            summary["low_stock_items"],
+            key=lambda item: item.current_stock,
+        )
+        if not low_stock_items:
+            return ChatAssistantResponse(
+                message="ตอนนี้ยังไม่มีสินค้าที่อยู่ในระดับใกล้หมด",
+                ai_enabled=ai_chat_enabled(),
+            )
+        preview = ", ".join(
+            f"{item.name} ({item.current_stock}/{item.minimum_stock} {item.unit})"
+            for item in low_stock_items[:5]
+        )
+        return ChatAssistantResponse(
+            message=f"มีสินค้าใกล้หมด {len(low_stock_items)} รายการ: {preview}",
+            matched_products=low_stock_items[:5],
+            ai_enabled=ai_chat_enabled(),
+        )
+
+    if any(keyword in normalized for keyword in ["ทั้งหมด", "รวม", "กี่รายการ", "summary", "ภาพรวม", "สรุป"]):
+        return ChatAssistantResponse(
+            message=(
+                f"ตอนนี้มีสินค้า {summary['total_products']} รายการ "
+                f"รวมจำนวนคงเหลือ {summary['total_units']} ชิ้น/หน่วย "
+                f"และมีสินค้าใกล้หมด {summary['low_stock_count']} รายการ"
+            ),
+            ai_enabled=ai_chat_enabled(),
+        )
+
+    matches = find_chat_products(payload.message)
+    if len(matches) == 1:
+        product = matches[0]
+        status = "สินค้าใกล้หมดแล้ว" if product.current_stock <= product.minimum_stock else "สินค้ายังไม่ใกล้หมด"
+        location = f" ตำแหน่ง {product.location}" if product.location else ""
+        if any(keyword in normalized for keyword in ["ขั้นต่ำ", "ขั้นต่ำเท่าไหร่", "min", "minimum"]):
+            deterministic_reply = (
+                f"{product.name} ตั้งค่าขั้นต่ำไว้ {product.minimum_stock} {product.unit} "
+                f"และตอนนี้คงเหลือ {product.current_stock} {product.unit} {status}.{location}"
+            )
+        else:
+            deterministic_reply = (
+                f"{product.name} คงเหลือ {product.current_stock} {product.unit} "
+                f"ขั้นต่ำ {product.minimum_stock} {product.unit} {status}.{location}"
+            )
+    elif len(matches) > 1:
+        preview = ", ".join(item.name for item in matches[:5])
+        deterministic_reply = (
+            f"เจอหลายรายการที่ใกล้เคียงกัน: {preview} ลองพิมพ์ชื่อหรือบาร์โค้ดให้เฉพาะเจาะจงขึ้น"
+        )
+    else:
+        deterministic_reply = (
+            "ยังหาไม่เจอ ลองพิมพ์ชื่อสินค้าให้สั้นลง หรือใช้บาร์โค้ด/รหัสสินค้า เช่น \"น้ำดื่มเหลือเท่าไหร่\""
+        )
+
+    ai_reply = build_ai_chat_reply(payload.message, matches, summary)
+    return ChatAssistantResponse(
+        message=ai_reply or deterministic_reply,
+        matched_products=matches[:5],
+        ai_enabled=ai_chat_enabled(),
+        used_ai=bool(ai_reply),
+    )
 
 
 def build_products_csv_response() -> Response:

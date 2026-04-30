@@ -61,6 +61,17 @@ class StockApiService {
     }
   }
 
+  Future<bool> isAssistantAvailable() async {
+    try {
+      final response = await _get("/health");
+      final body = _decode(response) as Map<String, dynamic>;
+      final features = body["features"] as Map<String, dynamic>?;
+      return features?["assistant_chat"] as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<http.Response> _postLogin(Map<String, dynamic> payload) async {
     try {
       return await http
@@ -432,6 +443,24 @@ class StockApiService {
       "product_sku": productSku,
     });
     return ScanResult.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<ChatAssistantResult> askAssistant({
+    required String message,
+  }) async {
+    http.Response response;
+    try {
+      response = await _postJson("/assistant/chat", {
+        "message": message,
+      });
+    } catch (error) {
+      final text = error.toString().toLowerCase();
+      if (text.contains("not found")) {
+        throw Exception("Backend ยังไม่รองรับฟีเจอร์แชท กรุณาอัปเดตเซิร์ฟเวอร์ก่อนใช้งาน");
+      }
+      rethrow;
+    }
+    return ChatAssistantResult.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Object _decode(http.Response response) {

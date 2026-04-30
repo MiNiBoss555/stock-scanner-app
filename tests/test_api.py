@@ -188,3 +188,57 @@ def test_export_link_is_single_use_and_returns_file(api_context: dict) -> None:
 
     second_download = client.get(download_url)
     assert second_download.status_code == 404, second_download.text
+
+
+def test_chat_assistant_returns_product_stock(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP002", pin="1234")
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "8850001110012 เหลือเท่าไหร่"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["matched_products"][0]["barcode"] == "8850001110012"
+    assert "คงเหลือ" in payload["message"]
+    assert payload["action"] is None
+
+
+def test_chat_assistant_can_execute_stock_out(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP002", pin="1234")
+    before = client.get("/products/8850001110012").json()["current_stock"]
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "เบิก 2 8850001110012"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["action"]["type"] == "stock_out"
+    assert payload["action"]["previous_stock"] == before
+    assert payload["action"]["current_stock"] == before - 2
+
+    product_after = client.get("/products/8850001110012").json()
+    assert product_after["current_stock"] == before - 2
+
+
+def test_chat_assistant_understands_minimum_stock_question(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP002", pin="1234")
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "ขั้นต่ำของ 8850001110012 เท่าไหร่"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["matched_products"][0]["barcode"] == "8850001110012"
+    assert "ขั้นต่ำ" in payload["message"]

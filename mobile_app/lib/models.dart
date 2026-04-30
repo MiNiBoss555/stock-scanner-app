@@ -230,3 +230,70 @@ class ScanResult {
   final AppNotification notification;
   final bool productCreated;
 }
+
+class ChatAssistantAction {
+  ChatAssistantAction({
+    required this.type,
+    required this.barcode,
+    required this.productName,
+    required this.quantity,
+    required this.previousStock,
+    required this.currentStock,
+    required this.lowStock,
+    required this.movementId,
+  });
+
+  factory ChatAssistantAction.fromJson(Map<String, dynamic> json) {
+    return ChatAssistantAction(
+      type: json["type"] as String,
+      barcode: json["barcode"] as String,
+      productName: json["product_name"] as String,
+      quantity: (json["quantity"] as num).toInt(),
+      previousStock: (json["previous_stock"] as num).toInt(),
+      currentStock: (json["current_stock"] as num).toInt(),
+      lowStock: json["low_stock"] as bool? ?? false,
+      movementId: json["movement_id"] as String,
+    );
+  }
+
+  final String type;
+  final String barcode;
+  final String productName;
+  final int quantity;
+  final int previousStock;
+  final int currentStock;
+  final bool lowStock;
+  final String movementId;
+}
+
+class ChatAssistantResult {
+  ChatAssistantResult({
+    required this.message,
+    required this.matchedProducts,
+    required this.aiEnabled,
+    required this.usedAi,
+    this.action,
+  });
+
+  factory ChatAssistantResult.fromJson(Map<String, dynamic> json) {
+    final matchedProducts = (json["matched_products"] as List<dynamic>? ?? [])
+        .map((item) => Product.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    return ChatAssistantResult(
+      message: json["message"] as String? ?? "",
+      matchedProducts: matchedProducts,
+      aiEnabled: json["ai_enabled"] as bool? ?? false,
+      usedAi: json["used_ai"] as bool? ?? false,
+      action: json["action"] == null
+          ? null
+          : ChatAssistantAction.fromJson(json["action"] as Map<String, dynamic>),
+    );
+  }
+
+  final String message;
+  final List<Product> matchedProducts;
+  final ChatAssistantAction? action;
+  final bool aiEnabled;
+  final bool usedAi;
+}

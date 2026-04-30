@@ -22,6 +22,7 @@ import "models.dart";
 const _sessionUserIdKey = "session_user_id";
 const _sessionPinKey = "session_pin";
 const _sessionAccessTokenKey = "session_access_token";
+const _brandLogoAsset = "assets/branding/scan_product_logo.png";
 const _brandPrimary = Color(0xFF8A5A3C);
 const _brandSurface = Color(0xFFE8D8C3);
 const _brandSurfaceStrong = Color(0xFFB48A61);
@@ -42,6 +43,26 @@ const double _radiusLg = 24;
 const double _radiusXl = 28;
 const _pagePadding = EdgeInsets.all(_spaceMd);
 const _cardPadding = EdgeInsets.all(_spaceMd);
+
+class _BrandLogoIcon extends StatelessWidget {
+  const _BrandLogoIcon({this.size = 24});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.24),
+      child: Image.asset(
+        _brandLogoAsset,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
+    );
+  }
+}
 
 BoxDecoration _softPanelDecoration({
   Color tone = _brandPrimary,
@@ -93,6 +114,12 @@ String _normalizeFeedbackMessage(String message) {
   }
   if (lowered.contains("authentication required")) {
     return "กรุณาเข้าสู่ระบบใหม่อีกครั้ง";
+  }
+  if (lowered.contains("backend ยังไม่รองรับฟีเจอร์แชท")) {
+    return "เซิร์ฟเวอร์ยังไม่อัปเดตฟีเจอร์แชท กรุณา deploy backend เวอร์ชันล่าสุดก่อน";
+  }
+  if (lowered.contains("not found")) {
+    return "ไม่พบปลายทางที่ต้องการบนเซิร์ฟเวอร์ อาจเป็นเพราะ backend ยังไม่อัปเดต";
   }
 
   return cleaned;
@@ -185,8 +212,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
             _currentUser = user;
             _isRestoring = false;
           });
-          return;
         }
+        return;
       } catch (_) {
         _api.clearAccessToken();
         await prefs.remove(_sessionAccessTokenKey);
@@ -203,8 +230,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
             _currentUser = session.user;
             _isRestoring = false;
           });
-          return;
         }
+        return;
       } catch (_) {
         _api.clearAccessToken();
         await prefs.remove(_sessionAccessTokenKey);
@@ -794,6 +821,21 @@ class _StockHomePageState extends State<StockHomePage> {
     );
   }
 
+  Future<void> _openAssistantSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ChatAssistantPage(
+          api: widget.api,
+          refreshSignal: _realtimeRevision,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -804,6 +846,10 @@ class _StockHomePageState extends State<StockHomePage> {
       ),
       ScanPage(api: widget.api, currentUser: widget.currentUser),
       HistoryPage(api: widget.api, refreshSignal: _realtimeRevision),
+      ChatAssistantPage(
+        api: widget.api,
+        refreshSignal: _realtimeRevision,
+      ),
     ];
 
     return Scaffold(
@@ -820,7 +866,7 @@ class _StockHomePageState extends State<StockHomePage> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: IconButton.filledTonal(
                   onPressed: () => _openMorePage(context),
-                  icon: const Icon(Icons.grid_view_rounded),
+                  icon: const _BrandLogoIcon(size: 24),
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.white.withOpacity(0.92),
                     foregroundColor: _brandDeep,
@@ -833,8 +879,16 @@ class _StockHomePageState extends State<StockHomePage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openAssistantSheet(context),
+        backgroundColor: _brandPrimary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.forum_outlined),
+        label: const Text("\u0e41\u0e0a\u0e17"),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 76),
         child: Container(
           decoration: BoxDecoration(
             color: _brandCard.withOpacity(0.96),
@@ -875,8 +929,287 @@ class _StockHomePageState extends State<StockHomePage> {
                 selectedIcon: Icon(Icons.history),
                 label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
               ),
+              NavigationDestination(
+                icon: Icon(Icons.smart_toy_outlined),
+                selectedIcon: Icon(Icons.smart_toy),
+                label: "\u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22",
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class ChatAssistantPage extends StatefulWidget {
+  const ChatAssistantPage({
+    super.key,
+    required this.api,
+    required this.refreshSignal,
+  });
+
+  final StockApiService api;
+  final ValueListenable<int> refreshSignal;
+
+  @override
+  State<ChatAssistantPage> createState() => _ChatAssistantPageState();
+}
+
+class _ChatAssistantPageState extends State<ChatAssistantPage> {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late List<_ChatMessage> _messages;
+  bool _isSending = false;
+  bool? _assistantAvailable;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = [
+      _ChatMessage.bot(
+        "ถามข้อมูลสต๊อก, ให้ AI ช่วยตอบ, หรือสั่งงานได้เลย เช่น \"โค้กเหลือกี่ชิ้น\", \"อะไรใกล้หมดบ้าง\", \"เบิก 2 8851234567890\"",
+      ),
+    ];
+    widget.refreshSignal.addListener(_handleRealtimeRefresh);
+    _checkAssistantAvailability();
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal.removeListener(_handleRealtimeRefresh);
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _messages = [
+        ..._messages,
+        _ChatMessage.bot("ข้อมูลสต๊อกมีการอัปเดตแล้ว ถามใหม่ได้เลยเพื่อดูตัวเลขล่าสุด"),
+      ];
+    });
+    _scrollToBottom();
+  }
+
+  Future<void> _checkAssistantAvailability() async {
+    final available = await widget.api.isAssistantAvailable();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _assistantAvailable = available;
+      if (!available) {
+        _messages = [
+          _messages.first,
+          _ChatMessage.bot(
+            "เซิร์ฟเวอร์ที่เชื่อมต่ออยู่ยังไม่รองรับฟีเจอร์แชท กรุณาอัปเดต backend แล้วลองใหม่",
+          ),
+        ];
+      }
+    });
+  }
+
+  Future<void> _sendMessage([String? preset]) async {
+    final text = (preset ?? _messageController.text).trim();
+    if (text.isEmpty || _isSending) {
+      return;
+    }
+
+    final pendingAction = _detectPendingChatAction(text);
+    if (pendingAction != null) {
+      final confirmed = await _confirmChatAction(pendingAction);
+      if (confirmed != true) {
+        return;
+      }
+    }
+
+    FocusScope.of(context).unfocus();
+    _messageController.clear();
+    setState(() {
+      _isSending = true;
+      _messages = [
+        ..._messages,
+        _ChatMessage.user(text),
+      ];
+    });
+    _scrollToBottom();
+
+    try {
+      final reply = await widget.api.askAssistant(message: text);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages = [
+          ..._messages,
+          _ChatMessage.bot(
+            reply.message,
+            products: reply.matchedProducts,
+            usedAi: reply.usedAi,
+            action: reply.action,
+          ),
+        ];
+      });
+      _scrollToBottom();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages = [
+          ..._messages,
+          _ChatMessage.bot(
+            "ยังดึงข้อมูลสต๊อกไม่ได้: ${_normalizeFeedbackMessage(error.toString())}",
+          ),
+        ];
+      });
+      _scrollToBottom();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  Future<bool?> _confirmChatAction(_PendingChatAction action) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("ยืนยันคำสั่งสต๊อก"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(action.summary),
+              const SizedBox(height: 8),
+              Text(
+                "คำสั่งนี้จะบันทึกลงสต๊อกจริงทันที",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text("ยกเลิก"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text("ยืนยัน"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        return;
+      }
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const suggestions = [
+      "อะไรใกล้หมดบ้าง",
+      "สินค้าทั้งหมดมีกี่รายการ",
+      "มีน้ำดื่มเหลือเท่าไหร่",
+      "เบิก 1 8850001110012",
+      "ขั้นต่ำของน้ำดื่มเท่าไหร่",
+    ];
+
+    return ColoredBox(
+      color: _brandSurface,
+      child: SafeArea(
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _PageHeader(
+                title: "\u0e41\u0e0a\u0e17\u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22\u0e2a\u0e15\u0e4a\u0e2d\u0e01",
+                subtitle: "\u0e16\u0e32\u0e21\u0e08\u0e33\u0e19\u0e27\u0e19\u0e04\u0e07\u0e40\u0e2b\u0e25\u0e37\u0e2d \u0e14\u0e39\u0e02\u0e2d\u0e07\u0e43\u0e01\u0e25\u0e49\u0e2b\u0e21\u0e14 \u0e2b\u0e23\u0e37\u0e2d\u0e2a\u0e31\u0e48\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21-\u0e15\u0e31\u0e14\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e41\u0e0a\u0e17\u0e44\u0e14\u0e49\u0e40\u0e25\u0e22",
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SizedBox(
+                height: 42,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: suggestions.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final suggestion = suggestions[index];
+                    return ActionChip(
+                      label: Text(suggestion),
+                      onPressed: _isSending ? null : () => _sendMessage(suggestion),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  return _ChatBubble(
+                    message: message,
+                    onOpenProduct: (product) => _showProductCodeSheet(context, product),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      textInputAction: TextInputAction.send,
+                      minLines: 1,
+                      maxLines: 3,
+                      enabled: _assistantAvailable != false,
+                      onSubmitted: (_) => _sendMessage(),
+                      decoration: const InputDecoration(
+                        hintText: "\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e04\u0e33\u0e16\u0e32\u0e21\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e01\u0e31\u0e1a\u0e2a\u0e15\u0e4a\u0e2d\u0e01...",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton.filled(
+                    onPressed: _isSending || _assistantAvailable == false ? null : _sendMessage,
+                    icon: _isSending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2373,6 +2706,7 @@ class ScanPage extends StatefulWidget {
 }
 
 class _ScanPageState extends State<ScanPage> {
+  static const MethodChannel _scanSoundChannel = MethodChannel("stock_scanner/sound");
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _qtyController = TextEditingController(text: "1");
   final TextEditingController _noteController = TextEditingController();
@@ -2408,6 +2742,35 @@ class _ScanPageState extends State<ScanPage> {
 
   void _showSnack(String message) {
     _showAppSnack(context, message);
+  }
+
+  Future<void> _playNativeScanBeep() async {
+    try {
+      await _scanSoundChannel.invokeMethod<void>("playScanBeep");
+    } catch (_) {
+      await SystemSound.play(SystemSoundType.click);
+    }
+  }
+
+  Future<void> _playScanHaptic() async {
+    try {
+      await HapticFeedback.lightImpact();
+    } catch (_) {
+      await HapticFeedback.selectionClick();
+    }
+  }
+
+  void _playScanFeedback() {
+    unawaited(_playScanHaptic());
+    if (kIsWeb) {
+      unawaited(SystemSound.play(SystemSoundType.click));
+      return;
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(_playNativeScanBeep());
+      return;
+    }
+    unawaited(SystemSound.play(SystemSoundType.click));
   }
 
   String _trimSkuSegment(String value, int maxLength) {
@@ -2652,6 +3015,7 @@ class _ScanPageState extends State<ScanPage> {
                 if (value == null || value.isEmpty) {
                   return;
                 }
+                _playScanFeedback();
                 setState(() {
                   _barcodeController.text = value;
                   _scannerEnabled = false;
@@ -3429,13 +3793,132 @@ class DashboardData {
   final List<AppNotification> notifications;
 }
 
+class _ChatMessage {
+  const _ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.products = const [],
+    this.usedAi = false,
+    this.action,
+  });
+
+  factory _ChatMessage.user(String text) => _ChatMessage(text: text, isUser: true);
+
+  factory _ChatMessage.bot(
+    String text, {
+    List<Product> products = const [],
+    bool usedAi = false,
+    ChatAssistantAction? action,
+  }) {
+    return _ChatMessage(
+      text: text,
+      isUser: false,
+      products: products,
+      usedAi: usedAi,
+      action: action,
+    );
+  }
+
+  final String text;
+  final bool isUser;
+  final List<Product> products;
+  final bool usedAi;
+  final ChatAssistantAction? action;
+}
+
+class _PendingChatAction {
+  const _PendingChatAction({
+    required this.type,
+    required this.quantity,
+    required this.productHint,
+  });
+
+  final String type;
+  final int quantity;
+  final String productHint;
+
+  String get summary {
+    final verb = switch (type) {
+      "in" => "เพิ่มสต๊อก",
+      "issue" => "เบิกใช้",
+      _ => "ตัด/เบิกสต๊อก",
+    };
+    return "$verb จำนวน $quantity สำหรับ \"$productHint\"";
+  }
+}
+
+_PendingChatAction? _detectPendingChatAction(String message) {
+  final lowered = message.trim().toLowerCase();
+  final intents = <String, List<String>>{
+    "in": ["เพิ่ม", "รับเข้า", "เติม", "นำเข้า", "เอาเข้า", "เพิ่มสต๊อก", "เพิ่มสตอก"],
+    "out": ["เบิก", "ตัด", "ลด", "จ่ายออก", "เอาออก", "ลดสต๊อก", "ลดสตอก", "ตัดสต๊อก", "ตัดสตอก"],
+    "issue": ["issue", "ใช้ไป", "นำออกใช้", "หยิบใช้", "เบิกใช้"],
+  };
+
+  String? detectedType;
+  List<String> matchedKeywords = const [];
+  for (final entry in intents.entries) {
+    final hit = entry.value.where((keyword) => lowered.contains(keyword)).toList();
+    if (hit.isNotEmpty) {
+      detectedType = entry.key;
+      matchedKeywords = hit;
+      break;
+    }
+  }
+  if (detectedType == null) {
+    return null;
+  }
+
+  int? quantity;
+  for (final token in message.replaceAll(",", " ").split(RegExp(r"\s+"))) {
+    if (token.isEmpty) {
+      continue;
+    }
+    final parsed = int.tryParse(token);
+    if (parsed != null && parsed > 0) {
+      quantity = parsed;
+      break;
+    }
+  }
+  if (quantity == null) {
+    return null;
+  }
+
+  var productHint = message;
+  for (final keyword in matchedKeywords) {
+    productHint = productHint.replaceAll(keyword, " ");
+    productHint = productHint.replaceAll(keyword.toUpperCase(), " ");
+  }
+  productHint = productHint.replaceAll(RegExp(r"\b\d+\b"), " ");
+  productHint = productHint.replaceAll(RegExp(r"\s+"), " ").trim();
+  if (productHint.isEmpty) {
+    productHint = "สินค้าที่ระบุ";
+  }
+
+  return _PendingChatAction(
+    type: detectedType,
+    quantity: quantity,
+    productHint: productHint,
+  );
+}
+
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      backgroundColor: _brandSurface,
+      body: Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.8,
+            color: _brandPrimary,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3814,6 +4297,113 @@ class _UserAvatar extends StatelessWidget {
       backgroundColor: _brandSurfaceStrong,
       backgroundImage: imageProvider,
       child: imageProvider == null ? Text(name.isEmpty ? "?" : name[0]) : null,
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  const _ChatBubble({
+    required this.message,
+    required this.onOpenProduct,
+  });
+
+  final _ChatMessage message;
+  final ValueChanged<Product> onOpenProduct;
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = message.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final bubbleColor = message.isUser ? _brandDeep : _brandCard;
+    final textColor = message.isUser ? Colors.white : _brandInk;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: alignment,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: bubbleColor,
+                borderRadius: BorderRadius.circular(18),
+                border: message.isUser
+                    ? null
+                    : Border.all(color: _brandPrimary.withOpacity(0.12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!message.isUser && (message.usedAi || message.action != null)) ...[
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (message.usedAi)
+                          _ChatMetaChip(
+                            label: "AI",
+                            tone: _profileTeal,
+                          ),
+                        if (message.action != null)
+                          _ChatMetaChip(
+                            label: "สั่งงานแล้ว",
+                            tone: message.action!.lowStock ? _brandPrimary : _brandDeep,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Text(
+                    message.text,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (message.products.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...message.products.map(
+              (product) => SizedBox(
+                width: 320,
+                child: _ProductTile(
+                  product: product,
+                  onOpenCode: () => onOpenProduct(product),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatMetaChip extends StatelessWidget {
+  const _ChatMetaChip({
+    required this.label,
+    required this.tone,
+  });
+
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tone,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
     );
   }
 }
