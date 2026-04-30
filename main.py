@@ -28,6 +28,15 @@ class MovementType(str, Enum):
     ISSUE = "issue"
 
 
+class OrderStatus(str, Enum):
+    NEW = "new"
+    ASSIGNED = "assigned"
+    PREPARING = "preparing"
+    OUT_FOR_DELIVERY = "out_for_delivery"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+
 class Product(BaseModel):
     barcode: str = Field(..., min_length=3, description="Barcode or SKU")
     sku: str | None = None
@@ -152,6 +161,51 @@ class MovementRecord(BaseModel):
     note: str | None = None
     reference: str | None = None
     created_at: datetime
+
+
+class OrderItem(BaseModel):
+    barcode: str = Field(..., min_length=3)
+    product_name: str
+    quantity: int = Field(..., gt=0)
+    unit: str = "pcs"
+
+
+class Order(BaseModel):
+    id: str
+    customer_name: str
+    customer_phone: str | None = None
+    customer_address: str | None = None
+    note: str | None = None
+    status: OrderStatus = OrderStatus.NEW
+    created_by_id: str
+    created_by_name: str
+    assigned_to_id: str | None = None
+    assigned_to_name: str | None = None
+    items: list[OrderItem] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class OrderCreateItem(BaseModel):
+    barcode: str = Field(..., min_length=3)
+    quantity: int = Field(..., gt=0)
+
+
+class OrderCreateRequest(BaseModel):
+    customer_name: str = Field(..., min_length=1)
+    customer_phone: str | None = None
+    customer_address: str | None = None
+    note: str | None = None
+    assigned_to_id: str | None = None
+    items: list[OrderCreateItem] = Field(..., min_length=1)
+
+
+class OrderAssignRequest(BaseModel):
+    assigned_to_id: str = Field(..., min_length=1)
+
+
+class OrderStatusUpdateRequest(BaseModel):
+    status: OrderStatus
 
 
 class SheetMapping(BaseModel):
@@ -401,6 +455,7 @@ products: dict[str, Product] = {}
 users: dict[str, User] = {}
 
 movements: list[MovementRecord] = []
+orders: list[Order] = []
 sheet_mapping = SheetMapping(
     spreadsheet_id=os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID"),
     service_account_file=os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE"),
@@ -573,6 +628,36 @@ def init_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id TEXT PRIMARY KEY,
+                customer_name TEXT NOT NULL,
+                customer_phone TEXT,
+                customer_address TEXT,
+                note TEXT,
+                status TEXT NOT NULL,
+                created_by_id TEXT NOT NULL,
+                created_by_name TEXT NOT NULL,
+                assigned_to_id TEXT,
+                assigned_to_name TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_items (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL,
+                barcode TEXT NOT NULL,
+                product_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                unit TEXT NOT NULL
+            )
+            """
+        )
 
         existing_product_count = connection.execute(
             "SELECT COUNT(*) AS count FROM products"
@@ -624,7 +709,7 @@ def init_database() -> None:
 
 
 def load_state_from_db() -> None:
-    global products, users, movements
+    global products, users, movements, orders
     with db_connection() as connection:
         product_rows = connection.execute(
             """
@@ -646,6 +731,22 @@ def load_state_from_db() -> None:
                    actor_id, actor_name, note, reference, created_at
             FROM movements
             ORDER BY created_at DESC
+            """
+        ).fetchall()
+        order_rows = connection.execute(
+            """
+            SELECT id, customer_name, customer_phone, customer_address, note, status,
+                   created_by_id, created_by_name, assigned_to_id, assigned_to_name,
+                   created_at, updated_at
+            FROM orders
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+        order_item_rows = connection.execute(
+            """
+            SELECT order_id, barcode, product_name, quantity, unit
+            FROM order_items
+            ORDER BY rowid ASC
             """
         ).fetchall()
 
@@ -689,6 +790,34 @@ def load_state_from_db() -> None:
             created_at=normalize_datetime(row["created_at"]),
         )
         for row in movement_rows
+    ]
+    items_by_order: dict[str, list[OrderItem]] = {}
+    for row in order_item_rows:
+        items_by_order.setdefault(row["order_id"], []).append(
+            OrderItem(
+                barcode=row["barcode"],
+                product_name=row["product_name"],
+                quantity=int(row["quantity"]),
+                unit=row["unit"],
+            )
+        )
+    orders = [
+        Order(
+            id=row["id"],
+            customer_name=row["customer_name"],
+            customer_phone=row["customer_phone"],
+            customer_address=row["customer_address"],
+            note=row["note"],
+            status=OrderStatus(row["status"]),
+            created_by_id=row["created_by_id"],
+            created_by_name=row["created_by_name"],
+            assigned_to_id=row["assigned_to_id"],
+            assigned_to_name=row["assigned_to_name"],
+            items=items_by_order.get(row["id"], []),
+            created_at=normalize_datetime(row["created_at"]),
+            updated_at=normalize_datetime(row["updated_at"]),
+        )
+        for row in order_rows
     ]
 
 
@@ -798,6 +927,63 @@ def save_movement(record: MovementRecord) -> None:
                 record.reference,
                 record.created_at.isoformat(),
             ),
+        )
+
+
+def save_order(order: Order) -> None:
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO orders (
+                id, customer_name, customer_phone, customer_address, note, status,
+                created_by_id, created_by_name, assigned_to_id, assigned_to_name,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                customer_name = excluded.customer_name,
+                customer_phone = excluded.customer_phone,
+                customer_address = excluded.customer_address,
+                note = excluded.note,
+                status = excluded.status,
+                created_by_id = excluded.created_by_id,
+                created_by_name = excluded.created_by_name,
+                assigned_to_id = excluded.assigned_to_id,
+                assigned_to_name = excluded.assigned_to_name,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at
+            """,
+            (
+                order.id,
+                order.customer_name,
+                order.customer_phone,
+                order.customer_address,
+                order.note,
+                order.status.value,
+                order.created_by_id,
+                order.created_by_name,
+                order.assigned_to_id,
+                order.assigned_to_name,
+                order.created_at.isoformat(),
+                order.updated_at.isoformat(),
+            ),
+        )
+        connection.execute("DELETE FROM order_items WHERE order_id = ?", (order.id,))
+        connection.executemany(
+            """
+            INSERT INTO order_items (id, order_id, barcode, product_name, quantity, unit)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    str(uuid4()),
+                    order.id,
+                    item.barcode,
+                    item.product_name,
+                    item.quantity,
+                    item.unit,
+                )
+                for item in order.items
+            ],
         )
 
 
@@ -1383,6 +1569,13 @@ def build_profile_image_url(filename: str) -> str:
     return f"/uploads/profile_images/{filename}"
 
 
+def get_order_or_404(order_id: str) -> Order:
+    for order in orders:
+        if order.id == order_id:
+            return order
+    raise HTTPException(status_code=404, detail=f"Order {order_id} not found.")
+
+
 def ai_chat_enabled() -> bool:
     return bool(os.getenv("OPENAI_API_KEY", "").strip())
 
@@ -1675,6 +1868,20 @@ def detect_export_request(message: str) -> str | None:
             return "movements_csv"
         return "products_csv"
     return None
+
+
+def is_product_listing_request(normalized: str) -> bool:
+    return any(
+        keyword in normalized
+        for keyword in [
+            "มีสินค้าอะไรบ้าง",
+            "มีสินค้าอะไรในระบบบ้าง",
+            "ขอดูรายการสินค้า",
+            "แสดงสินค้าทั้งหมด",
+            "รายการสินค้า",
+            "สินค้ามีอะไรบ้าง",
+        ]
+    )
 
 
 def csv_response(filename: str, headers: list[str], rows: list[list[Any]]) -> Response:
@@ -2185,6 +2392,119 @@ def list_notifications(limit: int = Query(20, ge=1, le=100)) -> list[dict]:
     return [create_notification(item) for item in movements[:limit]]
 
 
+@app.get("/orders", response_model=list[Order])
+def list_orders(
+    request: Request,
+    assigned_only: bool = False,
+    mine_only: bool = False,
+) -> list[Order]:
+    user = resolve_request_user(request)
+    result = list(orders)
+    if not user.role.strip().lower() == "admin":
+        result = [
+            item
+            for item in result
+            if item.created_by_id == user.user_id or item.assigned_to_id == user.user_id
+        ]
+    if assigned_only:
+        result = [item for item in result if item.assigned_to_id == user.user_id]
+    if mine_only:
+        result = [item for item in result if item.created_by_id == user.user_id]
+    return result
+
+
+@app.post("/orders", response_model=Order)
+async def create_order(payload: OrderCreateRequest, request: Request) -> Order:
+    user = resolve_request_user(request)
+    assigned_user: User | None = None
+    if payload.assigned_to_id:
+        assigned_user = get_user_or_404(payload.assigned_to_id)
+
+    built_items: list[OrderItem] = []
+    for item in payload.items:
+        product = products.get(item.barcode)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item.barcode} not found.")
+        built_items.append(
+            OrderItem(
+                barcode=product.barcode,
+                product_name=product.name,
+                quantity=item.quantity,
+                unit=product.unit,
+            )
+        )
+
+    now = utc_now()
+    order = Order(
+        id=str(uuid4()),
+        customer_name=payload.customer_name.strip(),
+        customer_phone=(payload.customer_phone or "").strip() or None,
+        customer_address=(payload.customer_address or "").strip() or None,
+        note=(payload.note or "").strip() or None,
+        status=OrderStatus.ASSIGNED if assigned_user else OrderStatus.NEW,
+        created_by_id=user.user_id,
+        created_by_name=user.user_name,
+        assigned_to_id=assigned_user.user_id if assigned_user else None,
+        assigned_to_name=assigned_user.user_name if assigned_user else None,
+        items=built_items,
+        created_at=now,
+        updated_at=now,
+    )
+    orders.insert(0, order)
+    save_order(order)
+    await broadcast_realtime_event(
+        "order_created",
+        {"order": order.model_dump(mode="json")},
+    )
+    return order
+
+
+@app.post("/orders/{order_id}/assign", response_model=Order)
+async def assign_order(order_id: str, payload: OrderAssignRequest, request: Request) -> Order:
+    user = resolve_request_user(request)
+    if user.role.strip().lower() not in {"admin", "staff"}:
+        raise HTTPException(status_code=403, detail="Permission denied.")
+    order = get_order_or_404(order_id)
+    assigned_user = get_user_or_404(payload.assigned_to_id)
+    updated = order.model_copy(
+        update={
+            "assigned_to_id": assigned_user.user_id,
+            "assigned_to_name": assigned_user.user_name,
+            "status": OrderStatus.ASSIGNED,
+            "updated_at": utc_now(),
+        }
+    )
+    for index, item in enumerate(orders):
+        if item.id == order_id:
+            orders[index] = updated
+            break
+    save_order(updated)
+    await broadcast_realtime_event(
+        "order_updated",
+        {"order": updated.model_dump(mode="json")},
+    )
+    return updated
+
+
+@app.post("/orders/{order_id}/status", response_model=Order)
+async def update_order_status(order_id: str, payload: OrderStatusUpdateRequest, request: Request) -> Order:
+    user = resolve_request_user(request)
+    order = get_order_or_404(order_id)
+    if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
+        raise HTTPException(status_code=403, detail="Permission denied.")
+    updated = order.model_copy(update={"status": payload.status, "updated_at": utc_now()})
+    for index, item in enumerate(orders):
+        if item.id == order_id:
+            orders[index] = updated
+            break
+    save_order(updated)
+    await broadcast_realtime_event(
+        "order_updated",
+        {"order": updated.model_dump(mode="json")},
+    )
+    return updated
+
+
 @app.get("/stock/summary")
 def stock_summary() -> dict:
     return build_stock_summary_payload()
@@ -2268,6 +2588,22 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
                 f"รวมจำนวนคงเหลือ {summary['total_units']} ชิ้น/หน่วย "
                 f"และมีสินค้าใกล้หมด {summary['low_stock_count']} รายการ"
             ),
+            ai_enabled=ai_chat_enabled(),
+        )
+
+    if is_product_listing_request(normalized):
+        product_list = sorted(products.values(), key=lambda item: item.name.lower())
+        preview_items = product_list[:10]
+        preview = ", ".join(
+            f"{item.name} ({item.current_stock} {item.unit})"
+            for item in preview_items
+        )
+        suffix = "" if len(product_list) <= 10 else " และยังมีรายการอื่นอีก"
+        return ChatAssistantResponse(
+            message=(
+                f"ตอนนี้มีสินค้าในระบบ {len(product_list)} รายการ เช่น {preview}{suffix}"
+            ),
+            matched_products=preview_items,
             ai_enabled=ai_chat_enabled(),
         )
 

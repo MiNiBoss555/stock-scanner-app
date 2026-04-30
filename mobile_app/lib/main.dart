@@ -1107,6 +1107,7 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
     const suggestions = [
       "อะไรใกล้หมดบ้าง",
       "สินค้าทั้งหมดมีกี่รายการ",
+      "ตอนนี้มีสินค้าอะไรบ้าง",
       "มีน้ำดื่มเหลือเท่าไหร่",
       "เบิก 1 8850001110012",
       "ขั้นต่ำของน้ำดื่มเท่าไหร่",
@@ -3328,6 +3329,19 @@ class MorePage extends StatelessWidget {
           ),
         ),
       ),
+      _MoreAction(
+        title: "ออเดอร์และจัดส่ง",
+        subtitle: "สร้างออเดอร์ มอบหมายพนักงานส่งของ และติดตามสถานะงาน",
+        icon: Icons.local_shipping_outlined,
+        onTap: () => _openPage(
+          context,
+          OrdersPage(
+            api: api,
+            currentUser: currentUser,
+            refreshSignal: refreshSignal,
+          ),
+        ),
+      ),
     ];
 
     if (currentUser.isAdmin) {
@@ -3489,6 +3503,349 @@ class AdminPage extends StatefulWidget {
 
   @override
   State<AdminPage> createState() => _AdminPageState();
+}
+
+class OrdersPage extends StatefulWidget {
+  const OrdersPage({
+    super.key,
+    required this.api,
+    required this.currentUser,
+    this.refreshSignal,
+  });
+
+  final StockApiService api;
+  final AppUser currentUser;
+  final ValueListenable<int>? refreshSignal;
+
+  @override
+  State<OrdersPage> createState() => _OrdersPageState();
+}
+
+class _OrdersPageState extends State<OrdersPage> {
+  final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _customerPhoneController = TextEditingController();
+  final TextEditingController _customerAddressController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _qtyController = TextEditingController(text: "1");
+  String? _selectedBarcode;
+  String? _selectedAssigneeId;
+  bool _isSaving = false;
+  late Future<_OrdersPageData> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+    widget.refreshSignal?.addListener(_handleRealtimeRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal?.removeListener(_handleRealtimeRefresh);
+    _customerNameController.dispose();
+    _customerPhoneController.dispose();
+    _customerAddressController.dispose();
+    _noteController.dispose();
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _future = _load();
+    });
+  }
+
+  Future<_OrdersPageData> _load() async {
+    final results = await Future.wait([
+      widget.api.getOrders(),
+      widget.api.getUsers(activeOnly: true),
+      widget.api.getProducts(),
+    ]);
+    return _OrdersPageData(
+      orders: results[0] as List<DeliveryOrder>,
+      users: results[1] as List<AppUser>,
+      products: results[2] as List<Product>,
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _future = _load();
+    });
+    await _future;
+  }
+
+  Future<void> _createOrder(_OrdersPageData data) async {
+    final customerName = _customerNameController.text.trim();
+    final qty = int.tryParse(_qtyController.text.trim());
+    if (customerName.isEmpty || _selectedBarcode == null || qty == null || qty <= 0) {
+      _showAppSnack(context, "กรุณากรอกชื่อลูกค้า เลือกสินค้า และจำนวนให้ครบ");
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+    try {
+      await widget.api.createOrder(
+        customerName: customerName,
+        customerPhone: _customerPhoneController.text.trim().isEmpty
+            ? null
+            : _customerPhoneController.text.trim(),
+        customerAddress: _customerAddressController.text.trim().isEmpty
+            ? null
+            : _customerAddressController.text.trim(),
+        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        assignedToId: _selectedAssigneeId,
+        items: [
+          {
+            "barcode": _selectedBarcode,
+            "quantity": qty,
+          },
+        ],
+      );
+      _customerNameController.clear();
+      _customerPhoneController.clear();
+      _customerAddressController.clear();
+      _noteController.clear();
+      _qtyController.text = "1";
+      _selectedBarcode = null;
+      _selectedAssigneeId = null;
+      if (mounted) {
+        _showAppSnack(context, "สร้างออเดอร์เรียบร้อย");
+      }
+      await _refresh();
+    } catch (error) {
+      if (mounted) {
+        _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateStatus(DeliveryOrder order, String status) async {
+    try {
+      await widget.api.updateOrderStatus(orderId: order.id, status: status);
+      _showAppSnack(context, "อัปเดตสถานะแล้ว");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _assignOrder(DeliveryOrder order, List<AppUser> users) async {
+    String? selected = order.assignedToId ?? (users.isNotEmpty ? users.first.userId : null);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("มอบหมายพนักงานส่งของ"),
+              content: DropdownButtonFormField<String>(
+                value: selected,
+                items: users
+                    .map(
+                      (user) => DropdownMenuItem<String>(
+                        value: user.userId,
+                        child: Text("${user.userName} (${user.userId})"),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setDialogState(() {
+                    selected = value;
+                  });
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text("ยกเลิก"),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text("บันทึก"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true || selected == null) {
+      return;
+    }
+    try {
+      await widget.api.assignOrder(orderId: order.id, assignedToId: selected!);
+      _showAppSnack(context, "มอบหมายงานเรียบร้อย");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<_OrdersPageData>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return _ErrorState(message: snapshot.error.toString());
+              }
+              final data = snapshot.data!;
+              final activeStaff = data.users.where((item) => item.active).toList();
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const _PageHeader(
+                    title: "ออเดอร์และจัดส่ง",
+                    subtitle: "รับออเดอร์จากลูกค้า มอบหมายคนส่ง และติดตามสถานะงาน",
+                    showBackButton: true,
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("สร้างออเดอร์ใหม่", style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _customerNameController,
+                            decoration: const InputDecoration(labelText: "ชื่อลูกค้า"),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _customerPhoneController,
+                            decoration: const InputDecoration(labelText: "เบอร์โทร"),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _customerAddressController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(labelText: "ที่อยู่"),
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: _selectedBarcode,
+                            decoration: const InputDecoration(labelText: "สินค้า"),
+                            items: data.products
+                                .map(
+                                  (product) => DropdownMenuItem<String>(
+                                    value: product.barcode,
+                                    child: Text("${product.name} (${product.currentStock} ${product.unit})"),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedBarcode = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _qtyController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: "จำนวน"),
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String?>(
+                            value: _selectedAssigneeId,
+                            decoration: const InputDecoration(labelText: "มอบหมายให้พนักงานส่งของ"),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text("ยังไม่มอบหมาย"),
+                              ),
+                              ...activeStaff.map(
+                                (user) => DropdownMenuItem<String?>(
+                                  value: user.userId,
+                                  child: Text("${user.userName} (${user.userId})"),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedAssigneeId = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _noteController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(labelText: "หมายเหตุ"),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: _isSaving ? null : () => _createOrder(data),
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.add_task_outlined),
+                            label: const Text("สร้างออเดอร์"),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text("รายการออเดอร์", style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  if (data.orders.isEmpty)
+                    const _EmptyTile(message: "ยังไม่มีออเดอร์ในระบบ")
+                  else
+                    ...data.orders.map(
+                      (order) => _OrderTile(
+                        order: order,
+                        currentUser: widget.currentUser,
+                        onAssign: () => _assignOrder(order, activeStaff),
+                        onStatusChanged: (status) => _updateStatus(order, status),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersPageData {
+  _OrdersPageData({
+    required this.orders,
+    required this.users,
+    required this.products,
+  });
+
+  final List<DeliveryOrder> orders;
+  final List<AppUser> users;
+  final List<Product> products;
 }
 
 class _AdminPageState extends State<AdminPage> {
@@ -4530,6 +4887,131 @@ class _ChatMetaChip extends StatelessWidget {
               color: tone,
               fontWeight: FontWeight.w700,
             ),
+      ),
+    );
+  }
+}
+
+class _OrderTile extends StatelessWidget {
+  const _OrderTile({
+    required this.order,
+    required this.currentUser,
+    required this.onAssign,
+    required this.onStatusChanged,
+  });
+
+  final DeliveryOrder order;
+  final AppUser currentUser;
+  final VoidCallback onAssign;
+  final ValueChanged<String> onStatusChanged;
+
+  Color _statusTone() {
+    switch (order.status) {
+      case "assigned":
+        return _profileTeal;
+      case "preparing":
+        return _profileAccent;
+      case "out_for_delivery":
+        return _brandPrimary;
+      case "delivered":
+        return _brandDeep;
+      case "cancelled":
+        return Colors.redAccent;
+      default:
+        return _brandInk;
+    }
+  }
+
+  String _statusLabel() {
+    switch (order.status) {
+      case "assigned":
+        return "มอบหมายแล้ว";
+      case "preparing":
+        return "กำลังจัดสินค้า";
+      case "out_for_delivery":
+        return "กำลังส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      case "cancelled":
+        return "ยกเลิก";
+      default:
+        return "ออเดอร์ใหม่";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canAssign = currentUser.isAdmin || currentUser.userId == order.createdById;
+    final itemPreview = order.items
+        .map((item) => "${item.productName} x${item.quantity}")
+        .join(", ");
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.customerName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _statusTone().withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _statusLabel(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _statusTone(),
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text("สินค้า: $itemPreview"),
+            if (order.customerPhone != null && order.customerPhone!.isNotEmpty)
+              Text("โทร: ${order.customerPhone}"),
+            if (order.customerAddress != null && order.customerAddress!.isNotEmpty)
+              Text("ที่อยู่: ${order.customerAddress}"),
+            Text("ผู้รับออเดอร์: ${order.createdByName}"),
+            Text("ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
+            if (order.note != null && order.note!.isNotEmpty) Text("หมายเหตุ: ${order.note}"),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (canAssign)
+                  OutlinedButton.icon(
+                    onPressed: onAssign,
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    label: const Text("มอบหมาย"),
+                  ),
+                FilledButton.tonal(
+                  onPressed: () => onStatusChanged("preparing"),
+                  child: const Text("กำลังจัด"),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => onStatusChanged("out_for_delivery"),
+                  child: const Text("กำลังส่ง"),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => onStatusChanged("delivered"),
+                  child: const Text("ส่งแล้ว"),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

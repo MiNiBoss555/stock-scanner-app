@@ -460,7 +460,76 @@ class StockApiService {
       }
       rethrow;
     }
-    return ChatAssistantResult.fromJson(_decode(response) as Map<String, dynamic>);
+    final result = ChatAssistantResult.fromJson(_decode(response) as Map<String, dynamic>);
+    final link = result.downloadLink;
+    if (link == null) {
+      return result;
+    }
+    final normalizedPath = link.url.startsWith("/") ? link.url : "/${link.url}";
+    return ChatAssistantResult(
+      message: result.message,
+      matchedProducts: result.matchedProducts,
+      aiEnabled: result.aiEnabled,
+      usedAi: result.usedAi,
+      action: result.action,
+      downloadLink: ExportLink(
+        url: "${AppConfig.baseUrl}$normalizedPath",
+        expiresAt: link.expiresAt,
+      ),
+    );
+  }
+
+  Future<List<DeliveryOrder>> getOrders({
+    bool assignedOnly = false,
+    bool mineOnly = false,
+  }) async {
+    final response = await _get("/orders", {
+      "assigned_only": assignedOnly.toString(),
+      "mine_only": mineOnly.toString(),
+    });
+    final body = _decode(response);
+    return (body as List<dynamic>)
+        .map((item) => DeliveryOrder.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<DeliveryOrder> createOrder({
+    required String customerName,
+    String? customerPhone,
+    String? customerAddress,
+    String? note,
+    String? assignedToId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _postJson("/orders", {
+      "customer_name": customerName,
+      "customer_phone": customerPhone,
+      "customer_address": customerAddress,
+      "note": note,
+      "assigned_to_id": assignedToId,
+      "items": items,
+    });
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryOrder> assignOrder({
+    required String orderId,
+    required String assignedToId,
+  }) async {
+    final response = await _postJson("/orders/$orderId/assign", {
+      "assigned_to_id": assignedToId,
+    });
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryOrder> updateOrderStatus({
+    required String orderId,
+    required String status,
+  }) async {
+    final response = await _postJson("/orders/$orderId/status", {
+      "status": status,
+    });
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Object _decode(http.Response response) {

@@ -273,6 +273,7 @@ class ChatAssistantResult {
     required this.aiEnabled,
     required this.usedAi,
     this.action,
+    this.downloadLink,
   });
 
   factory ChatAssistantResult.fromJson(Map<String, dynamic> json) {
@@ -288,12 +289,92 @@ class ChatAssistantResult {
       action: json["action"] == null
           ? null
           : ChatAssistantAction.fromJson(json["action"] as Map<String, dynamic>),
+      downloadLink: json["download_link"] == null
+          ? null
+          : ExportLink.fromJson(json["download_link"] as Map<String, dynamic>),
     );
   }
 
   final String message;
   final List<Product> matchedProducts;
   final ChatAssistantAction? action;
+  final ExportLink? downloadLink;
   final bool aiEnabled;
   final bool usedAi;
+}
+
+class OrderItemModel {
+  OrderItemModel({
+    required this.barcode,
+    required this.productName,
+    required this.quantity,
+    required this.unit,
+  });
+
+  factory OrderItemModel.fromJson(Map<String, dynamic> json) {
+    return OrderItemModel(
+      barcode: json["barcode"] as String,
+      productName: json["product_name"] as String,
+      quantity: (json["quantity"] as num).toInt(),
+      unit: (json["unit"] as String?) ?? "pcs",
+    );
+  }
+
+  final String barcode;
+  final String productName;
+  final int quantity;
+  final String unit;
+}
+
+class DeliveryOrder {
+  DeliveryOrder({
+    required this.id,
+    required this.customerName,
+    required this.createdById,
+    required this.createdByName,
+    required this.status,
+    required this.items,
+    required this.createdAt,
+    required this.updatedAt,
+    this.customerPhone,
+    this.customerAddress,
+    this.note,
+    this.assignedToId,
+    this.assignedToName,
+  });
+
+  factory DeliveryOrder.fromJson(Map<String, dynamic> json) {
+    final items = (json["items"] as List<dynamic>? ?? [])
+        .map((item) => OrderItemModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+    return DeliveryOrder(
+      id: json["id"] as String,
+      customerName: json["customer_name"] as String,
+      customerPhone: json["customer_phone"] as String?,
+      customerAddress: json["customer_address"] as String?,
+      note: json["note"] as String?,
+      status: json["status"] as String,
+      createdById: json["created_by_id"] as String,
+      createdByName: json["created_by_name"] as String,
+      assignedToId: json["assigned_to_id"] as String?,
+      assignedToName: json["assigned_to_name"] as String?,
+      items: items,
+      createdAt: DateTime.parse(json["created_at"] as String).toLocal(),
+      updatedAt: DateTime.parse(json["updated_at"] as String).toLocal(),
+    );
+  }
+
+  final String id;
+  final String customerName;
+  final String? customerPhone;
+  final String? customerAddress;
+  final String? note;
+  final String status;
+  final String createdById;
+  final String createdByName;
+  final String? assignedToId;
+  final String? assignedToName;
+  final List<OrderItemModel> items;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 }
