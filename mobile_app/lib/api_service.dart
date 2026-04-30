@@ -532,6 +532,24 @@ class StockApiService {
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
+  String orderPrintUrl({
+    required String orderId,
+  }) {
+    return _uri("/orders/$orderId/print").toString();
+  }
+
+  String orderPackingSlipUrl({
+    required String orderId,
+  }) {
+    return _uri("/orders/$orderId/packing-slip").toString();
+  }
+
+  String orderPdfUrl({
+    required String orderId,
+  }) {
+    return _uri("/orders/$orderId/print.pdf").toString();
+  }
+
   Object _decode(http.Response response) {
     final body = jsonDecode(response.body);
     if (response.statusCode >= 400) {

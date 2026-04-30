@@ -3526,15 +3526,15 @@ class _OrdersPageState extends State<OrdersPage> {
   final TextEditingController _customerPhoneController = TextEditingController();
   final TextEditingController _customerAddressController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final TextEditingController _qtyController = TextEditingController(text: "1");
-  String? _selectedBarcode;
   String? _selectedAssigneeId;
   bool _isSaving = false;
   late Future<_OrdersPageData> _future;
+  late List<_DraftOrderItem> _draftItems;
 
   @override
   void initState() {
     super.initState();
+    _draftItems = [_DraftOrderItem()];
     _future = _load();
     widget.refreshSignal?.addListener(_handleRealtimeRefresh);
   }
@@ -3546,7 +3546,9 @@ class _OrdersPageState extends State<OrdersPage> {
     _customerPhoneController.dispose();
     _customerAddressController.dispose();
     _noteController.dispose();
-    _qtyController.dispose();
+    for (final item in _draftItems) {
+      item.dispose();
+    }
     super.dispose();
   }
 
@@ -3581,9 +3583,20 @@ class _OrdersPageState extends State<OrdersPage> {
 
   Future<void> _createOrder(_OrdersPageData data) async {
     final customerName = _customerNameController.text.trim();
-    final qty = int.tryParse(_qtyController.text.trim());
-    if (customerName.isEmpty || _selectedBarcode == null || qty == null || qty <= 0) {
-      _showAppSnack(context, "กรุณากรอกชื่อลูกค้า เลือกสินค้า และจำนวนให้ครบ");
+    final items = <Map<String, dynamic>>[];
+    for (final item in _draftItems) {
+      final qty = int.tryParse(item.quantityController.text.trim());
+      if (item.barcode == null || qty == null || qty <= 0) {
+        _showAppSnack(context, "กรุณาเลือกสินค้าและจำนวนให้ครบทุกแถว");
+        return;
+      }
+      items.add({
+        "barcode": item.barcode,
+        "quantity": qty,
+      });
+    }
+    if (customerName.isEmpty || items.isEmpty) {
+      _showAppSnack(context, "กรุณากรอกชื่อลูกค้าและรายการสินค้า");
       return;
     }
 
@@ -3601,20 +3614,17 @@ class _OrdersPageState extends State<OrdersPage> {
             : _customerAddressController.text.trim(),
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         assignedToId: _selectedAssigneeId,
-        items: [
-          {
-            "barcode": _selectedBarcode,
-            "quantity": qty,
-          },
-        ],
+        items: items,
       );
       _customerNameController.clear();
       _customerPhoneController.clear();
       _customerAddressController.clear();
       _noteController.clear();
-      _qtyController.text = "1";
-      _selectedBarcode = null;
       _selectedAssigneeId = null;
+      for (final item in _draftItems) {
+        item.dispose();
+      }
+      _draftItems = [_DraftOrderItem()];
       if (mounted) {
         _showAppSnack(context, "สร้างออเดอร์เรียบร้อย");
       }
@@ -3630,6 +3640,27 @@ class _OrdersPageState extends State<OrdersPage> {
         });
       }
     }
+  }
+
+  void _addDraftItem() {
+    setState(() {
+      _draftItems = [..._draftItems, _DraftOrderItem()];
+    });
+  }
+
+  void _removeDraftItem(int index) {
+    if (_draftItems.length == 1) {
+      _showAppSnack(context, "ออเดอร์ต้องมีสินค้าอย่างน้อย 1 รายการ");
+      return;
+    }
+    setState(() {
+      final target = _draftItems[index];
+      target.dispose();
+      _draftItems = [
+        ..._draftItems.sublist(0, index),
+        ..._draftItems.sublist(index + 1),
+      ];
+    });
   }
 
   Future<void> _updateStatus(DeliveryOrder order, String status) async {
@@ -3745,28 +3776,65 @@ class _OrdersPageState extends State<OrdersPage> {
                             decoration: const InputDecoration(labelText: "ที่อยู่"),
                           ),
                           const SizedBox(height: 10),
-                          DropdownButtonFormField<String>(
-                            value: _selectedBarcode,
-                            decoration: const InputDecoration(labelText: "สินค้า"),
-                            items: data.products
-                                .map(
-                                  (product) => DropdownMenuItem<String>(
-                                    value: product.barcode,
-                                    child: Text("${product.name} (${product.currentStock} ${product.unit})"),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedBarcode = value;
-                              });
-                            },
-                          ),
+                          Text("รายการสินค้า", style: Theme.of(context).textTheme.titleSmall),
                           const SizedBox(height: 10),
-                          TextField(
-                            controller: _qtyController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: "จำนวน"),
+                          ...List.generate(_draftItems.length, (index) {
+                            final draftItem = _draftItems[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: DropdownButtonFormField<String>(
+                                      value: draftItem.barcode,
+                                      decoration: InputDecoration(
+                                        labelText: "สินค้า ${index + 1}",
+                                      ),
+                                      items: data.products
+                                          .map(
+                                            (product) => DropdownMenuItem<String>(
+                                              value: product.barcode,
+                                              child: Text(
+                                                "${product.name} (${product.currentStock} ${product.unit})",
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          draftItem.barcode = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: draftItem.quantityController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: "จำนวน"),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton.filledTonal(
+                                    onPressed: () => _removeDraftItem(index),
+                                    icon: const Icon(Icons.delete_outline),
+                                    tooltip: "ลบรายการ",
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: _addDraftItem,
+                              icon: const Icon(Icons.add),
+                              label: const Text("เพิ่มสินค้าอีกตัว"),
+                            ),
                           ),
                           const SizedBox(height: 10),
                           DropdownButtonFormField<String?>(
@@ -3822,6 +3890,9 @@ class _OrdersPageState extends State<OrdersPage> {
                       (order) => _OrderTile(
                         order: order,
                         currentUser: widget.currentUser,
+                        printUrl: widget.api.orderPrintUrl(orderId: order.id),
+                        packingSlipUrl: widget.api.orderPackingSlipUrl(orderId: order.id),
+                        pdfUrl: widget.api.orderPdfUrl(orderId: order.id),
                         onAssign: () => _assignOrder(order, activeStaff),
                         onStatusChanged: (status) => _updateStatus(order, status),
                       ),
@@ -3846,6 +3917,20 @@ class _OrdersPageData {
   final List<DeliveryOrder> orders;
   final List<AppUser> users;
   final List<Product> products;
+}
+
+class _DraftOrderItem {
+  _DraftOrderItem({
+    this.barcode,
+    String quantity = "1",
+  }) : quantityController = TextEditingController(text: quantity);
+
+  String? barcode;
+  final TextEditingController quantityController;
+
+  void dispose() {
+    quantityController.dispose();
+  }
 }
 
 class _AdminPageState extends State<AdminPage> {
@@ -4896,14 +4981,31 @@ class _OrderTile extends StatelessWidget {
   const _OrderTile({
     required this.order,
     required this.currentUser,
+    required this.printUrl,
+    required this.packingSlipUrl,
+    required this.pdfUrl,
     required this.onAssign,
     required this.onStatusChanged,
   });
 
   final DeliveryOrder order;
   final AppUser currentUser;
+  final String printUrl;
+  final String packingSlipUrl;
+  final String pdfUrl;
   final VoidCallback onAssign;
   final ValueChanged<String> onStatusChanged;
+
+  Future<void> _openUrl(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
 
   Color _statusTone() {
     switch (order.status) {
@@ -4996,6 +5098,21 @@ class _OrderTile extends StatelessWidget {
                     icon: const Icon(Icons.person_add_alt_1_outlined),
                     label: const Text("มอบหมาย"),
                   ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(printUrl),
+                  icon: const Icon(Icons.print_outlined),
+                  label: const Text("พิมพ์ใบออเดอร์"),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(packingSlipUrl),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text("ใบปะหน้าจัดของ"),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUrl(pdfUrl),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text("PDF"),
+                ),
                 FilledButton.tonal(
                   onPressed: () => onStatusChanged("preparing"),
                   child: const Text("กำลังจัด"),

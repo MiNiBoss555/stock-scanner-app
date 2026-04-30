@@ -1576,6 +1576,42 @@ def get_order_or_404(order_id: str) -> Order:
     raise HTTPException(status_code=404, detail=f"Order {order_id} not found.")
 
 
+def order_status_label(status: OrderStatus) -> str:
+    return {
+        OrderStatus.NEW: "ออเดอร์ใหม่",
+        OrderStatus.ASSIGNED: "มอบหมายแล้ว",
+        OrderStatus.PREPARING: "กำลังจัดสินค้า",
+        OrderStatus.OUT_FOR_DELIVERY: "กำลังส่ง",
+        OrderStatus.DELIVERED: "ส่งแล้ว",
+        OrderStatus.CANCELLED: "ยกเลิก",
+    }[status]
+
+
+def ensure_order_view_permission(order: Order, user: User) -> None:
+    if (
+        user.role.strip().lower() != "admin"
+        and order.assigned_to_id != user.user_id
+        and order.created_by_id != user.user_id
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied.")
+
+
+def build_order_items_html(order: Order, include_check_column: bool = True) -> str:
+    rows = []
+    for index, item in enumerate(order.items, start=1):
+        check_cell = "<td style='padding:10px;border:1px solid #d7c0a5;text-align:center;'>[  ]</td>" if include_check_column else ""
+        rows.append(
+            "<tr>"
+            f"<td style='padding:10px;border:1px solid #d7c0a5;'>{index}</td>"
+            f"<td style='padding:10px;border:1px solid #d7c0a5;'>{item.product_name}</td>"
+            f"<td style='padding:10px;border:1px solid #d7c0a5;text-align:center;'>{item.quantity}</td>"
+            f"<td style='padding:10px;border:1px solid #d7c0a5;text-align:center;'>{item.unit}</td>"
+            f"{check_cell}"
+            "</tr>"
+        )
+    return "".join(rows)
+
+
 def ai_chat_enabled() -> bool:
     return bool(os.getenv("OPENAI_API_KEY", "").strip())
 
@@ -2503,6 +2539,219 @@ async def update_order_status(order_id: str, payload: OrderStatusUpdateRequest, 
         {"order": updated.model_dump(mode="json")},
     )
     return updated
+
+
+@app.get("/orders/{order_id}/print")
+def print_order(order_id: str, request: Request) -> Response:
+    user = resolve_request_user(request)
+    order = get_order_or_404(order_id)
+    ensure_order_view_permission(order, user)
+
+    item_rows = build_order_items_html(order, include_check_column=True)
+    html = f"""
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order {order.id}</title>
+  <style>
+    body {{ font-family: Tahoma, sans-serif; color: #3F2B1D; margin: 24px; }}
+    .wrap {{ max-width: 900px; margin: 0 auto; }}
+    .card {{ border: 1px solid #d7c0a5; border-radius: 18px; padding: 20px; background: #fffaf3; }}
+    .head {{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }}
+    .title {{ font-size: 28px; font-weight: 800; margin: 0 0 8px; }}
+    .muted {{ color:#6f5742; }}
+    .chip {{ display:inline-block; padding:8px 12px; background:#e8d8c3; border-radius:999px; font-weight:700; }}
+    table {{ width:100%; border-collapse:collapse; margin-top:16px; }}
+    .section {{ margin-top:20px; }}
+    .signatures {{ display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:28px; }}
+    .line {{ border-top:1px solid #7a624d; margin-top:48px; padding-top:8px; text-align:center; }}
+    @media print {{ .print-btn {{ display:none; }} body {{ margin: 0; }} }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบออเดอร์</button>
+    </div>
+    <div class="card">
+      <div class="head">
+        <div>
+          <p class="title">ใบออเดอร์</p>
+          <div class="muted">เลขที่ออเดอร์: {order.id}</div>
+          <div class="muted">วันที่สร้าง: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="chip">{order_status_label(order.status)}</div>
+          <div style="margin-top:12px;padding:10px 14px;border:2px dashed #8A5A3C;border-radius:12px;font-weight:800;letter-spacing:1px;">{order.id[:8].upper()}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <strong>ลูกค้า:</strong> {order.customer_name}<br>
+        <strong>เบอร์โทร:</strong> {order.customer_phone or '-'}<br>
+        <strong>ที่อยู่:</strong> {order.customer_address or '-'}
+      </div>
+
+      <div class="section">
+        <strong>ผู้รับออเดอร์:</strong> {order.created_by_name} ({order.created_by_id})<br>
+        <strong>ผู้ส่ง:</strong> {order.assigned_to_name or '-'} {f"({order.assigned_to_id})" if order.assigned_to_id else ""}
+      </div>
+
+      <div class="section">
+        <strong>หมายเหตุ:</strong> {order.note or '-'}
+      </div>
+
+      <div class="section">
+        <strong>รายการสินค้า</strong>
+        <table>
+          <thead>
+            <tr style="background:#f3e7d8;">
+              <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {item_rows}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="signatures">
+        <div class="line">ผู้จัดสินค้า / ผู้ส่งของ</div>
+        <div class="line">ผู้ตรวจสอบ / ลูกค้า</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    return Response(content=html, media_type="text/html; charset=utf-8")
+
+
+@app.get("/orders/{order_id}/packing-slip")
+def print_packing_slip(order_id: str, request: Request) -> Response:
+    user = resolve_request_user(request)
+    order = get_order_or_404(order_id)
+    ensure_order_view_permission(order, user)
+    item_rows = build_order_items_html(order, include_check_column=True)
+    html = f"""
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Packing Slip {order.id}</title>
+  <style>
+    body {{ font-family: Tahoma, sans-serif; color: #3F2B1D; margin: 24px; }}
+    .wrap {{ max-width: 900px; margin: 0 auto; }}
+    .card {{ border: 1px solid #d7c0a5; border-radius: 18px; padding: 20px; background: #fffaf3; }}
+    .title {{ font-size: 28px; font-weight: 800; margin: 0 0 8px; }}
+    .code {{ padding:12px 16px; border:2px dashed #8A5A3C; border-radius:14px; display:inline-block; font-weight:800; letter-spacing:1px; }}
+    table {{ width:100%; border-collapse:collapse; margin-top:16px; }}
+    @media print {{ .print-btn {{ display:none; }} body {{ margin: 0; }} }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบปะหน้า</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
+        <div>
+          <p class="title">ใบปะหน้าจัดของ</p>
+          <div>ลูกค้า: {order.customer_name}</div>
+          <div>ผู้ส่ง: {order.assigned_to_name or '-'}</div>
+          <div>ที่อยู่: {order.customer_address or '-'}</div>
+        </div>
+        <div class="code">{order.id[:8].upper()}</div>
+      </div>
+      <table>
+        <thead>
+          <tr style="background:#f3e7d8;">
+            <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
+          </tr>
+        </thead>
+        <tbody>{item_rows}</tbody>
+      </table>
+      <div style="margin-top:24px;">
+        <strong>หมายเหตุ:</strong> ________________________________________________
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    return Response(content=html, media_type="text/html; charset=utf-8")
+
+
+@app.get("/orders/{order_id}/print.pdf")
+def print_order_pdf(order_id: str, request: Request) -> Response:
+    user = resolve_request_user(request)
+    order = get_order_or_404(order_id)
+    ensure_order_view_permission(order, user)
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfgen import canvas
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Missing PDF export dependency. Install 'reportlab'.",
+        ) from exc
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    font_path = "C:/Windows/Fonts/tahoma.ttf"
+    font_name = "Helvetica"
+    if os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont("Tahoma", font_path))
+        font_name = "Tahoma"
+    width, height = A4
+    y = height - 50
+    pdf.setFont(font_name, 18)
+    pdf.drawString(40, y, "Order Sheet")
+    y -= 28
+    pdf.setFont(font_name, 11)
+    lines = [
+        f"Order ID: {order.id}",
+        f"Customer: {order.customer_name}",
+        f"Phone: {order.customer_phone or '-'}",
+        f"Address: {order.customer_address or '-'}",
+        f"Status: {order_status_label(order.status)}",
+        f"Created by: {order.created_by_name} ({order.created_by_id})",
+        f"Assigned to: {order.assigned_to_name or '-'}",
+        "",
+        "Items:",
+    ]
+    for line in lines:
+        pdf.drawString(40, y, line)
+        y -= 18
+    for index, item in enumerate(order.items, start=1):
+        pdf.drawString(55, y, f"{index}. {item.product_name} x{item.quantity} {item.unit}")
+        y -= 18
+        if y < 80:
+            pdf.showPage()
+            pdf.setFont(font_name, 11)
+            y = height - 50
+    pdf.drawString(40, 60, "Checked by: ____________________    Delivered by: ____________________")
+    pdf.save()
+    pdf_bytes = buffer.getvalue()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="order-{order.id}.pdf"'},
+    )
 
 
 @app.get("/stock/summary")
