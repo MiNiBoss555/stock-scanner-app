@@ -821,21 +821,6 @@ class _StockHomePageState extends State<StockHomePage> {
     );
   }
 
-  Future<void> _openAssistantSheet(BuildContext context) {
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.92,
-        child: ChatAssistantPage(
-          api: widget.api,
-          refreshSignal: _realtimeRevision,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -879,16 +864,8 @@ class _StockHomePageState extends State<StockHomePage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAssistantSheet(context),
-        backgroundColor: _brandPrimary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.forum_outlined),
-        label: const Text("\u0e41\u0e0a\u0e17"),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 76),
+        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Container(
           decoration: BoxDecoration(
             color: _brandCard.withOpacity(0.96),
@@ -903,7 +880,7 @@ class _StockHomePageState extends State<StockHomePage> {
             ],
           ),
           child: NavigationBar(
-            height: 64,
+            height: 58,
             backgroundColor: Colors.transparent,
             elevation: 0,
             selectedIndex: _currentIndex,
@@ -1052,6 +1029,7 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
             products: reply.matchedProducts,
             usedAi: reply.usedAi,
             action: reply.action,
+            downloadLink: reply.downloadLink,
           ),
         ];
       });
@@ -1132,6 +1110,9 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
       "มีน้ำดื่มเหลือเท่าไหร่",
       "เบิก 1 8850001110012",
       "ขั้นต่ำของน้ำดื่มเท่าไหร่",
+      "ขอไฟล์ Excel",
+      "ขอไฟล์ CSV สินค้า",
+      "ขอไฟล์ CSV ประวัติ",
     ];
 
     return ColoredBox(
@@ -3514,11 +3495,20 @@ class _AdminPageState extends State<AdminPage> {
   bool _isRunning = false;
   String? _lastMessage;
   late Future<Map<String, ExportLink>> _exportLinksFuture;
+  final TextEditingController _downloadSearchController = TextEditingController();
+  String _downloadSearch = "";
+  String _downloadTypeFilter = "all";
 
   @override
   void initState() {
     super.initState();
     _exportLinksFuture = _loadExportLinks();
+  }
+
+  @override
+  void dispose() {
+    _downloadSearchController.dispose();
+    super.dispose();
   }
 
   Future<Map<String, ExportLink>> _loadExportLinks() async {
@@ -3581,6 +3571,117 @@ class _AdminPageState extends State<AdminPage> {
     _showAppSnack(context, message);
   }
 
+  bool _matchesDownloadSearch(String label) {
+    final query = _downloadSearch.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    return label.toLowerCase().contains(query);
+  }
+
+  bool _matchesDownloadType(String group) {
+    return _downloadTypeFilter == "all" || _downloadTypeFilter == group;
+  }
+
+  List<({String label, String url, DateTime? expiresAt, String group})> _buildExportItems(
+    Map<String, ExportLink>? links,
+  ) {
+    return <({String label, String url, DateTime? expiresAt, String group})>[
+      (
+        label: "สินค้า CSV",
+        url: links?["products"]?.url ??
+            widget.api.exportUrl(
+              path: "/exports/products.csv",
+              requesterId: widget.currentUser.userId,
+            ),
+        expiresAt: links?["products"]?.expiresAt,
+        group: "csv",
+      ),
+      (
+        label: "ผู้ใช้ CSV",
+        url: links?["users"]?.url ??
+            widget.api.exportUrl(
+              path: "/exports/users.csv",
+              requesterId: widget.currentUser.userId,
+            ),
+        expiresAt: links?["users"]?.expiresAt,
+        group: "csv",
+      ),
+      (
+        label: "ประวัติ CSV",
+        url: links?["movements"]?.url ??
+            widget.api.exportUrl(
+              path: "/exports/movements.csv",
+              requesterId: widget.currentUser.userId,
+            ),
+        expiresAt: links?["movements"]?.expiresAt,
+        group: "csv",
+      ),
+      (
+        label: "ไฟล์ Excel ทั้งหมด",
+        url: links?["excel"]?.url ??
+            widget.api.exportUrl(
+              path: "/exports/all.xlsx",
+              requesterId: widget.currentUser.userId,
+            ),
+        expiresAt: links?["excel"]?.expiresAt,
+        group: "excel",
+      ),
+    ];
+  }
+
+  List<Widget> _buildGroupedExportWidgets(Map<String, ExportLink>? links) {
+    final filtered = _buildExportItems(links)
+        .where((item) => _matchesDownloadSearch(item.label))
+        .where((item) => _matchesDownloadType(item.group))
+        .toList();
+    if (filtered.isEmpty) {
+      return const [
+        _EmptyTile(message: "ไม่พบไฟล์ที่ค้นหา ลองพิมพ์คำว่า Excel, CSV, สินค้า หรือ ประวัติ"),
+      ];
+    }
+
+    final csvItems = filtered.where((item) => item.group == "csv").toList();
+    final excelItems = filtered.where((item) => item.group == "excel").toList();
+    final widgets = <Widget>[];
+
+    if (csvItems.isNotEmpty) {
+      widgets.add(
+        _ExportGroupCard(
+          title: "ไฟล์ CSV",
+          icon: Icons.table_view_outlined,
+          children: csvItems
+              .map(
+                (item) => _SelectableUrl(
+                  label: item.label,
+                  url: item.url,
+                  expiresAt: item.expiresAt,
+                ),
+              )
+              .toList(),
+        ),
+      );
+    }
+    if (excelItems.isNotEmpty) {
+      widgets.add(
+        _ExportGroupCard(
+          title: "ไฟล์ Excel",
+          icon: Icons.grid_on_rounded,
+          children: excelItems
+              .map(
+                (item) => _SelectableUrl(
+                  label: item.label,
+                  url: item.url,
+                  expiresAt: item.expiresAt,
+                ),
+              )
+              .toList(),
+        ),
+      );
+    }
+    return widgets;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom + 28;
@@ -3606,22 +3707,6 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final requesterId = widget.currentUser.userId;
-    final productExport = widget.api.exportUrl(
-      path: "/exports/products.csv",
-      requesterId: requesterId,
-    );
-    final userExport = widget.api.exportUrl(
-      path: "/exports/users.csv",
-      requesterId: requesterId,
-    );
-    final movementExport = widget.api.exportUrl(
-      path: "/exports/movements.csv",
-      requesterId: requesterId,
-    );
-    final excelExport = widget.api.exportUrl(
-      path: "/exports/all.xlsx",
-      requesterId: requesterId,
-    );
 
     return SafeArea(
       child: ColoredBox(
@@ -3697,10 +3782,57 @@ class _AdminPageState extends State<AdminPage> {
                 const SizedBox(height: 12),
                 const Text("\u0e40\u0e1b\u0e34\u0e14\u0e25\u0e34\u0e07\u0e01\u0e4c\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e35\u0e49\u0e43\u0e19\u0e40\u0e1a\u0e23\u0e32\u0e27\u0e4c\u0e40\u0e0b\u0e2d\u0e23\u0e4c\u0e17\u0e35\u0e48\u0e40\u0e02\u0e49\u0e32\u0e16\u0e36\u0e07 backend \u0e44\u0e14\u0e49"),
                 const SizedBox(height: 12),
-                _SelectableUrl(label: "\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32 CSV", url: productExport),
-                _SelectableUrl(label: "\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49 CSV", url: userExport),
-                _SelectableUrl(label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34 CSV", url: movementExport),
-                _SelectableUrl(label: "\u0e44\u0e1f\u0e25\u0e4c Excel \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14", url: excelExport),
+                TextField(
+                  controller: _downloadSearchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _downloadSearch = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: "ค้นหาไฟล์ เช่น Excel, CSV, สินค้า",
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _downloadSearch.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              _downloadSearchController.clear();
+                              setState(() {
+                                _downloadSearch = "";
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: "all",
+                      label: Text("ทั้งหมด"),
+                      icon: Icon(Icons.apps_rounded),
+                    ),
+                    ButtonSegment<String>(
+                      value: "csv",
+                      label: Text("CSV"),
+                      icon: Icon(Icons.table_view_outlined),
+                    ),
+                    ButtonSegment<String>(
+                      value: "excel",
+                      label: Text("Excel"),
+                      icon: Icon(Icons.grid_on_rounded),
+                    ),
+                  ],
+                  selected: {_downloadTypeFilter},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _downloadTypeFilter = selection.first;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                ..._buildGroupedExportWidgets(null),
               ],
             ),
           ),
@@ -3742,30 +3874,10 @@ class _AdminPageState extends State<AdminPage> {
                       );
                     }
 
-                    final links = snapshot.data!;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _SelectableUrl(
-                          label: "\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32 CSV",
-                          url: links["products"]!.url,
-                          expiresAt: links["products"]!.expiresAt,
-                        ),
-                        _SelectableUrl(
-                          label: "\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49 CSV",
-                          url: links["users"]!.url,
-                          expiresAt: links["users"]!.expiresAt,
-                        ),
-                        _SelectableUrl(
-                          label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34 CSV",
-                          url: links["movements"]!.url,
-                          expiresAt: links["movements"]!.expiresAt,
-                        ),
-                        _SelectableUrl(
-                          label: "\u0e44\u0e1f\u0e25\u0e4c Excel \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14",
-                          url: links["excel"]!.url,
-                          expiresAt: links["excel"]!.expiresAt,
-                        ),
+                        ..._buildGroupedExportWidgets(snapshot.data),
                       ],
                     );
                   },
@@ -3800,6 +3912,7 @@ class _ChatMessage {
     this.products = const [],
     this.usedAi = false,
     this.action,
+    this.downloadLink,
   });
 
   factory _ChatMessage.user(String text) => _ChatMessage(text: text, isUser: true);
@@ -3809,6 +3922,7 @@ class _ChatMessage {
     List<Product> products = const [],
     bool usedAi = false,
     ChatAssistantAction? action,
+    ExportLink? downloadLink,
   }) {
     return _ChatMessage(
       text: text,
@@ -3816,6 +3930,7 @@ class _ChatMessage {
       products: products,
       usedAi: usedAi,
       action: action,
+      downloadLink: downloadLink,
     );
   }
 
@@ -3824,6 +3939,7 @@ class _ChatMessage {
   final List<Product> products;
   final bool usedAi;
   final ChatAssistantAction? action;
+  final ExportLink? downloadLink;
 }
 
 class _PendingChatAction {
@@ -4374,6 +4490,17 @@ class _ChatBubble extends StatelessWidget {
               ),
             ),
           ],
+          if (message.downloadLink != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 320,
+              child: _SelectableUrl(
+                label: "ดาวน์โหลดไฟล์",
+                url: message.downloadLink!.url,
+                expiresAt: message.downloadLink!.expiresAt,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -4857,6 +4984,48 @@ class _SelectableUrl extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ExportGroupCard extends StatelessWidget {
+  const _ExportGroupCard({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: _softPanelDecoration(
+        radius: _radiusMd,
+        surfaceStrength: 0.36,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: _brandPrimary.withOpacity(0.10),
+                child: Icon(icon, color: _brandPrimary, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       ),
     );
   }

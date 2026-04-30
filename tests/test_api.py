@@ -242,3 +242,51 @@ def test_chat_assistant_understands_minimum_stock_question(api_context: dict) ->
     payload = response.json()
     assert payload["matched_products"][0]["barcode"] == "8850001110012"
     assert "ขั้นต่ำ" in payload["message"]
+
+
+def test_chat_assistant_can_return_excel_download_link(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP001", pin="1234")
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "ขอไฟล์ Excel"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert "download_link" in payload
+    assert payload["download_link"]["url"].startswith("/exports/download/")
+
+
+def test_chat_assistant_can_return_products_csv_download_link(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP001", pin="1234")
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "ขอไฟล์ CSV สินค้า"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["download_link"]["url"].startswith("/exports/download/")
+    assert "CSV" in payload["message"]
+
+
+def test_chat_assistant_can_return_movements_csv_download_link(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP001", pin="1234")
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers(token),
+        json={"message": "ขอไฟล์ CSV ประวัติ"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["download_link"]["url"].startswith("/exports/download/")
+    assert "ประวัติ" in payload["message"]

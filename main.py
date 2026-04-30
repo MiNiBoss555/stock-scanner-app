@@ -282,6 +282,7 @@ class ChatAssistantResponse(BaseModel):
     message: str
     matched_products: list[Product] = Field(default_factory=list)
     action: ChatAssistantAction | None = None
+    download_link: ExportLinkResponse | None = None
     ai_enabled: bool = False
     used_ai: bool = False
 
@@ -1653,6 +1654,29 @@ def build_ai_chat_reply(message: str, matched_products: list[Product], summary: 
     return combined or None
 
 
+def detect_export_request(message: str) -> str | None:
+    normalized = normalize_chat_text(message)
+    if not any(keyword in normalized for keyword in ["ไฟล์", "ดาวน์โหลด", "export", "โหลด", "ขอ"]):
+        return None
+    if "สินค้า" in normalized and "csv" in normalized:
+        return "products_csv"
+    if "ผู้ใช้" in normalized and "csv" in normalized:
+        return "users_csv"
+    if ("ประวัติ" in normalized or "movement" in normalized) and "csv" in normalized:
+        return "movements_csv"
+    if "excel" in normalized or "xlsx" in normalized:
+        return "all_xlsx"
+    if "csv" in normalized:
+        if "สินค้า" in normalized:
+            return "products_csv"
+        if "ผู้ใช้" in normalized:
+            return "users_csv"
+        if "ประวัติ" in normalized or "movement" in normalized:
+            return "movements_csv"
+        return "products_csv"
+    return None
+
+
 def csv_response(filename: str, headers: list[str], rows: list[list[Any]]) -> Response:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -2169,6 +2193,26 @@ def stock_summary() -> dict:
 @app.post("/assistant/chat", response_model=ChatAssistantResponse)
 async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> ChatAssistantResponse:
     user = resolve_request_user(request)
+    export_name = detect_export_request(payload.message)
+    if export_name:
+        params = {"movement_limit": 5000}
+        token, expires_at = create_export_token(user.user_id, export_name, params)
+        export_labels = {
+            "all_xlsx": "ไฟล์ Excel",
+            "products_csv": "ไฟล์สินค้า CSV",
+            "users_csv": "ไฟล์ผู้ใช้ CSV",
+            "movements_csv": "ไฟล์ประวัติ CSV",
+        }
+        return ChatAssistantResponse(
+            message=f"นี่คือลิงก์{export_labels.get(export_name, 'ไฟล์ที่ขอ')} กดเปิดหรือคัดลอกลิงก์ได้เลย",
+            download_link=ExportLinkResponse(
+                url=f"/exports/download/{token}",
+                expires_at=expires_at,
+            ),
+            ai_enabled=ai_chat_enabled(),
+            used_ai=False,
+        )
+
     action_message, action_products, action_result, notification = execute_chat_stock_action(
         payload.message,
         user,
