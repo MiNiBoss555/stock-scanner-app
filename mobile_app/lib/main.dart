@@ -4068,9 +4068,18 @@ class _OrdersPageState extends State<OrdersPage> {
                       (order) => _OrderTile(
                         order: order,
                         currentUser: widget.currentUser,
-                        printUrl: widget.api.orderPrintUrl(orderId: order.id),
-                        packingSlipUrl: widget.api.orderPackingSlipUrl(orderId: order.id),
-                        pdfUrl: widget.api.orderPdfUrl(orderId: order.id),
+                        printUrl: widget.api.orderPrintUrl(
+                          orderId: order.id,
+                          requesterId: widget.currentUser.userId,
+                        ),
+                        packingSlipUrl: widget.api.orderPackingSlipUrl(
+                          orderId: order.id,
+                          requesterId: widget.currentUser.userId,
+                        ),
+                        pdfUrl: widget.api.orderPdfUrl(
+                          orderId: order.id,
+                          requesterId: widget.currentUser.userId,
+                        ),
                         onAssign: () => _assignOrder(order, activeStaff),
                         onStatusChanged: (status) => _updateStatus(order, status),
                       ),

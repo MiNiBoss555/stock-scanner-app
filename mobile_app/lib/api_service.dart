@@ -551,20 +551,23 @@ class StockApiService {
 
   String orderPrintUrl({
     required String orderId,
+    required String requesterId,
   }) {
-    return _uri("/orders/$orderId/print").toString();
+    return _uri("/orders/$orderId/print", {"requester_id": requesterId}).toString();
   }
 
   String orderPackingSlipUrl({
     required String orderId,
+    required String requesterId,
   }) {
-    return _uri("/orders/$orderId/packing-slip").toString();
+    return _uri("/orders/$orderId/packing-slip", {"requester_id": requesterId}).toString();
   }
 
   String orderPdfUrl({
     required String orderId,
+    required String requesterId,
   }) {
-    return _uri("/orders/$orderId/print.pdf").toString();
+    return _uri("/orders/$orderId/print.pdf", {"requester_id": requesterId}).toString();
   }
 
   Object _decode(http.Response response) {
