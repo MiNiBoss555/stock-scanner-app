@@ -2557,8 +2557,12 @@ async def update_order_status(
 
 
 @app.get("/orders/{order_id}/print")
-def print_order(order_id: str, request: Request) -> Response:
-    user = resolve_request_user(request)
+def print_order(
+    order_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Response:
+    user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
 
@@ -2649,8 +2653,12 @@ def print_order(order_id: str, request: Request) -> Response:
 
 
 @app.get("/orders/{order_id}/packing-slip")
-def print_packing_slip(order_id: str, request: Request) -> Response:
-    user = resolve_request_user(request)
+def print_packing_slip(
+    order_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Response:
+    user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
     item_rows = build_order_items_html(order, include_check_column=True)
@@ -2710,8 +2718,12 @@ def print_packing_slip(order_id: str, request: Request) -> Response:
 
 
 @app.get("/orders/{order_id}/print.pdf")
-def print_order_pdf(order_id: str, request: Request) -> Response:
-    user = resolve_request_user(request)
+def print_order_pdf(
+    order_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Response:
+    user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
     try:
