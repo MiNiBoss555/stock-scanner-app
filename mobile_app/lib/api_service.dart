@@ -480,10 +480,12 @@ class StockApiService {
   }
 
   Future<List<DeliveryOrder>> getOrders({
+    required String requesterId,
     bool assignedOnly = false,
     bool mineOnly = false,
   }) async {
     final response = await _get("/orders", {
+      "requester_id": requesterId,
       "assigned_only": assignedOnly.toString(),
       "mine_only": mineOnly.toString(),
     });
@@ -494,6 +496,7 @@ class StockApiService {
   }
 
   Future<DeliveryOrder> createOrder({
+    required String requesterId,
     required String customerName,
     String? customerPhone,
     String? customerAddress,
@@ -501,34 +504,48 @@ class StockApiService {
     String? assignedToId,
     required List<Map<String, dynamic>> items,
   }) async {
-    final response = await _postJson("/orders", {
-      "customer_name": customerName,
-      "customer_phone": customerPhone,
-      "customer_address": customerAddress,
-      "note": note,
-      "assigned_to_id": assignedToId,
-      "items": items,
-    });
+    final response = await _postJson(
+      "/orders",
+      {
+        "customer_name": customerName,
+        "customer_phone": customerPhone,
+        "customer_address": customerAddress,
+        "note": note,
+        "assigned_to_id": assignedToId,
+        "items": items,
+      },
+      {"requester_id": requesterId},
+    );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<DeliveryOrder> assignOrder({
+    required String requesterId,
     required String orderId,
     required String assignedToId,
   }) async {
-    final response = await _postJson("/orders/$orderId/assign", {
-      "assigned_to_id": assignedToId,
-    });
+    final response = await _postJson(
+      "/orders/$orderId/assign",
+      {
+        "assigned_to_id": assignedToId,
+      },
+      {"requester_id": requesterId},
+    );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<DeliveryOrder> updateOrderStatus({
+    required String requesterId,
     required String orderId,
     required String status,
   }) async {
-    final response = await _postJson("/orders/$orderId/status", {
-      "status": status,
-    });
+    final response = await _postJson(
+      "/orders/$orderId/status",
+      {
+        "status": status,
+      },
+      {"requester_id": requesterId},
+    );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 

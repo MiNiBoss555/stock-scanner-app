@@ -2431,10 +2431,11 @@ def list_notifications(limit: int = Query(20, ge=1, le=100)) -> list[dict]:
 @app.get("/orders", response_model=list[Order])
 def list_orders(
     request: Request,
+    requester_id: str | None = Query(None, min_length=1),
     assigned_only: bool = False,
     mine_only: bool = False,
 ) -> list[Order]:
-    user = resolve_request_user(request)
+    user = resolve_request_user(request, requester_id)
     result = list(orders)
     if not user.role.strip().lower() == "admin":
         result = [
@@ -2450,8 +2451,12 @@ def list_orders(
 
 
 @app.post("/orders", response_model=Order)
-async def create_order(payload: OrderCreateRequest, request: Request) -> Order:
-    user = resolve_request_user(request)
+async def create_order(
+    payload: OrderCreateRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
     assigned_user: User | None = None
     if payload.assigned_to_id:
         assigned_user = get_user_or_404(payload.assigned_to_id)
@@ -2496,8 +2501,13 @@ async def create_order(payload: OrderCreateRequest, request: Request) -> Order:
 
 
 @app.post("/orders/{order_id}/assign", response_model=Order)
-async def assign_order(order_id: str, payload: OrderAssignRequest, request: Request) -> Order:
-    user = resolve_request_user(request)
+async def assign_order(
+    order_id: str,
+    payload: OrderAssignRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
     if user.role.strip().lower() not in {"admin", "staff"}:
         raise HTTPException(status_code=403, detail="Permission denied.")
     order = get_order_or_404(order_id)
@@ -2523,8 +2533,13 @@ async def assign_order(order_id: str, payload: OrderAssignRequest, request: Requ
 
 
 @app.post("/orders/{order_id}/status", response_model=Order)
-async def update_order_status(order_id: str, payload: OrderStatusUpdateRequest, request: Request) -> Order:
-    user = resolve_request_user(request)
+async def update_order_status(
+    order_id: str,
+    payload: OrderStatusUpdateRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
         raise HTTPException(status_code=403, detail="Permission denied.")

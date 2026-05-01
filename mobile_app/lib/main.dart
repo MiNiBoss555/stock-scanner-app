@@ -11,6 +11,9 @@ import "package:flutter/services.dart";
 import "package:image_picker/image_picker.dart";
 import "package:mobile_scanner/mobile_scanner.dart" hide Barcode;
 import "package:path_provider/path_provider.dart";
+import "package:pdf/pdf.dart";
+import "package:pdf/widgets.dart" as pw;
+import "package:printing/printing.dart";
 import "package:qr_flutter/qr_flutter.dart";
 import "package:share_plus/share_plus.dart";
 import "package:shared_preferences/shared_preferences.dart";
@@ -2541,6 +2544,8 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<DashboardData> _future;
+  final TextEditingController _productSearchController = TextEditingController();
+  String _productSearch = "";
 
   @override
   void initState() {
@@ -2551,8 +2556,21 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _productSearchController.dispose();
     widget.refreshSignal.removeListener(_handleRealtimeRefresh);
     super.dispose();
+  }
+
+  List<Product> _filterProducts(List<Product> products) {
+    final query = _productSearch.trim().toLowerCase();
+    if (query.isEmpty) {
+      return const <Product>[];
+    }
+    return products.where((product) {
+      return product.name.toLowerCase().contains(query) ||
+          product.barcode.toLowerCase().contains(query) ||
+          (product.sku?.toLowerCase().contains(query) ?? false);
+    }).take(12).toList();
   }
 
   void _handleRealtimeRefresh() {
@@ -2597,6 +2615,7 @@ class _DashboardPageState extends State<DashboardPage> {
           }
 
           final data = snapshot.data!;
+          final matchedProducts = _filterProducts(data.products);
           return ColoredBox(
             color: _brandSurface,
             child: ListView(
@@ -2644,6 +2663,62 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
+                TextField(
+                  controller: _productSearchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _productSearch = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    labelText: "พิมพ์ชื่อสินค้าเพื่อค้นหาและพิมพ์ป้าย",
+                    hintText: "เช่น Printer Paper, น้ำดื่ม, 8850...",
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _productSearch.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              _productSearchController.clear();
+                              setState(() {
+                                _productSearch = "";
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                            tooltip: "ล้างคำค้น",
+                          ),
+                  ),
+                ),
+                if (_productSearch.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _showCustomLabelSheet(
+                        context,
+                        _productSearch.trim(),
+                      ),
+                      icon: const Icon(Icons.print_outlined),
+                      label: const Text("พิมพ์ชื่อที่พิมพ์อยู่เลย"),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "ผลการค้นหา",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (matchedProducts.isEmpty)
+                    const _EmptyTile(message: "ไม่พบสินค้าที่ค้นหา ลองพิมพ์ชื่อสินค้า บาร์โค้ด หรือ SKU")
+                  else
+                    ...matchedProducts.map(
+                      (item) => _ProductTile(
+                        product: item,
+                        onOpenCode: () => _showProductCodeSheet(context, item),
+                        onPrintLabel: () => _showProductCodeSheet(context, item),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                ],
                 Text("\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e15\u0e48\u0e33", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 if (data.summary.lowStockItems.isEmpty)
@@ -2653,6 +2728,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     (item) => _ProductTile(
                       product: item,
                       onOpenCode: () => _showProductCodeSheet(context, item),
+                      onPrintLabel: () => _showProductCodeSheet(context, item),
                     ),
                   ),
                 const SizedBox(height: 20),
@@ -3563,7 +3639,7 @@ class _OrdersPageState extends State<OrdersPage> {
 
   Future<_OrdersPageData> _load() async {
     final results = await Future.wait([
-      widget.api.getOrders(),
+      widget.api.getOrders(requesterId: widget.currentUser.userId),
       widget.api.getUsers(activeOnly: true),
       widget.api.getProducts(),
     ]);
@@ -3581,17 +3657,53 @@ class _OrdersPageState extends State<OrdersPage> {
     await _future;
   }
 
+  Product? _resolveDraftProduct(_DraftOrderItem item, List<Product> products) {
+    if (item.barcode != null) {
+      for (final product in products) {
+        if (product.barcode == item.barcode) {
+          return product;
+        }
+      }
+    }
+
+    final query = item.productController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return null;
+    }
+
+    for (final product in products) {
+      if (product.name.toLowerCase() == query ||
+          product.barcode.toLowerCase() == query ||
+          (product.sku?.toLowerCase() == query)) {
+        return product;
+      }
+    }
+
+    final partialMatches = products.where((product) {
+      return product.name.toLowerCase().contains(query) ||
+          product.barcode.toLowerCase().contains(query) ||
+          (product.sku?.toLowerCase().contains(query) ?? false);
+    }).take(2).toList();
+    if (partialMatches.length == 1) {
+      return partialMatches.first;
+    }
+    return null;
+  }
+
   Future<void> _createOrder(_OrdersPageData data) async {
     final customerName = _customerNameController.text.trim();
     final items = <Map<String, dynamic>>[];
     for (final item in _draftItems) {
+      final resolvedProduct = _resolveDraftProduct(item, data.products);
       final qty = int.tryParse(item.quantityController.text.trim());
-      if (item.barcode == null || qty == null || qty <= 0) {
+      if (resolvedProduct == null || qty == null || qty <= 0) {
         _showAppSnack(context, "กรุณาเลือกสินค้าและจำนวนให้ครบทุกแถว");
         return;
       }
+      item.barcode = resolvedProduct.barcode;
+      item.productController.text = resolvedProduct.name;
       items.add({
-        "barcode": item.barcode,
+        "barcode": resolvedProduct.barcode,
         "quantity": qty,
       });
     }
@@ -3605,6 +3717,7 @@ class _OrdersPageState extends State<OrdersPage> {
     });
     try {
       await widget.api.createOrder(
+        requesterId: widget.currentUser.userId,
         customerName: customerName,
         customerPhone: _customerPhoneController.text.trim().isEmpty
             ? null
@@ -3665,7 +3778,11 @@ class _OrdersPageState extends State<OrdersPage> {
 
   Future<void> _updateStatus(DeliveryOrder order, String status) async {
     try {
-      await widget.api.updateOrderStatus(orderId: order.id, status: status);
+      await widget.api.updateOrderStatus(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        status: status,
+      );
       _showAppSnack(context, "อัปเดตสถานะแล้ว");
       await _refresh();
     } catch (error) {
@@ -3717,7 +3834,11 @@ class _OrdersPageState extends State<OrdersPage> {
       return;
     }
     try {
-      await widget.api.assignOrder(orderId: order.id, assignedToId: selected!);
+      await widget.api.assignOrder(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        assignedToId: selected!,
+      );
       _showAppSnack(context, "มอบหมายงานเรียบร้อย");
       await _refresh();
     } catch (error) {
@@ -3780,49 +3901,106 @@ class _OrdersPageState extends State<OrdersPage> {
                           const SizedBox(height: 10),
                           ...List.generate(_draftItems.length, (index) {
                             final draftItem = _draftItems[index];
+                            Product? selectedProduct;
+                            if (draftItem.barcode != null) {
+                              for (final product in data.products) {
+                                if (product.barcode == draftItem.barcode) {
+                                  selectedProduct = product;
+                                  break;
+                                }
+                              }
+                            }
+                            if (selectedProduct != null &&
+                                draftItem.productController.text.trim().isEmpty) {
+                              draftItem.productController.text = selectedProduct.name;
+                            }
+                            final query = draftItem.productController.text.trim().toLowerCase();
+                            final showSuggestions = query.isNotEmpty && selectedProduct == null;
+                            final matchedProducts = showSuggestions
+                                ? data.products.where((product) {
+                                    return product.name.toLowerCase().contains(query) ||
+                                        product.barcode.toLowerCase().contains(query) ||
+                                        (product.sku?.toLowerCase().contains(query) ?? false);
+                                  }).take(6).toList()
+                                : const <Product>[];
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: Row(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: DropdownButtonFormField<String>(
-                                      value: draftItem.barcode,
-                                      decoration: InputDecoration(
-                                        labelText: "สินค้า ${index + 1}",
+                                  TextField(
+                                    controller: draftItem.productController,
+                                    decoration: InputDecoration(
+                                      labelText: "สินค้า ${index + 1}",
+                                      hintText: "พิมพ์ชื่อสินค้า บาร์โค้ด หรือ SKU",
+                                      prefixIcon: const Icon(Icons.search),
+                                    ),
+                                    onChanged: (_) {
+                                      setState(() {
+                                        draftItem.barcode = null;
+                                      });
+                                    },
+                                  ),
+                                  if (matchedProducts.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: _brandPrimary.withOpacity(0.16)),
                                       ),
-                                      items: data.products
-                                          .map(
-                                            (product) => DropdownMenuItem<String>(
-                                              value: product.barcode,
-                                              child: Text(
-                                                "${product.name} (${product.currentStock} ${product.unit})",
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
+                                      child: Column(
+                                        children: matchedProducts.map((product) {
+                                          return ListTile(
+                                            dense: true,
+                                            title: Text(
+                                              product.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          )
-                                          .toList(),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          draftItem.barcode = value;
-                                        });
-                                      },
+                                            subtitle: Text(
+                                              "${product.barcode} • คงเหลือ ${product.currentStock} ${product.unit}",
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            onTap: () {
+                                              setState(() {
+                                                draftItem.barcode = product.barcode;
+                                                draftItem.productController.text = product.name;
+                                              });
+                                            },
+                                            trailing: const Icon(Icons.north_west_rounded, size: 18),
+                                          );
+                                        }).toList(),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: draftItem.quantityController,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(labelText: "จำนวน"),
+                                  ],
+                                  if (selectedProduct != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      "บาร์โค้ด: ${selectedProduct.barcode} • คงเหลือ ${selectedProduct.currentStock} ${selectedProduct.unit}",
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: _brandInk.withOpacity(0.72),
+                                          ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton.filledTonal(
-                                    onPressed: () => _removeDraftItem(index),
-                                    icon: const Icon(Icons.delete_outline),
-                                    tooltip: "ลบรายการ",
+                                  ],
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: draftItem.quantityController,
+                                          keyboardType: TextInputType.number,
+                                          decoration: const InputDecoration(labelText: "จำนวน"),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton.filledTonal(
+                                        onPressed: () => _removeDraftItem(index),
+                                        icon: const Icon(Icons.delete_outline),
+                                        tooltip: "ลบรายการ",
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -3922,13 +4100,17 @@ class _OrdersPageData {
 class _DraftOrderItem {
   _DraftOrderItem({
     this.barcode,
+    String productQuery = "",
     String quantity = "1",
-  }) : quantityController = TextEditingController(text: quantity);
+  })  : productController = TextEditingController(text: productQuery),
+        quantityController = TextEditingController(text: quantity);
 
   String? barcode;
+  final TextEditingController productController;
   final TextEditingController quantityController;
 
   void dispose() {
+    productController.dispose();
     quantityController.dispose();
   }
 }
@@ -4928,6 +5110,7 @@ class _ChatBubble extends StatelessWidget {
                 child: _ProductTile(
                   product: product,
                   onOpenCode: () => onOpenProduct(product),
+                  onPrintLabel: () => onOpenProduct(product),
                 ),
               ),
             ),
@@ -5138,10 +5321,12 @@ class _ProductTile extends StatelessWidget {
   const _ProductTile({
     required this.product,
     this.onOpenCode,
+    this.onPrintLabel,
   });
 
   final Product product;
   final VoidCallback? onOpenCode;
+  final VoidCallback? onPrintLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -5174,6 +5359,14 @@ class _ProductTile extends StatelessWidget {
                 ),
               ],
             ),
+            if (onPrintLabel != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onPrintLabel,
+                icon: const Icon(Icons.print_outlined),
+                tooltip: "พิมพ์ป้ายสินค้า",
+              ),
+            ],
             if (onOpenCode != null) ...[
               const SizedBox(width: 8),
               IconButton(
@@ -5314,6 +5507,15 @@ Future<void> _showProductCodeSheet(BuildContext context, Product product) {
   );
 }
 
+Future<void> _showCustomLabelSheet(BuildContext context, String label) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _CustomLabelSheet(label: label),
+  );
+}
+
 class _ProductCodeSheet extends StatefulWidget {
   const _ProductCodeSheet({required this.product});
 
@@ -5326,6 +5528,22 @@ class _ProductCodeSheet extends StatefulWidget {
 class _ProductCodeSheetState extends State<_ProductCodeSheet> {
   final GlobalKey _captureKey = GlobalKey();
   bool _isSharing = false;
+  bool _isPrinting = false;
+
+  Future<Uint8List> _captureLabelBytes() async {
+    final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw Exception("ไม่พบภาพสำหรับสร้างป้ายสินค้า");
+    }
+
+    final image = await boundary.toImage(pixelRatio: 3);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final bytes = byteData?.buffer.asUint8List();
+    if (bytes == null) {
+      throw Exception("สร้างไฟล์ภาพป้ายสินค้าไม่สำเร็จ");
+    }
+    return bytes;
+  }
 
   Future<void> _shareLabel() async {
     try {
@@ -5333,17 +5551,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
         _isSharing = true;
       });
 
-      final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) {
-        throw Exception("\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e20\u0e32\u0e1e\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01");
-      }
-
-      final image = await boundary.toImage(pixelRatio: 3);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData?.buffer.asUint8List();
-      if (bytes == null) {
-        throw Exception("\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e44\u0e1f\u0e25\u0e4c\u0e20\u0e32\u0e1e\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08");
-      }
+      final bytes = await _captureLabelBytes();
 
       final tempDir = await getTemporaryDirectory();
       final file = File("${tempDir.path}/${widget.product.barcode}-label.png");
@@ -5363,6 +5571,49 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
       if (mounted) {
         setState(() {
           _isSharing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _printLabel() async {
+    try {
+      setState(() {
+        _isPrinting = true;
+      });
+
+      final bytes = await _captureLabelBytes();
+      final image = pw.MemoryImage(bytes);
+      await Printing.layoutPdf(
+        onLayout: (format) async {
+          final doc = pw.Document();
+          doc.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a6,
+              margin: const pw.EdgeInsets.all(16),
+              build: (context) => pw.Center(
+                child: pw.Image(
+                  image,
+                  fit: pw.BoxFit.contain,
+                ),
+              ),
+            ),
+          );
+          return doc.save();
+        },
+        name: "${widget.product.name}-${widget.product.barcode}",
+      );
+    } catch (error) {
+      if (mounted) {
+        _showAppSnack(
+          context,
+          error.toString().replaceFirst("Exception: ", ""),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
         });
       }
     }
@@ -5404,6 +5655,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                   key: _captureKey,
                   child: Container(
                     width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 420),
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -5416,7 +5668,12 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                         Text(
                           product.name,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                height: 1.25,
+                              ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -5432,7 +5689,17 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                           data: product.barcode,
                           width: 280,
                           height: 90,
-                          drawText: true,
+                          drawText: false,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          product.barcode,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: _brandInk,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                              ),
                         ),
                         const SizedBox(height: 20),
                         QrImageView(
@@ -5452,6 +5719,20 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isPrinting ? null : _printLabel,
+                        icon: _isPrinting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.print_outlined),
+                        label: const Text("พิมพ์ป้ายสินค้า"),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: _isSharing ? null : _shareLabel,
@@ -5478,6 +5759,205 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                       },
                       icon: const Icon(Icons.copy_all_outlined),
                       tooltip: "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e23\u0e2b\u0e31\u0e2a",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomLabelSheet extends StatefulWidget {
+  const _CustomLabelSheet({required this.label});
+
+  final String label;
+
+  @override
+  State<_CustomLabelSheet> createState() => _CustomLabelSheetState();
+}
+
+class _CustomLabelSheetState extends State<_CustomLabelSheet> {
+  final GlobalKey _captureKey = GlobalKey();
+  bool _isSharing = false;
+  bool _isPrinting = false;
+
+  Future<Uint8List> _captureLabelBytes() async {
+    final boundary = _captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw Exception("ไม่พบภาพสำหรับสร้างป้ายชื่อสินค้า");
+    }
+
+    final image = await boundary.toImage(pixelRatio: 3);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final bytes = byteData?.buffer.asUint8List();
+    if (bytes == null) {
+      throw Exception("สร้างไฟล์ภาพป้ายชื่อสินค้าไม่สำเร็จ");
+    }
+    return bytes;
+  }
+
+  Future<void> _shareLabel() async {
+    try {
+      setState(() {
+        _isSharing = true;
+      });
+
+      final bytes = await _captureLabelBytes();
+      final tempDir = await getTemporaryDirectory();
+      final safeName = widget.label.trim().replaceAll(RegExp(r"[^a-zA-Z0-9ก-๙_-]+"), "_");
+      final file = File("${tempDir.path}/$safeName-custom-label.png");
+      await file.writeAsBytes(bytes, flush: true);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: widget.label,
+      );
+    } catch (error) {
+      if (mounted) {
+        _showAppSnack(
+          context,
+          error.toString().replaceFirst("Exception: ", ""),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSharing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _printLabel() async {
+    try {
+      setState(() {
+        _isPrinting = true;
+      });
+
+      final bytes = await _captureLabelBytes();
+      final image = pw.MemoryImage(bytes);
+      await Printing.layoutPdf(
+        onLayout: (format) async {
+          final doc = pw.Document();
+          doc.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a6,
+              margin: const pw.EdgeInsets.all(16),
+              build: (context) => pw.Center(
+                child: pw.Image(
+                  image,
+                  fit: pw.BoxFit.contain,
+                ),
+              ),
+            ),
+          );
+          return doc.save();
+        },
+        name: widget.label,
+      );
+    } catch (error) {
+      if (mounted) {
+        _showAppSnack(
+          context,
+          error.toString().replaceFirst("Exception: ", ""),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _brandCard,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        "พิมพ์ชื่อสินค้า",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                RepaintBoundary(
+                  key: _captureKey,
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 420, minHeight: 220),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: _brandPrimary.withOpacity(0.10)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              color: _brandInk,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isPrinting ? null : _printLabel,
+                        icon: _isPrinting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.print_outlined),
+                        label: const Text("พิมพ์ชื่อสินค้า"),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _isSharing ? null : _shareLabel,
+                        icon: _isSharing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.ios_share_outlined),
+                        label: const Text("แชร์ / ส่งออกป้าย"),
+                      ),
                     ),
                   ],
                 ),
