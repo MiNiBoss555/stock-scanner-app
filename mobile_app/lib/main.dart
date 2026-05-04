@@ -25,16 +25,15 @@ import "models.dart";
 const _sessionUserIdKey = "session_user_id";
 const _sessionPinKey = "session_pin";
 const _sessionAccessTokenKey = "session_access_token";
-const _brandLogoAsset = "assets/branding/scan_product_logo.png";
-const _brandPrimary = Color(0xFF8A5A3C);
-const _brandSurface = Color(0xFFE8D8C3);
-const _brandSurfaceStrong = Color(0xFFB48A61);
-const _brandTextOnLight = Color(0xFF3F2B1D);
-const _brandDeep = Color(0xFF3F2B1D);
-const _brandInk = Color(0xFF3F2B1D);
-const _brandCard = Color(0xFFF3E7D8);
-const _profileTeal = Color(0xFF7D6852);
-const _profileAccent = Color(0xFFD1AA7C);
+const _brandPrimary = Color(0xFF005AA7);
+const _brandSurface = Colors.white;
+const _brandSurfaceStrong = Color(0xFFB9D6F2);
+const _brandTextOnLight = Color(0xFF123B63);
+const _brandDeep = Color(0xFF003B73);
+const _brandInk = Color(0xFF123B63);
+const _brandCard = Colors.white;
+const _profileTeal = Color(0xFF0068BF);
+const _profileAccent = Color(0xFF7DB8E8);
 const double _spaceXs = 8;
 const double _spaceSm = 12;
 const double _spaceMd = 16;
@@ -54,15 +53,74 @@ class _BrandLogoIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.24),
-      child: Image.asset(
-        _brandLogoAsset,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.26),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_brandPrimary, _profileTeal],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _brandPrimary.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_rounded,
+            color: Colors.white.withOpacity(0.95),
+            size: size * 0.54,
+          ),
+          Positioned(
+            bottom: size * 0.14,
+            child: SizedBox(
+              width: size * 0.56,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                  6,
+                  (index) => Container(
+                    width: size * 0.038,
+                    height: index.isEven ? size * 0.17 : size * 0.13,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandLogoWordmark extends StatelessWidget {
+  const _BrandLogoWordmark({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: _brandDeep,
+          fontWeight: FontWeight.w800,
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const _BrandLogoIcon(size: 26),
+        const SizedBox(width: 8),
+        Text("StockScan", style: textStyle),
+      ],
     );
   }
 }
@@ -191,6 +249,7 @@ class StockScannerApp extends StatefulWidget {
 
 class _StockScannerAppState extends State<StockScannerApp> {
   final StockApiService _api = StockApiService();
+  static const Duration _minSplashDuration = Duration(seconds: 3);
   AppUser? _currentUser;
   bool _isRestoring = true;
 
@@ -201,6 +260,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   }
 
   Future<void> _restoreSession() async {
+    final startedAt = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString(_sessionAccessTokenKey);
     final savedUserId = prefs.getString(_sessionUserIdKey);
@@ -210,6 +270,10 @@ class _StockScannerAppState extends State<StockScannerApp> {
       try {
         _api.setAccessToken(savedToken);
         final user = await _api.getCurrentUser();
+        final elapsed = DateTime.now().difference(startedAt);
+        if (elapsed < _minSplashDuration) {
+          await Future<void>.delayed(_minSplashDuration - elapsed);
+        }
         if (mounted) {
           setState(() {
             _currentUser = user;
@@ -228,6 +292,10 @@ class _StockScannerAppState extends State<StockScannerApp> {
         final session = await _api.login(userId: savedUserId, pin: savedPin);
         await prefs.setString(_sessionAccessTokenKey, session.accessToken);
         await prefs.remove(_sessionPinKey);
+        final elapsed = DateTime.now().difference(startedAt);
+        if (elapsed < _minSplashDuration) {
+          await Future<void>.delayed(_minSplashDuration - elapsed);
+        }
         if (mounted) {
           setState(() {
             _currentUser = session.user;
@@ -243,6 +311,10 @@ class _StockScannerAppState extends State<StockScannerApp> {
       }
     }
 
+    final elapsed = DateTime.now().difference(startedAt);
+    if (elapsed < _minSplashDuration) {
+      await Future<void>.delayed(_minSplashDuration - elapsed);
+    }
     if (mounted) {
       setState(() {
         _isRestoring = false;
@@ -2582,16 +2654,157 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  Future<void> _showOrderPreview(DeliveryOrder order) async {
+    final statusLabel = order.status == "new"
+        ? "ใหม่"
+        : order.status == "assigned"
+            ? "มอบหมายแล้ว"
+            : order.status == "preparing"
+                ? "กำลังจัดสินค้า"
+                : order.status == "out_for_delivery"
+                    ? "กำลังส่ง"
+                    : order.status == "delivered"
+                        ? "ส่งแล้ว"
+                        : order.status == "cancelled"
+                            ? "ยกเลิก"
+                            : order.status;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.5,
+        child: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          "ใบสรุปออเดอร์",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          order.customerName,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  _receiptRow("สถานะ", statusLabel),
+                  _receiptRow("ผู้รับออเดอร์", order.createdByName),
+                  _receiptRow("ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  if (order.customerPhone != null && order.customerPhone!.isNotEmpty)
+                    _receiptRow("โทร", order.customerPhone!),
+                  if (order.customerAddress != null && order.customerAddress!.isNotEmpty)
+                    _receiptRow("ที่อยู่", order.customerAddress!),
+                  if (order.note != null && order.note!.isNotEmpty) _receiptRow("หมายเหตุ", order.note!),
+                  const SizedBox(height: 10),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  Text("รายการสินค้า", style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  ...order.items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.productName,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "x${item.quantity} ${item.unit}",
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  _receiptRow("รวมรายการ", "${order.items.length} รายการ", bold: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: _brandInk.withOpacity(0.85),
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          const Text(": "),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: _brandDeep,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<DashboardData> _load() async {
     final results = await Future.wait([
       widget.api.getSummary(),
       widget.api.getProducts(),
+      widget.api.getOrders(requesterId: widget.currentUser.userId),
       widget.api.getNotifications(limit: 5),
     ]);
+    final allOrders = results[2] as List<DeliveryOrder>;
+    final activeOrders = allOrders
+        .where((order) => order.status != "delivered" && order.status != "cancelled")
+        .take(6)
+        .toList();
     return DashboardData(
       summary: results[0] as StockSummary,
       products: results[1] as List<Product>,
-      notifications: results[2] as List<AppNotification>,
+      activeOrders: activeOrders,
+      notifications: results[3] as List<AppNotification>,
     );
   }
 
@@ -2732,6 +2945,45 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                 const SizedBox(height: 20),
+                Text("ออเดอร์ที่ต้องจัดส่ง", style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                if (data.activeOrders.isEmpty)
+                  const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
+                else
+                  ...data.activeOrders.map(
+                    (order) => Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        onTap: () => _showOrderPreview(order),
+                        leading: CircleAvatar(
+                          backgroundColor: _brandPrimary.withOpacity(0.10),
+                          child: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
+                        ),
+                        title: Text(order.customerName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          "${order.items.length} รายการ • ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Text(
+                          order.status == "new"
+                              ? "ใหม่"
+                              : order.status == "assigned"
+                                  ? "มอบหมายแล้ว"
+                                  : order.status == "preparing"
+                                      ? "กำลังจัด"
+                                      : order.status == "out_for_delivery"
+                                          ? "กำลังส่ง"
+                                          : order.status,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: _brandDeep,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
                 Text("\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 if (data.notifications.isEmpty)
@@ -2745,6 +2997,31 @@ class _DashboardPageState extends State<DashboardPage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _ReceiptDivider extends StatelessWidget {
+  const _ReceiptDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dashCount = (constraints.maxWidth / 10).floor().clamp(12, 60);
+        return Row(
+          children: List.generate(
+            dashCount,
+            (_) => Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                height: 1.4,
+                color: _brandPrimary.withOpacity(0.35),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -3598,6 +3875,8 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
+  final ImagePicker _proofImagePicker = ImagePicker();
+  final Map<String, List<String>> _orderProofPhotos = {};
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _customerPhoneController = TextEditingController();
   final TextEditingController _customerAddressController = TextEditingController();
@@ -3655,6 +3934,19 @@ class _OrdersPageState extends State<OrdersPage> {
       _future = _load();
     });
     await _future;
+  }
+
+  Future<void> _loadProofPhotosForOrder(String orderId) async {
+    try {
+      final photos = await widget.api.getOrderProofPhotos(
+        requesterId: widget.currentUser.userId,
+        orderId: orderId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _orderProofPhotos[orderId] = photos;
+      });
+    } catch (_) {}
   }
 
   Product? _resolveDraftProduct(_DraftOrderItem item, List<Product> products) {
@@ -3790,6 +4082,161 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
+  Future<void> _uploadProofPhoto(DeliveryOrder order) async {
+    try {
+      final file = await _proofImagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1800,
+      );
+      if (file == null) return;
+      await widget.api.uploadOrderProofPhoto(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        filePath: file.path,
+      );
+      await _loadProofPhotosForOrder(order.id);
+      _showAppSnack(context, "อัปโหลดรูปหลักฐานแล้ว");
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _deliverPartial(DeliveryOrder order) async {
+    final qtyControllers = <String, TextEditingController>{
+      for (final item in order.items)
+        item.barcode: TextEditingController(
+          text: "${(item.quantity - item.deliveredQuantity).clamp(0, item.quantity)}",
+        ),
+    };
+    String note = "";
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("ส่งสินค้าบางส่วน"),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...order.items.map((item) {
+                        final remaining = item.quantity - item.deliveredQuantity;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text("${item.productName} (ค้าง $remaining)")),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 72,
+                                child: TextField(
+                                  controller: qtyControllers[item.barcode],
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: "ส่ง"),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      TextField(
+                        onChanged: (value) => note = value,
+                        decoration: const InputDecoration(labelText: "หมายเหตุ"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text("ยกเลิก")),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text("บันทึก")),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      final items = <Map<String, dynamic>>[];
+      for (final item in order.items) {
+        final qty = int.tryParse(qtyControllers[item.barcode]?.text.trim() ?? "0") ?? 0;
+        if (qty > 0) {
+          items.add({"barcode": item.barcode, "quantity": qty});
+        }
+      }
+      if (items.isEmpty) {
+        _showAppSnack(context, "กรุณาใส่จำนวนที่ส่งอย่างน้อย 1 รายการ");
+        return;
+      }
+      await widget.api.deliverOrderPartial(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        items: items,
+        note: note.isEmpty ? null : note,
+      );
+      _showAppSnack(context, "บันทึกการส่งบางส่วนแล้ว");
+      await _loadProofPhotosForOrder(order.id);
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      for (final c in qtyControllers.values) {
+        c.dispose();
+      }
+    }
+  }
+
+  void _openProofGallery(DeliveryOrder order) {
+    final photos = _orderProofPhotos[order.id] ?? const <String>[];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.7,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("รูปหลักฐานการส่ง", style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (photos.isEmpty)
+                const Expanded(child: Center(child: Text("ยังไม่มีรูปหลักฐาน")))
+              else
+                Expanded(
+                  child: GridView.builder(
+                    itemCount: photos.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(photos[index], fit: BoxFit.cover),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _assignOrder(DeliveryOrder order, List<AppUser> users) async {
     String? selected = order.assignedToId ?? (users.isNotEmpty ? users.first.userId : null);
     final confirmed = await showDialog<bool>(
@@ -3863,6 +4310,13 @@ class _OrdersPageState extends State<OrdersPage> {
                 return _ErrorState(message: snapshot.error.toString());
               }
               final data = snapshot.data!;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                for (final order in data.orders) {
+                  if (!_orderProofPhotos.containsKey(order.id)) {
+                    _loadProofPhotosForOrder(order.id);
+                  }
+                }
+              });
               final activeStaff = data.users.where((item) => item.active).toList();
               return ListView(
                 padding: const EdgeInsets.all(16),
@@ -4081,6 +4535,10 @@ class _OrdersPageState extends State<OrdersPage> {
                           requesterId: widget.currentUser.userId,
                         ),
                         onAssign: () => _assignOrder(order, activeStaff),
+                        onUploadProof: () => _uploadProofPhoto(order),
+                        onOpenProofGallery: () => _openProofGallery(order),
+                        proofCount: (_orderProofPhotos[order.id] ?? const <String>[]).length,
+                        onDeliverPartial: () => _deliverPartial(order),
                         onStatusChanged: (status) => _updateStatus(order, status),
                       ),
                     ),
@@ -4530,11 +4988,13 @@ class DashboardData {
   DashboardData({
     required this.summary,
     required this.products,
+    required this.activeOrders,
     required this.notifications,
   });
 
   final StockSummary summary;
   final List<Product> products;
+  final List<DeliveryOrder> activeOrders;
   final List<AppNotification> notifications;
 }
 
@@ -4651,21 +5111,105 @@ _PendingChatAction? _detectPendingChatAction(String message) {
   );
 }
 
-class _SplashScreen extends StatelessWidget {
+class _SplashScreen extends StatefulWidget {
   const _SplashScreen();
 
   @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1650),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: _brandSurface,
+    return Scaffold(
+      backgroundColor: Colors.white,
       body: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.8,
-            color: _brandPrimary,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 220,
+              height: 90,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final t = _controller.value;
+                  final blackX = Curves.easeInOut.transform(t) * 150;
+                  final whiteX = Curves.easeInOut.transform((t + 0.2) % 1.0) * 150;
+                  return Stack(
+                    children: [
+                      Positioned(
+                        left: 20,
+                        right: 20,
+                        bottom: 16,
+                        child: Container(
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _brandPrimary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      ...List.generate(5, (index) {
+                        final offset = ((t * 6) + index) % 6;
+                        return Positioned(
+                          left: 22 + (offset * 26),
+                          bottom: 10 + (index.isEven ? 0 : 2),
+                          child: Opacity(
+                            opacity: 0.18 + (index * 0.07),
+                            child: Text(
+                              "• •",
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: _brandDeep.withOpacity(0.45),
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      Positioned(
+                        left: 20 + blackX,
+                        top: 30 + (t < 0.5 ? 2 : 0),
+                        child: const Text("🐈‍⬛", style: TextStyle(fontSize: 34)),
+                      ),
+                      Positioned(
+                        left: 5 + whiteX,
+                        top: 34 + (t < 0.5 ? 0 : 2),
+                        child: const Text("🐈", style: TextStyle(fontSize: 32)),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "กำลังโหลดข้อมูล...",
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: _brandDeep,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "แมวกำลังช่วยเช็กสต๊อกให้คุณ",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: _brandInk.withOpacity(0.7),
+                  ),
+            ),
+          ],
         ),
       ),
     );
@@ -5177,6 +5721,10 @@ class _OrderTile extends StatelessWidget {
     required this.packingSlipUrl,
     required this.pdfUrl,
     required this.onAssign,
+    required this.onUploadProof,
+    required this.onOpenProofGallery,
+    required this.proofCount,
+    required this.onDeliverPartial,
     required this.onStatusChanged,
   });
 
@@ -5186,6 +5734,10 @@ class _OrderTile extends StatelessWidget {
   final String packingSlipUrl;
   final String pdfUrl;
   final VoidCallback onAssign;
+  final VoidCallback onUploadProof;
+  final VoidCallback onOpenProofGallery;
+  final int proofCount;
+  final VoidCallback onDeliverPartial;
   final ValueChanged<String> onStatusChanged;
 
   Future<void> _openUrl(String rawUrl) async {
@@ -5236,8 +5788,14 @@ class _OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canAssign = currentUser.isAdmin || currentUser.userId == order.createdById;
+    final allDelivered = order.items.every((item) => item.deliveredQuantity >= item.quantity);
+    final canMarkDelivered = allDelivered && proofCount > 0;
     final itemPreview = order.items
-        .map((item) => "${item.productName} x${item.quantity}")
+        .map((item) {
+          final remaining = item.quantity - item.deliveredQuantity;
+          final mark = remaining <= 0 ? "✓" : "ค้าง $remaining";
+          return "${item.productName} ${item.deliveredQuantity}/${item.quantity} ($mark)";
+        })
         .join(", ");
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -5305,6 +5863,20 @@ class _OrderTile extends StatelessWidget {
                   icon: const Icon(Icons.picture_as_pdf_outlined),
                   label: const Text("PDF"),
                 ),
+                OutlinedButton.icon(
+                  onPressed: onUploadProof,
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text("ถ่ายรูปหลักฐาน"),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onOpenProofGallery,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text("รูปหลักฐาน ($proofCount)"),
+                ),
+                FilledButton.tonal(
+                  onPressed: onDeliverPartial,
+                  child: const Text("ส่งบางส่วน"),
+                ),
                 FilledButton.tonal(
                   onPressed: () => onStatusChanged("preparing"),
                   child: const Text("กำลังจัด"),
@@ -5314,9 +5886,14 @@ class _OrderTile extends StatelessWidget {
                   child: const Text("กำลังส่ง"),
                 ),
                 FilledButton.tonal(
-                  onPressed: () => onStatusChanged("delivered"),
+                  onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
                   child: const Text("ส่งแล้ว"),
                 ),
+                if (!canMarkDelivered)
+                  Text(
+                    "ต้องส่งครบทุกชิ้นและมีรูปหลักฐานก่อนส่งแล้ว",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _brandPrimary),
+                  ),
               ],
             ),
           ],

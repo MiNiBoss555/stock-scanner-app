@@ -309,6 +309,7 @@ class OrderItemModel {
     required this.productName,
     required this.quantity,
     required this.unit,
+    this.deliveredQuantity = 0,
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
@@ -317,6 +318,7 @@ class OrderItemModel {
       productName: json["product_name"] as String,
       quantity: (json["quantity"] as num).toInt(),
       unit: (json["unit"] as String?) ?? "pcs",
+      deliveredQuantity: (json["delivered_quantity"] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -324,6 +326,7 @@ class OrderItemModel {
   final String productName;
   final int quantity;
   final String unit;
+  final int deliveredQuantity;
 }
 
 class DeliveryOrder {

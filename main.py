@@ -168,6 +168,7 @@ class OrderItem(BaseModel):
     product_name: str
     quantity: int = Field(..., gt=0)
     unit: str = "pcs"
+    delivered_quantity: int = 0
 
 
 class Order(BaseModel):
@@ -206,6 +207,16 @@ class OrderAssignRequest(BaseModel):
 
 class OrderStatusUpdateRequest(BaseModel):
     status: OrderStatus
+
+
+class OrderDeliverItem(BaseModel):
+    barcode: str = Field(..., min_length=3)
+    quantity: int = Field(..., gt=0)
+
+
+class OrderDeliverRequest(BaseModel):
+    items: list[OrderDeliverItem] = Field(..., min_length=1)
+    note: str | None = None
 
 
 class SheetMapping(BaseModel):
@@ -402,6 +413,8 @@ realtime_manager = RealtimeConnectionManager()
 UPLOADS_DIR = Path("uploads")
 PROFILE_UPLOADS_DIR = UPLOADS_DIR / "profile_images"
 PROFILE_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+ORDER_PROOF_UPLOADS_DIR = UPLOADS_DIR / "order_proofs"
+ORDER_PROOF_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 DB_PATH = Path(os.getenv("STOCK_SCANNER_DB", "stock_scanner.db"))
 TOKEN_TTL_HOURS = int(os.getenv("AUTH_TOKEN_TTL_HOURS", "12"))
@@ -654,7 +667,28 @@ def init_database() -> None:
                 barcode TEXT NOT NULL,
                 product_name TEXT NOT NULL,
                 quantity INTEGER NOT NULL,
-                unit TEXT NOT NULL
+                unit TEXT NOT NULL,
+                delivered_quantity INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(order_items)").fetchall()
+        }
+        if "delivered_quantity" not in columns:
+            connection.execute(
+                "ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER NOT NULL DEFAULT 0"
+            )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_proof_photos (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL,
+                uploaded_by_id TEXT NOT NULL,
+                uploaded_by_name TEXT NOT NULL,
+                photo_url TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -744,7 +778,7 @@ def load_state_from_db() -> None:
         ).fetchall()
         order_item_rows = connection.execute(
             """
-            SELECT order_id, barcode, product_name, quantity, unit
+            SELECT order_id, barcode, product_name, quantity, unit, delivered_quantity
             FROM order_items
             ORDER BY rowid ASC
             """
@@ -799,6 +833,7 @@ def load_state_from_db() -> None:
                 product_name=row["product_name"],
                 quantity=int(row["quantity"]),
                 unit=row["unit"],
+                delivered_quantity=int(row["delivered_quantity"] or 0),
             )
         )
     orders = [
@@ -967,11 +1002,35 @@ def save_order(order: Order) -> None:
                 order.updated_at.isoformat(),
             ),
         )
+
+
+def list_order_proof_photos(order_id: str) -> list[dict[str, str]]:
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, order_id, uploaded_by_id, uploaded_by_name, photo_url, created_at
+            FROM order_proof_photos
+            WHERE order_id = ?
+            ORDER BY created_at ASC
+            """,
+            (order_id,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "order_id": row["order_id"],
+            "uploaded_by_id": row["uploaded_by_id"],
+            "uploaded_by_name": row["uploaded_by_name"],
+            "photo_url": row["photo_url"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
         connection.execute("DELETE FROM order_items WHERE order_id = ?", (order.id,))
         connection.executemany(
             """
-            INSERT INTO order_items (id, order_id, barcode, product_name, quantity, unit)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO order_items (id, order_id, barcode, product_name, quantity, unit, delivered_quantity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -981,6 +1040,7 @@ def save_order(order: Order) -> None:
                     item.product_name,
                     item.quantity,
                     item.unit,
+                    item.delivered_quantity,
                 )
                 for item in order.items
             ],
@@ -1569,6 +1629,10 @@ def build_profile_image_url(filename: str) -> str:
     return f"/uploads/profile_images/{filename}"
 
 
+def build_order_proof_photo_url(filename: str) -> str:
+    return f"/uploads/order_proofs/{filename}"
+
+
 def get_order_or_404(order_id: str) -> Order:
     for order in orders:
         if order.id == order_id:
@@ -1585,6 +1649,11 @@ def order_status_label(status: OrderStatus) -> str:
         OrderStatus.DELIVERED: "ส่งแล้ว",
         OrderStatus.CANCELLED: "ยกเลิก",
     }[status]
+
+
+def order_short_id(order_id: str) -> str:
+    compact = order_id.replace("-", "").upper()
+    return f"ORD-{compact[:6]}"
 
 
 def ensure_order_view_permission(order: Order, user: User) -> None:
@@ -2541,6 +2610,13 @@ async def update_order_status(
 ) -> Order:
     user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
+    if payload.status == OrderStatus.DELIVERED:
+        photos = list_order_proof_photos(order_id)
+        if not photos:
+            raise HTTPException(
+                status_code=400,
+                detail="ต้องอัปโหลดรูปหลักฐานก่อนเปลี่ยนสถานะเป็นส่งแล้ว",
+            )
     if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
         raise HTTPException(status_code=403, detail="Permission denied.")
     updated = order.model_copy(update={"status": payload.status, "updated_at": utc_now()})
@@ -2556,6 +2632,135 @@ async def update_order_status(
     return updated
 
 
+@app.post("/orders/{order_id}/deliver-partial", response_model=Order)
+async def deliver_order_partial(
+    order_id: str,
+    payload: OrderDeliverRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
+    order = get_order_or_404(order_id)
+    if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
+        raise HTTPException(status_code=403, detail="Permission denied.")
+
+    item_map = {item.barcode: item for item in order.items}
+    for delivered in payload.items:
+        item = item_map.get(delivered.barcode)
+        if not item:
+            raise HTTPException(status_code=404, detail=f"ไม่พบสินค้าในออเดอร์: {delivered.barcode}")
+        remaining = item.quantity - item.delivered_quantity
+        if delivered.quantity > remaining:
+            raise HTTPException(
+                status_code=400,
+                detail=f"ส่งเกินจำนวนที่เหลือของ {item.product_name} (เหลือ {remaining})",
+            )
+        product = products.get(item.barcode)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item.barcode} not found.")
+        if product.current_stock < delivered.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"สต๊อกไม่พอสำหรับ {item.product_name} (คงเหลือ {product.current_stock})",
+            )
+        before_stock = product.current_stock
+        product.current_stock -= delivered.quantity
+        save_product(product)
+        movement = MovementRecord(
+            id=str(uuid4()),
+            barcode=product.barcode,
+            product_name=product.name,
+            action=MovementType.OUT,
+            quantity=delivered.quantity,
+            before_stock=before_stock,
+            after_stock=product.current_stock,
+            actor_id=user.user_id,
+            actor_name=user.user_name,
+            note=payload.note or f"ส่งบางส่วนจากออเดอร์ {order.id}",
+            reference=order.id,
+            created_at=utc_now(),
+        )
+        movements.insert(0, movement)
+        save_movement(movement)
+        item.delivered_quantity += delivered.quantity
+
+    all_done = all(item.delivered_quantity >= item.quantity for item in order.items)
+    new_status = OrderStatus.DELIVERED if all_done else OrderStatus.OUT_FOR_DELIVERY
+    updated = order.model_copy(
+        update={
+            "items": order.items,
+            "status": new_status,
+            "updated_at": utc_now(),
+            "note": payload.note or order.note,
+        }
+    )
+    for index, existing in enumerate(orders):
+        if existing.id == order_id:
+            orders[index] = updated
+            break
+    save_order(updated)
+    await broadcast_realtime_event("order_updated", {"order": updated.model_dump(mode="json")})
+    return updated
+
+
+@app.post("/orders/{order_id}/proof-photo")
+async def upload_order_proof_photo(
+    order_id: str,
+    request: Request,
+    requester_id: str = Form(..., min_length=1),
+    image: UploadFile = File(...),
+) -> dict:
+    user = resolve_request_user(request, requester_id)
+    order = get_order_or_404(order_id)
+    ensure_order_view_permission(order, user)
+    if not image.filename:
+        raise HTTPException(status_code=400, detail="ชื่อไฟล์รูปไม่ถูกต้อง")
+    ext = Path(image.filename).suffix.lower() or ".jpg"
+    filename = f"{order_id}-{uuid4().hex}{ext}"
+    destination = ORDER_PROOF_UPLOADS_DIR / filename
+    content = await image.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="ไฟล์รูปว่างเปล่า")
+    destination.write_bytes(content)
+    photo_url = build_order_proof_photo_url(filename)
+    record = {
+        "id": str(uuid4()),
+        "order_id": order_id,
+        "uploaded_by_id": user.user_id,
+        "uploaded_by_name": user.user_name,
+        "photo_url": photo_url,
+        "created_at": utc_now().isoformat(),
+    }
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO order_proof_photos (id, order_id, uploaded_by_id, uploaded_by_name, photo_url, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["id"],
+                record["order_id"],
+                record["uploaded_by_id"],
+                record["uploaded_by_name"],
+                record["photo_url"],
+                record["created_at"],
+            ),
+        )
+    return {"message": "อัปโหลดรูปหลักฐานแล้ว", "photo": record}
+
+
+@app.get("/orders/{order_id}/proof-photos")
+def get_order_proof_photos(
+    order_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> dict:
+    user = resolve_request_user(request, requester_id)
+    order = get_order_or_404(order_id)
+    ensure_order_view_permission(order, user)
+    return {"items": list_order_proof_photos(order_id)}
+
+
 @app.get("/orders/{order_id}/print")
 def print_order(
     order_id: str,
@@ -2565,6 +2770,7 @@ def print_order(
     user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
+    short_id = order_short_id(order.id)
 
     item_rows = build_order_items_html(order, include_check_column=True)
     html = f"""
@@ -2573,7 +2779,7 @@ def print_order(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Order {order.id}</title>
+  <title>Order {short_id}</title>
   <style>
     body {{ font-family: Tahoma, sans-serif; color: #3F2B1D; margin: 24px; }}
     .wrap {{ max-width: 900px; margin: 0 auto; }}
@@ -2598,12 +2804,12 @@ def print_order(
       <div class="head">
         <div>
           <p class="title">ใบออเดอร์</p>
-          <div class="muted">เลขที่ออเดอร์: {order.id}</div>
+          <div class="muted">เลขที่ออเดอร์: {short_id}</div>
           <div class="muted">วันที่สร้าง: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
         </div>
         <div style="text-align:right;">
           <div class="chip">{order_status_label(order.status)}</div>
-          <div style="margin-top:12px;padding:10px 14px;border:2px dashed #8A5A3C;border-radius:12px;font-weight:800;letter-spacing:1px;">{order.id[:8].upper()}</div>
+          <div style="margin-top:12px;padding:10px 14px;border:2px dashed #8A5A3C;border-radius:12px;font-weight:800;letter-spacing:1px;">{short_id}</div>
         </div>
       </div>
 
@@ -2661,6 +2867,7 @@ def print_packing_slip(
     user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
+    short_id = order_short_id(order.id)
     item_rows = build_order_items_html(order, include_check_column=True)
     html = f"""
 <!doctype html>
@@ -2668,7 +2875,7 @@ def print_packing_slip(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Packing Slip {order.id}</title>
+  <title>Packing Slip {short_id}</title>
   <style>
     body {{ font-family: Tahoma, sans-serif; color: #3F2B1D; margin: 24px; }}
     .wrap {{ max-width: 900px; margin: 0 auto; }}
@@ -2692,7 +2899,7 @@ def print_packing_slip(
           <div>ผู้ส่ง: {order.assigned_to_name or '-'}</div>
           <div>ที่อยู่: {order.customer_address or '-'}</div>
         </div>
-        <div class="code">{order.id[:8].upper()}</div>
+        <div class="code">{short_id}</div>
       </div>
       <table>
         <thead>
@@ -2726,6 +2933,7 @@ def print_order_pdf(
     user = resolve_request_user(request, requester_id)
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
+    short_id = order_short_id(order.id)
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfbase import pdfmetrics
@@ -2751,7 +2959,7 @@ def print_order_pdf(
     y -= 28
     pdf.setFont(font_name, 11)
     lines = [
-        f"Order ID: {order.id}",
+        f"Order ID: {short_id}",
         f"Customer: {order.customer_name}",
         f"Phone: {order.customer_phone or '-'}",
         f"Address: {order.customer_address or '-'}",

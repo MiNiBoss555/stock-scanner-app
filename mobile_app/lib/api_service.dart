@@ -1,5 +1,6 @@
 import "dart:convert";
 import "dart:async";
+import "dart:io";
 
 import "package:http/http.dart" as http;
 
@@ -547,6 +548,57 @@ class StockApiService {
       {"requester_id": requesterId},
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryOrder> deliverOrderPartial({
+    required String requesterId,
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? note,
+  }) async {
+    final response = await _postJson(
+      "/orders/$orderId/deliver-partial",
+      {
+        "items": items,
+        "note": note,
+      },
+      {"requester_id": requesterId},
+    );
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<void> uploadOrderProofPhoto({
+    required String requesterId,
+    required String orderId,
+    required String filePath,
+  }) async {
+    final request = http.MultipartRequest(
+      "POST",
+      _uri("/orders/$orderId/proof-photo"),
+    )
+      ..headers.addAll(_headers())
+      ..fields["requester_id"] = requesterId
+      ..files.add(await http.MultipartFile.fromPath("image", filePath));
+    final streamed = await request.send().timeout(_requestTimeout);
+    final response = await http.Response.fromStream(streamed);
+    _decode(response);
+  }
+
+  Future<List<String>> getOrderProofPhotos({
+    required String requesterId,
+    required String orderId,
+  }) async {
+    final response = await _get(
+      "/orders/$orderId/proof-photos",
+      {"requester_id": requesterId},
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    final items = body["items"] as List<dynamic>? ?? [];
+    return items
+        .map((item) => (item as Map<String, dynamic>)["photo_url"] as String? ?? "")
+        .where((url) => url.isNotEmpty)
+        .map(resolveAssetUrl)
+        .toList();
   }
 
   String orderPrintUrl({
