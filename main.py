@@ -1002,6 +1002,25 @@ def save_order(order: Order) -> None:
                 order.updated_at.isoformat(),
             ),
         )
+        connection.execute("DELETE FROM order_items WHERE order_id = ?", (order.id,))
+        connection.executemany(
+            """
+            INSERT INTO order_items (id, order_id, barcode, product_name, quantity, unit, delivered_quantity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    str(uuid4()),
+                    order.id,
+                    item.barcode,
+                    item.product_name,
+                    item.quantity,
+                    item.unit,
+                    item.delivered_quantity,
+                )
+                for item in order.items
+            ],
+        )
 
 
 def list_order_proof_photos(order_id: str) -> list[dict[str, str]]:
@@ -1026,25 +1045,6 @@ def list_order_proof_photos(order_id: str) -> list[dict[str, str]]:
         }
         for row in rows
     ]
-        connection.execute("DELETE FROM order_items WHERE order_id = ?", (order.id,))
-        connection.executemany(
-            """
-            INSERT INTO order_items (id, order_id, barcode, product_name, quantity, unit, delivered_quantity)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    str(uuid4()),
-                    order.id,
-                    item.barcode,
-                    item.product_name,
-                    item.quantity,
-                    item.unit,
-                    item.delivered_quantity,
-                )
-                for item in order.items
-            ],
-        )
 
 
 def create_session(user_id: str) -> tuple[str, datetime]:
