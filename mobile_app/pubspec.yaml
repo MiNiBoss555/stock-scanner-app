@@ -1,7 +1,7 @@
 name: stock_scanner_mobile
 description: Cross-platform stock scanner app for iOS and Android.
 publish_to: "none"
-version: 0.1.0+1
+version: 0.1.1+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -15,6 +15,8 @@ dependencies:
   mobile_scanner: ^5.2.3
   barcode_widget: ^2.0.4
   path_provider: ^2.1.5
+  pdf: ^3.11.1
+  printing: ^5.13.4
   qr_flutter: ^4.1.0
   share_plus: ^10.1.2
   shared_preferences: ^2.3.3
@@ -22,3 +24,8 @@ dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/scan_product_logo.png
+    - assets/branding/scan_product_logo_mark.png
+    - assets/branding/scan_product_logo_mark_tight.png
+    - assets/delivery/delivery_success.gif

@@ -567,6 +567,18 @@ class StockApiService {
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
+  Future<DeliveryOrder> resolveBackorder({
+    required String requesterId,
+    required String orderId,
+  }) async {
+    final response = await _postJson(
+      "/orders/$orderId/resolve-backorder",
+      const {},
+      {"requester_id": requesterId},
+    );
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
   Future<void> uploadOrderProofPhoto({
     required String requesterId,
     required String orderId,

@@ -903,6 +903,11 @@ class _StockHomePageState extends State<StockHomePage> {
         api: widget.api,
         refreshSignal: _realtimeRevision,
         currentUser: widget.currentUser,
+        onOpenOrdersTab: () {
+          setState(() {
+            _currentIndex = 2;
+          });
+        },
       ),
       ScanPage(api: widget.api, currentUser: widget.currentUser),
       HistoryPage(api: widget.api, refreshSignal: _realtimeRevision),
@@ -2604,11 +2609,13 @@ class DashboardPage extends StatefulWidget {
     required this.api,
     required this.refreshSignal,
     required this.currentUser,
+    required this.onOpenOrdersTab,
   });
 
   final StockApiService api;
   final ValueListenable<int> refreshSignal;
   final AppUser currentUser;
+  final VoidCallback onOpenOrdersTab;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -2876,6 +2883,17 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
+                Card(
+                  color: _brandPrimary.withOpacity(0.06),
+                  child: ListTile(
+                    leading: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
+                    title: Text("งานค้างส่ง ${data.activeOrders.length} ออเดอร์"),
+                    subtitle: const Text("แตะเพื่อเปิดแท็บออเดอร์และจัดส่งทันที"),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onOpenOrdersTab,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _productSearchController,
                   onChanged: (value) {
@@ -4075,11 +4093,29 @@ class _OrdersPageState extends State<OrdersPage> {
         orderId: order.id,
         status: status,
       );
+      if (status == "delivered" && mounted) {
+        await _showDeliveredCatAnimation();
+      }
       _showAppSnack(context, "อัปเดตสถานะแล้ว");
       await _refresh();
     } catch (error) {
-      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+      _showAppSnack(
+        context,
+        error.toString().replaceFirst("Exception: ", ""),
+        isError: true,
+      );
     }
+  }
+
+  Future<void> _showDeliveredCatAnimation() {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "delivery_success",
+      barrierColor: Colors.black45,
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) => const _DeliverySuccessOverlay(),
+    );
   }
 
   Future<void> _uploadProofPhoto(DeliveryOrder order) async {
@@ -4103,11 +4139,9 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   Future<void> _deliverPartial(DeliveryOrder order) async {
-    final qtyControllers = <String, TextEditingController>{
+    final qtyValues = <String, String>{
       for (final item in order.items)
-        item.barcode: TextEditingController(
-          text: "${(item.quantity - item.deliveredQuantity).clamp(0, item.quantity)}",
-        ),
+        item.barcode: "${(item.quantity - item.deliveredQuantity).clamp(0, item.quantity)}",
     };
     String note = "";
     final confirmed = await showDialog<bool>(
@@ -4133,10 +4167,11 @@ class _OrdersPageState extends State<OrdersPage> {
                               const SizedBox(width: 8),
                               SizedBox(
                                 width: 72,
-                                child: TextField(
-                                  controller: qtyControllers[item.barcode],
+                                child: TextFormField(
+                                  initialValue: qtyValues[item.barcode] ?? "0",
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(labelText: "ส่ง"),
+                                  onChanged: (value) => qtyValues[item.barcode] = value,
                                 ),
                               ),
                             ],
@@ -4164,7 +4199,7 @@ class _OrdersPageState extends State<OrdersPage> {
     try {
       final items = <Map<String, dynamic>>[];
       for (final item in order.items) {
-        final qty = int.tryParse(qtyControllers[item.barcode]?.text.trim() ?? "0") ?? 0;
+        final qty = int.tryParse((qtyValues[item.barcode] ?? "0").trim()) ?? 0;
         if (qty > 0) {
           items.add({"barcode": item.barcode, "quantity": qty});
         }
@@ -4173,21 +4208,28 @@ class _OrdersPageState extends State<OrdersPage> {
         _showAppSnack(context, "กรุณาใส่จำนวนที่ส่งอย่างน้อย 1 รายการ");
         return;
       }
-      await widget.api.deliverOrderPartial(
+      final updated = await widget.api.deliverOrderPartial(
         requesterId: widget.currentUser.userId,
         orderId: order.id,
         items: items,
         note: note.isEmpty ? null : note,
       );
+      if (updated.status == "delivered") {
+        await widget.api.updateOrderStatus(
+          requesterId: widget.currentUser.userId,
+          orderId: order.id,
+          status: "out_for_delivery",
+        );
+      }
       _showAppSnack(context, "บันทึกการส่งบางส่วนแล้ว");
       await _loadProofPhotosForOrder(order.id);
-      await _refresh();
+      if (!mounted) return;
+      setState(() {
+        _future = _load();
+      });
+      await _future;
     } catch (error) {
       _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
-    } finally {
-      for (final c in qtyControllers.values) {
-        c.dispose();
-      }
     }
   }
 
@@ -4293,6 +4335,42 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
+  Future<void> _resolveBackorder(DeliveryOrder order) async {
+    try {
+      await widget.api.resolveBackorder(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+      );
+      _showAppSnack(context, "ปิดค้างจ่ายแล้ว");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""), isError: true);
+    }
+  }
+
+  void _openBackorderReport(List<DeliveryOrder> orders) {
+    final backorders = orders.where((order) {
+      return order.items.any((item) => item.deliveredQuantity < item.quantity);
+    }).toList();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.82,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: _BackorderReportSheet(backorders: backorders),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -4310,13 +4388,14 @@ class _OrdersPageState extends State<OrdersPage> {
                 return _ErrorState(message: snapshot.error.toString());
               }
               final data = snapshot.data!;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                for (final order in data.orders) {
-                  if (!_orderProofPhotos.containsKey(order.id)) {
-                    _loadProofPhotosForOrder(order.id);
-                  }
+              for (final order in data.orders) {
+                if (!_orderProofPhotos.containsKey(order.id)) {
+                  unawaited(_loadProofPhotosForOrder(order.id));
                 }
-              });
+              }
+              final backorderOrders = data.orders.where((order) {
+                return order.items.any((item) => item.deliveredQuantity < item.quantity);
+              }).toList();
               final activeStaff = data.users.where((item) => item.active).toList();
               return ListView(
                 padding: const EdgeInsets.all(16),
@@ -4325,6 +4404,53 @@ class _OrdersPageState extends State<OrdersPage> {
                     title: "ออเดอร์และจัดส่ง",
                     subtitle: "รับออเดอร์จากลูกค้า มอบหมายคนส่ง และติดตามสถานะงาน",
                     showBackButton: true,
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    color: Colors.red.withOpacity(0.05),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "รายงานค้างจ่าย (${backorderOrders.length} ออเดอร์)",
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.red.shade700,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openBackorderReport(data.orders),
+                              icon: const Icon(Icons.list_alt_outlined),
+                              label: const Text("เปิดรายงานแบบเต็ม"),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (backorderOrders.isEmpty)
+                            const Text("ไม่มีออเดอร์ค้างจ่ายตอนนี้")
+                          else
+                            ...backorderOrders.take(6).map((order) {
+                              final pendingItems = order.items.where(
+                                (item) => item.deliveredQuantity < item.quantity,
+                              );
+                              final summary = pendingItems
+                                  .map(
+                                    (item) =>
+                                        "${item.productName} ค้าง ${item.quantity - item.deliveredQuantity}",
+                                  )
+                                  .join(", ");
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text("• ${order.customerName}: $summary"),
+                              );
+                            }),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Card(
@@ -4342,6 +4468,10 @@ class _OrdersPageState extends State<OrdersPage> {
                           const SizedBox(height: 10),
                           TextField(
                             controller: _customerPhoneController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             decoration: const InputDecoration(labelText: "เบอร์โทร"),
                           ),
                           const SizedBox(height: 10),
@@ -4363,10 +4493,6 @@ class _OrdersPageState extends State<OrdersPage> {
                                   break;
                                 }
                               }
-                            }
-                            if (selectedProduct != null &&
-                                draftItem.productController.text.trim().isEmpty) {
-                              draftItem.productController.text = selectedProduct.name;
                             }
                             final query = draftItem.productController.text.trim().toLowerCase();
                             final showSuggestions = query.isNotEmpty && selectedProduct == null;
@@ -4537,6 +4663,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         onAssign: () => _assignOrder(order, activeStaff),
                         onUploadProof: () => _uploadProofPhoto(order),
                         onOpenProofGallery: () => _openProofGallery(order),
+                        onResolveBackorder: () => _resolveBackorder(order),
                         proofCount: (_orderProofPhotos[order.id] ?? const <String>[]).length,
                         onDeliverPartial: () => _deliverPartial(order),
                         onStatusChanged: (status) => _updateStatus(order, status),
@@ -4564,6 +4691,118 @@ class _OrdersPageData {
   final List<Product> products;
 }
 
+class _BackorderReportSheet extends StatefulWidget {
+  const _BackorderReportSheet({required this.backorders});
+
+  final List<DeliveryOrder> backorders;
+
+  @override
+  State<_BackorderReportSheet> createState() => _BackorderReportSheetState();
+}
+
+class _BackorderReportSheetState extends State<_BackorderReportSheet> {
+  String _assigneeFilter = "all";
+  String _dateFilter = "all";
+
+  List<DeliveryOrder> _filteredOrders() {
+    final now = DateTime.now();
+    DateTime? from;
+    if (_dateFilter == "today") {
+      from = DateTime(now.year, now.month, now.day);
+    } else if (_dateFilter == "7d") {
+      from = now.subtract(const Duration(days: 7));
+    } else if (_dateFilter == "30d") {
+      from = now.subtract(const Duration(days: 30));
+    }
+
+    return widget.backorders.where((order) {
+      final byAssignee = _assigneeFilter == "all" ||
+          (_assigneeFilter == "unassigned" && (order.assignedToId == null || order.assignedToId!.isEmpty)) ||
+          order.assignedToId == _assigneeFilter;
+      if (!byAssignee) return false;
+      if (from == null) return true;
+      return order.createdAt.isAfter(from) || order.createdAt.isAtSameMomentAs(from);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assignees = <String, String>{};
+    for (final o in widget.backorders) {
+      if (o.assignedToId != null && o.assignedToId!.isNotEmpty) {
+        assignees[o.assignedToId!] = o.assignedToName ?? o.assignedToId!;
+      }
+    }
+    final filtered = _filteredOrders();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("รายงานค้างจ่าย", style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 6),
+        Text("ทั้งหมด ${filtered.length} ออเดอร์"),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _assigneeFilter,
+                decoration: const InputDecoration(labelText: "พนักงานส่ง"),
+                items: [
+                  const DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
+                  const DropdownMenuItem(value: "unassigned", child: Text("ยังไม่มอบหมาย")),
+                  ...assignees.entries.map(
+                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _assigneeFilter = v ?? "all"),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _dateFilter,
+                decoration: const InputDecoration(labelText: "ช่วงวันที่"),
+                items: const [
+                  DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
+                  DropdownMenuItem(value: "today", child: Text("วันนี้")),
+                  DropdownMenuItem(value: "7d", child: Text("7 วัน")),
+                  DropdownMenuItem(value: "30d", child: Text("30 วัน")),
+                ],
+                onChanged: (v) => setState(() => _dateFilter = v ?? "all"),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (filtered.isEmpty)
+          const Expanded(child: Center(child: Text("ไม่มีออเดอร์ค้างจ่ายตามตัวกรอง")))
+        else
+          Expanded(
+            child: ListView.separated(
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const Divider(height: 18),
+              itemBuilder: (context, index) {
+                final order = filtered[index];
+                final pending = order.items
+                    .where((item) => item.deliveredQuantity < item.quantity)
+                    .map((item) => "${item.productName} ค้าง ${item.quantity - item.deliveredQuantity}")
+                    .join(", ");
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(order.customerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text("ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
+                    Text(pending, style: const TextStyle(color: Colors.red)),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _DraftOrderItem {
   _DraftOrderItem({
     this.barcode,
@@ -4589,6 +4828,38 @@ class _AdminPageState extends State<AdminPage> {
   final TextEditingController _downloadSearchController = TextEditingController();
   String _downloadSearch = "";
   String _downloadTypeFilter = "all";
+
+  Future<void> _exportOrdersBackorderCsv() async {
+    final orders = await widget.api.getOrders(requesterId: widget.currentUser.userId);
+    final buffer = StringBuffer()
+      ..writeln("order_id,customer_name,status,assigned_to,created_by,items,delivered_items,backorder");
+    for (final order in orders) {
+      final totalItems = order.items.length;
+      final deliveredItems = order.items.where((i) => i.deliveredQuantity >= i.quantity).length;
+      final backorder = order.items
+          .where((i) => i.deliveredQuantity < i.quantity)
+          .map((i) => "${i.productName}:${i.quantity - i.deliveredQuantity}")
+          .join("|");
+      final esc = (String v) => "\"${v.replaceAll("\"", "\"\"")}\"";
+      buffer.writeln([
+        esc(order.id),
+        esc(order.customerName),
+        esc(order.status),
+        esc(order.assignedToName ?? ""),
+        esc(order.createdByName),
+        totalItems,
+        deliveredItems,
+        esc(backorder),
+      ].join(","));
+    }
+    final dir = await getTemporaryDirectory();
+    final file = File("${dir.path}/orders_backorder_report.csv");
+    await file.writeAsString(buffer.toString(), flush: true);
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      text: "รายงานออเดอร์และค้างจ่าย",
+    );
+  }
 
   @override
   void initState() {
@@ -4853,6 +5124,14 @@ class _AdminPageState extends State<AdminPage> {
                             () => widget.api.appendTest(requesterId: requesterId),
                           ),
                   child: const Text("\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e41\u0e16\u0e27"),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  onPressed: _isRunning ? null : () => _runAction(() async {
+                    await _exportOrdersBackorderCsv();
+                    return "ส่งออกรายงานออเดอร์/ค้างจ่ายแล้ว";
+                  }),
+                  child: const Text("ส่งออกรายงานออเดอร์/ค้างจ่าย (CSV)"),
                 ),
                 if (_lastMessage != null) ...[
                   const SizedBox(height: 12),
@@ -5723,6 +6002,7 @@ class _OrderTile extends StatelessWidget {
     required this.onAssign,
     required this.onUploadProof,
     required this.onOpenProofGallery,
+    required this.onResolveBackorder,
     required this.proofCount,
     required this.onDeliverPartial,
     required this.onStatusChanged,
@@ -5736,6 +6016,7 @@ class _OrderTile extends StatelessWidget {
   final VoidCallback onAssign;
   final VoidCallback onUploadProof;
   final VoidCallback onOpenProofGallery;
+  final VoidCallback onResolveBackorder;
   final int proofCount;
   final VoidCallback onDeliverPartial;
   final ValueChanged<String> onStatusChanged;
@@ -5788,15 +6069,12 @@ class _OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canAssign = currentUser.isAdmin || currentUser.userId == order.createdById;
-    final allDelivered = order.items.every((item) => item.deliveredQuantity >= item.quantity);
-    final canMarkDelivered = allDelivered && proofCount > 0;
-    final itemPreview = order.items
-        .map((item) {
-          final remaining = item.quantity - item.deliveredQuantity;
-          final mark = remaining <= 0 ? "✓" : "ค้าง $remaining";
-          return "${item.productName} ${item.deliveredQuantity}/${item.quantity} ($mark)";
-        })
-        .join(", ");
+    final canOperate = currentUser.isAdmin ||
+        currentUser.userId == order.createdById ||
+        currentUser.userId == (order.assignedToId ?? "");
+    final canMarkDelivered = proofCount > 0;
+    final deliveredCount = order.items.where((item) => item.deliveredQuantity >= item.quantity).length;
+    final hasBackorder = (order.note ?? "").contains("ค้างจ่าย");
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -5812,6 +6090,24 @@ class _OrderTile extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
+                if (hasBackorder)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.red.withOpacity(0.35)),
+                    ),
+                    child: const Text(
+                      "ค้างจ่าย",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -5829,7 +6125,37 @@ class _OrderTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text("สินค้า: $itemPreview"),
+            Text("สถานะการส่งสินค้า: ส่งแล้ว $deliveredCount/${order.items.length} รายการ"),
+            const SizedBox(height: 6),
+            ...order.items.map((item) {
+              final isDone = item.deliveredQuantity >= item.quantity;
+              final remaining = (item.quantity - item.deliveredQuantity).clamp(0, item.quantity);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: isDone ? Colors.green : _brandInk.withOpacity(0.55),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        isDone
+                            ? "${item.productName} x${item.quantity} (ส่งแล้ว)"
+                            : "${item.productName} x${item.quantity} (ค้าง $remaining)",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isDone ? Colors.green.shade700 : _brandInk,
+                              fontWeight: isDone ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             if (order.customerPhone != null && order.customerPhone!.isNotEmpty)
               Text("โทร: ${order.customerPhone}"),
             if (order.customerAddress != null && order.customerAddress!.isNotEmpty)
@@ -5838,65 +6164,177 @@ class _OrderTile extends StatelessWidget {
             Text("ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
             if (order.note != null && order.note!.isNotEmpty) Text("หมายเหตุ: ${order.note}"),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+            if (order.status == "delivered")
+              OutlinedButton.icon(
+                onPressed: onOpenProofGallery,
+                icon: const Icon(Icons.photo_library_outlined),
+                label: Text("รูปหลักฐาน ($proofCount)"),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
                 if (canAssign)
+                    OutlinedButton.icon(
+                      onPressed: onAssign,
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                      label: const Text("มอบหมาย"),
+                    ),
                   OutlinedButton.icon(
-                    onPressed: onAssign,
-                    icon: const Icon(Icons.person_add_alt_1_outlined),
-                    label: const Text("มอบหมาย"),
+                    onPressed: () => _openUrl(printUrl),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text("พิมพ์ใบออเดอร์"),
                   ),
-                OutlinedButton.icon(
-                  onPressed: () => _openUrl(printUrl),
-                  icon: const Icon(Icons.print_outlined),
-                  label: const Text("พิมพ์ใบออเดอร์"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _openUrl(packingSlipUrl),
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text("ใบปะหน้าจัดของ"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _openUrl(pdfUrl),
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text("PDF"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onUploadProof,
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text("ถ่ายรูปหลักฐาน"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onOpenProofGallery,
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: Text("รูปหลักฐาน ($proofCount)"),
-                ),
-                FilledButton.tonal(
-                  onPressed: onDeliverPartial,
-                  child: const Text("ส่งบางส่วน"),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => onStatusChanged("preparing"),
-                  child: const Text("กำลังจัด"),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => onStatusChanged("out_for_delivery"),
-                  child: const Text("กำลังส่ง"),
-                ),
-                FilledButton.tonal(
-                  onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
-                  child: const Text("ส่งแล้ว"),
-                ),
-                if (!canMarkDelivered)
-                  Text(
-                    "ต้องส่งครบทุกชิ้นและมีรูปหลักฐานก่อนส่งแล้ว",
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _brandPrimary),
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(packingSlipUrl),
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text("ใบปะหน้าจัดของ"),
                   ),
-              ],
-            ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(pdfUrl),
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text("PDF"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: canOperate ? onUploadProof : null,
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Text("ถ่ายรูปหลักฐาน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onOpenProofGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text("รูปหลักฐาน ($proofCount)"),
+                  ),
+                  if (hasBackorder)
+                    OutlinedButton.icon(
+                      onPressed: onResolveBackorder,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text("ปิดค้างจ่าย"),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: canOperate ? onDeliverPartial : null,
+                    child: const Text("ส่งบางส่วน"),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: canOperate ? () => onStatusChanged("preparing") : null,
+                    child: const Text("กำลังจัด"),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: canOperate ? () => onStatusChanged("out_for_delivery") : null,
+                    child: const Text("กำลังส่ง"),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: (canOperate && canMarkDelivered) ? () => onStatusChanged("delivered") : null,
+                    child: const Text("ส่งแล้ว"),
+                  ),
+                  if (!canMarkDelivered)
+                    Text(
+                      "ต้องมีรูปหลักฐานก่อนกดส่งแล้ว",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _brandPrimary),
+                    ),
+                ],
+              ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliverySuccessOverlay extends StatefulWidget {
+  const _DeliverySuccessOverlay();
+
+  @override
+  State<_DeliverySuccessOverlay> createState() => _DeliverySuccessOverlayState();
+}
+
+class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Container(
+          width: 330,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 170,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: _brandPrimary.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: const Alignment(0, 0.65),
+                      child: Container(
+                        width: 220,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _brandPrimary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.2, end: 1.2),
+                      duration: const Duration(milliseconds: 1800),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, 0.25),
+                        child: child,
+                      ),
+                      child: const Text("📦", style: TextStyle(fontSize: 30)),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.35, end: 1.0),
+                      duration: const Duration(milliseconds: 1600),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, -0.1),
+                        child: child,
+                      ),
+                      child: const Text("🐈‍⬛", style: TextStyle(fontSize: 46)),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.55, end: 0.8),
+                      duration: const Duration(milliseconds: 1700),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, 0.15),
+                        child: child,
+                      ),
+                      child: const Text("🐈", style: TextStyle(fontSize: 42)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "ส่งสินค้าเรียบร้อย!",
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: _brandDeep),
+              ),
+            ],
+          ),
         ),
       ),
     );

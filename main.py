@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import io
 import json
 import os
@@ -1642,12 +1642,12 @@ def get_order_or_404(order_id: str) -> Order:
 
 def order_status_label(status: OrderStatus) -> str:
     return {
-        OrderStatus.NEW: "ออเดอร์ใหม่",
-        OrderStatus.ASSIGNED: "มอบหมายแล้ว",
-        OrderStatus.PREPARING: "กำลังจัดสินค้า",
-        OrderStatus.OUT_FOR_DELIVERY: "กำลังส่ง",
-        OrderStatus.DELIVERED: "ส่งแล้ว",
-        OrderStatus.CANCELLED: "ยกเลิก",
+        OrderStatus.NEW: "เธญเธญเน€เธ”เธญเธฃเนเนเธซเธกเน",
+        OrderStatus.ASSIGNED: "เธกเธญเธเธซเธกเธฒเธขเนเธฅเนเธง",
+        OrderStatus.PREPARING: "เธเธณเธฅเธฑเธเธเธฑเธ”เธชเธดเธเธเนเธฒ",
+        OrderStatus.OUT_FOR_DELIVERY: "เธเธณเธฅเธฑเธเธชเนเธ",
+        OrderStatus.DELIVERED: "เธชเนเธเนเธฅเนเธง",
+        OrderStatus.CANCELLED: "เธขเธเน€เธฅเธดเธ",
     }[status]
 
 
@@ -1692,27 +1692,27 @@ def normalize_chat_text(value: str) -> str:
 def strip_chat_noise(value: str) -> str:
     normalized = value
     for token in [
-        "มี",
-        "สินค้า",
-        "ตัว",
-        "นี้",
-        "อัน",
-        "รายการ",
-        "ตอนนี้",
-        "หน่อย",
-        "บ้าง",
-        "ไหม",
-        "หรือยัง",
-        "หรือเปล่า",
-        "เท่าไหร่",
-        "เท่าไร",
-        "กี่ชิ้น",
-        "กี่อัน",
-        "กี่หน่วย",
-        "คงเหลือ",
-        "เหลือ",
-        "สต๊อก",
-        "สตอก",
+        "เธกเธต",
+        "เธชเธดเธเธเนเธฒ",
+        "เธ•เธฑเธง",
+        "เธเธตเน",
+        "เธญเธฑเธ",
+        "เธฃเธฒเธขเธเธฒเธฃ",
+        "เธ•เธญเธเธเธตเน",
+        "เธซเธเนเธญเธข",
+        "เธเนเธฒเธ",
+        "เนเธซเธก",
+        "เธซเธฃเธทเธญเธขเธฑเธ",
+        "เธซเธฃเธทเธญเน€เธเธฅเนเธฒ",
+        "เน€เธ—เนเธฒเนเธซเธฃเน",
+        "เน€เธ—เนเธฒเนเธฃ",
+        "เธเธตเนเธเธดเนเธ",
+        "เธเธตเนเธญเธฑเธ",
+        "เธเธตเนเธซเธเนเธงเธข",
+        "เธเธเน€เธซเธฅเธทเธญ",
+        "เน€เธซเธฅเธทเธญ",
+        "เธชเธ•เนเธญเธ",
+        "เธชเธ•เธญเธ",
     ]:
         normalized = normalized.replace(token, "")
     return normalized.strip()
@@ -1772,9 +1772,9 @@ def build_stock_summary_payload() -> dict[str, Any]:
 def detect_chat_action(message: str) -> tuple[MovementType, int, str] | None:
     lowered = message.strip().lower()
     intent_map = {
-        MovementType.IN: ["เพิ่ม", "รับเข้า", "เติม", "stockin", "นำเข้า", "เอาเข้า", "เพิ่มสต๊อก", "เพิ่มสตอก"],
-        MovementType.OUT: ["เบิก", "ตัด", "ลด", "จ่ายออก", "stockout", "เอาออก", "ลดสต๊อก", "ลดสตอก", "ตัดสต๊อก", "ตัดสตอก"],
-        MovementType.ISSUE: ["issue", "ใช้ไป", "นำออกใช้", "หยิบใช้", "เบิกใช้"],
+        MovementType.IN: ["เน€เธเธดเนเธก", "เธฃเธฑเธเน€เธเนเธฒ", "เน€เธ•เธดเธก", "stockin", "เธเธณเน€เธเนเธฒ", "เน€เธญเธฒเน€เธเนเธฒ", "เน€เธเธดเนเธกเธชเธ•เนเธญเธ", "เน€เธเธดเนเธกเธชเธ•เธญเธ"],
+        MovementType.OUT: ["เน€เธเธดเธ", "เธ•เธฑเธ”", "เธฅเธ”", "เธเนเธฒเธขเธญเธญเธ", "stockout", "เน€เธญเธฒเธญเธญเธ", "เธฅเธ”เธชเธ•เนเธญเธ", "เธฅเธ”เธชเธ•เธญเธ", "เธ•เธฑเธ”เธชเธ•เนเธญเธ", "เธ•เธฑเธ”เธชเธ•เธญเธ"],
+        MovementType.ISSUE: ["issue", "เนเธเนเนเธ", "เธเธณเธญเธญเธเนเธเน", "เธซเธขเธดเธเนเธเน", "เน€เธเธดเธเนเธเน"],
     }
     selected_action: MovementType | None = None
     for action, keywords in intent_map.items():
@@ -1815,7 +1815,7 @@ def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Produ
     matches = find_chat_products(product_hint)
     if not matches:
         return (
-            "ยังหาสินค้าที่ต้องการสั่งงานไม่เจอ ลองระบุชื่อหรือบาร์โค้ดให้ชัดขึ้น",
+            "เธขเธฑเธเธซเธฒเธชเธดเธเธเนเธฒเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเธชเธฑเนเธเธเธฒเธเนเธกเนเน€เธเธญ เธฅเธญเธเธฃเธฐเธเธธเธเธทเนเธญเธซเธฃเธทเธญเธเธฒเธฃเนเนเธเนเธ”เนเธซเนเธเธฑเธ”เธเธถเนเธ",
             [],
             None,
             None,
@@ -1823,7 +1823,7 @@ def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Produ
     if len(matches) > 1:
         preview = ", ".join(item.name for item in matches[:5])
         return (
-            f"เจอหลายรายการที่ใกล้เคียงกัน: {preview} ลองระบุให้ชัดขึ้นก่อนสั่งงาน",
+            f"เน€เธเธญเธซเธฅเธฒเธขเธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเนเธเธฅเนเน€เธเธตเธขเธเธเธฑเธ: {preview} เธฅเธญเธเธฃเธฐเธเธธเนเธซเนเธเธฑเธ”เธเธถเนเธเธเนเธญเธเธชเธฑเนเธเธเธฒเธ",
             matches[:5],
             None,
             None,
@@ -1835,7 +1835,7 @@ def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Produ
     after_stock = before_stock + delta
     if after_stock < 0:
         return (
-            f"สั่งงานไม่ได้ เพราะ {product.name} คงเหลือ {before_stock} {product.unit} แต่ขอใช้ {quantity} {product.unit}",
+            f"เธชเธฑเนเธเธเธฒเธเนเธกเนเนเธ”เน เน€เธเธฃเธฒเธฐ {product.name} เธเธเน€เธซเธฅเธทเธญ {before_stock} {product.unit} เนเธ•เนเธเธญเนเธเน {quantity} {product.unit}",
             [product],
             None,
             None,
@@ -1871,9 +1871,9 @@ def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Produ
     notification = create_notification(record)
     return (
         (
-            f"บันทึกสำเร็จ: {product.name} "
-            f"{'เพิ่ม' if action == MovementType.IN else 'ตัด'} {quantity} {product.unit} "
-            f"คงเหลือ {after_stock} {product.unit}"
+            f"เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ: {product.name} "
+            f"{'เน€เธเธดเนเธก' if action == MovementType.IN else 'เธ•เธฑเธ”'} {quantity} {product.unit} "
+            f"เธเธเน€เธซเธฅเธทเธญ {after_stock} {product.unit}"
         ),
         [product],
         ChatAssistantAction(
@@ -1954,22 +1954,22 @@ def build_ai_chat_reply(message: str, matched_products: list[Product], summary: 
 
 def detect_export_request(message: str) -> str | None:
     normalized = normalize_chat_text(message)
-    if not any(keyword in normalized for keyword in ["ไฟล์", "ดาวน์โหลด", "export", "โหลด", "ขอ"]):
+    if not any(keyword in normalized for keyword in ["เนเธเธฅเน", "เธ”เธฒเธงเธเนเนเธซเธฅเธ”", "export", "เนเธซเธฅเธ”", "เธเธญ"]):
         return None
-    if "สินค้า" in normalized and "csv" in normalized:
+    if "เธชเธดเธเธเนเธฒ" in normalized and "csv" in normalized:
         return "products_csv"
-    if "ผู้ใช้" in normalized and "csv" in normalized:
+    if "เธเธนเนเนเธเน" in normalized and "csv" in normalized:
         return "users_csv"
-    if ("ประวัติ" in normalized or "movement" in normalized) and "csv" in normalized:
+    if ("เธเธฃเธฐเธงเธฑเธ•เธด" in normalized or "movement" in normalized) and "csv" in normalized:
         return "movements_csv"
     if "excel" in normalized or "xlsx" in normalized:
         return "all_xlsx"
     if "csv" in normalized:
-        if "สินค้า" in normalized:
+        if "เธชเธดเธเธเนเธฒ" in normalized:
             return "products_csv"
-        if "ผู้ใช้" in normalized:
+        if "เธเธนเนเนเธเน" in normalized:
             return "users_csv"
-        if "ประวัติ" in normalized or "movement" in normalized:
+        if "เธเธฃเธฐเธงเธฑเธ•เธด" in normalized or "movement" in normalized:
             return "movements_csv"
         return "products_csv"
     return None
@@ -1979,12 +1979,12 @@ def is_product_listing_request(normalized: str) -> bool:
     return any(
         keyword in normalized
         for keyword in [
-            "มีสินค้าอะไรบ้าง",
-            "มีสินค้าอะไรในระบบบ้าง",
-            "ขอดูรายการสินค้า",
-            "แสดงสินค้าทั้งหมด",
-            "รายการสินค้า",
-            "สินค้ามีอะไรบ้าง",
+            "เธกเธตเธชเธดเธเธเนเธฒเธญเธฐเนเธฃเธเนเธฒเธ",
+            "เธกเธตเธชเธดเธเธเนเธฒเธญเธฐเนเธฃเนเธเธฃเธฐเธเธเธเนเธฒเธ",
+            "เธเธญเธ”เธนเธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ",
+            "เนเธชเธ”เธเธชเธดเธเธเนเธฒเธ—เธฑเนเธเธซเธกเธ”",
+            "เธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ",
+            "เธชเธดเธเธเนเธฒเธกเธตเธญเธฐเนเธฃเธเนเธฒเธ",
         ]
     )
 
@@ -2615,7 +2615,7 @@ async def update_order_status(
         if not photos:
             raise HTTPException(
                 status_code=400,
-                detail="ต้องอัปโหลดรูปหลักฐานก่อนเปลี่ยนสถานะเป็นส่งแล้ว",
+                detail="เธ•เนเธญเธเธญเธฑเธเนเธซเธฅเธ”เธฃเธนเธเธซเธฅเธฑเธเธเธฒเธเธเนเธญเธเน€เธเธฅเธตเนเธขเธเธชเธ–เธฒเธเธฐเน€เธเนเธเธชเนเธเนเธฅเนเธง",
             )
     if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
         raise HTTPException(status_code=403, detail="Permission denied.")
@@ -2645,33 +2645,37 @@ async def deliver_order_partial(
         raise HTTPException(status_code=403, detail="Permission denied.")
 
     item_map = {item.barcode: item for item in order.items}
+    shortage_messages: list[str] = []
+    delivered_any = False
+
     for delivered in payload.items:
         item = item_map.get(delivered.barcode)
         if not item:
             raise HTTPException(status_code=404, detail=f"ไม่พบสินค้าในออเดอร์: {delivered.barcode}")
-        remaining = item.quantity - item.delivered_quantity
-        if delivered.quantity > remaining:
-            raise HTTPException(
-                status_code=400,
-                detail=f"ส่งเกินจำนวนที่เหลือของ {item.product_name} (เหลือ {remaining})",
-            )
+
+        remaining = max(item.quantity - item.delivered_quantity, 0)
+        requested_qty = min(delivered.quantity, remaining)
         product = products.get(item.barcode)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item.barcode} not found.")
-        if product.current_stock < delivered.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"สต๊อกไม่พอสำหรับ {item.product_name} (คงเหลือ {product.current_stock})",
+
+        deliver_qty = min(requested_qty, max(product.current_stock, 0))
+        if requested_qty > deliver_qty:
+            shortage_messages.append(
+                f"{item.product_name} ขอ {requested_qty} ส่งได้ {deliver_qty} (คงเหลือ {product.current_stock})"
             )
+        if deliver_qty <= 0:
+            continue
+
         before_stock = product.current_stock
-        product.current_stock -= delivered.quantity
+        product.current_stock -= deliver_qty
         save_product(product)
         movement = MovementRecord(
             id=str(uuid4()),
             barcode=product.barcode,
             product_name=product.name,
             action=MovementType.OUT,
-            quantity=delivered.quantity,
+            quantity=deliver_qty,
             before_stock=before_stock,
             after_stock=product.current_stock,
             actor_id=user.user_id,
@@ -2682,16 +2686,27 @@ async def deliver_order_partial(
         )
         movements.insert(0, movement)
         save_movement(movement)
-        item.delivered_quantity += delivered.quantity
+        item.delivered_quantity += deliver_qty
+        delivered_any = True
 
-    all_done = all(item.delivered_quantity >= item.quantity for item in order.items)
-    new_status = OrderStatus.DELIVERED if all_done else OrderStatus.OUT_FOR_DELIVERY
+    if not delivered_any:
+        detail = "ยังส่งสินค้าไม่ได้: สต๊อกไม่พอทุกรายการ"
+        if shortage_messages:
+            detail = f"{detail} | " + "; ".join(shortage_messages)
+        raise HTTPException(status_code=400, detail=detail)
+
+    new_status = OrderStatus.OUT_FOR_DELIVERY
+    next_note = payload.note or order.note
+    if shortage_messages:
+        shortage_note = "ค้างจ่าย: " + "; ".join(shortage_messages)
+        next_note = f"{next_note}\n{shortage_note}".strip() if next_note else shortage_note
+
     updated = order.model_copy(
         update={
             "items": order.items,
             "status": new_status,
             "updated_at": utc_now(),
-            "note": payload.note or order.note,
+            "note": next_note,
         }
     )
     for index, existing in enumerate(orders):
@@ -2702,7 +2717,34 @@ async def deliver_order_partial(
     await broadcast_realtime_event("order_updated", {"order": updated.model_dump(mode="json")})
     return updated
 
+@app.post("/orders/{order_id}/resolve-backorder", response_model=Order)
+async def resolve_backorder(
+    order_id: str,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
+    order = get_order_or_404(order_id)
+    if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
+        raise HTTPException(status_code=403, detail="Permission denied.")
 
+    note = order.note or ""
+    cleaned_lines = [line for line in note.splitlines() if "ค้างจ่าย:" not in line]
+    cleaned_note = "\n".join([line for line in cleaned_lines if line.strip()]).strip()
+
+    updated = order.model_copy(
+        update={
+            "note": cleaned_note or None,
+            "updated_at": utc_now(),
+        }
+    )
+    for index, existing in enumerate(orders):
+        if existing.id == order_id:
+            orders[index] = updated
+            break
+    save_order(updated)
+    await broadcast_realtime_event("order_updated", {"order": updated.model_dump(mode="json")})
+    return updated
 @app.post("/orders/{order_id}/proof-photo")
 async def upload_order_proof_photo(
     order_id: str,
@@ -2714,13 +2756,13 @@ async def upload_order_proof_photo(
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
     if not image.filename:
-        raise HTTPException(status_code=400, detail="ชื่อไฟล์รูปไม่ถูกต้อง")
+        raise HTTPException(status_code=400, detail="เธเธทเนเธญเนเธเธฅเนเธฃเธนเธเนเธกเนเธ–เธนเธเธ•เนเธญเธ")
     ext = Path(image.filename).suffix.lower() or ".jpg"
     filename = f"{order_id}-{uuid4().hex}{ext}"
     destination = ORDER_PROOF_UPLOADS_DIR / filename
     content = await image.read()
     if not content:
-        raise HTTPException(status_code=400, detail="ไฟล์รูปว่างเปล่า")
+        raise HTTPException(status_code=400, detail="เนเธเธฅเนเธฃเธนเธเธงเนเธฒเธเน€เธเธฅเนเธฒ")
     destination.write_bytes(content)
     photo_url = build_order_proof_photo_url(filename)
     record = {
@@ -2746,7 +2788,7 @@ async def upload_order_proof_photo(
                 record["created_at"],
             ),
         )
-    return {"message": "อัปโหลดรูปหลักฐานแล้ว", "photo": record}
+    return {"message": "เธญเธฑเธเนเธซเธฅเธ”เธฃเธนเธเธซเธฅเธฑเธเธเธฒเธเนเธฅเนเธง", "photo": record}
 
 
 @app.get("/orders/{order_id}/proof-photos")
@@ -2798,14 +2840,14 @@ def print_order(
 <body>
   <div class="wrap">
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบออเดอร์</button>
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">เธเธดเธกเธเนเนเธเธญเธญเน€เธ”เธญเธฃเน</button>
     </div>
     <div class="card">
       <div class="head">
         <div>
-          <p class="title">ใบออเดอร์</p>
-          <div class="muted">เลขที่ออเดอร์: {short_id}</div>
-          <div class="muted">วันที่สร้าง: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
+          <p class="title">เนเธเธญเธญเน€เธ”เธญเธฃเน</p>
+          <div class="muted">เน€เธฅเธเธ—เธตเนเธญเธญเน€เธ”เธญเธฃเน: {short_id}</div>
+          <div class="muted">เธงเธฑเธเธ—เธตเนเธชเธฃเนเธฒเธ: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
         </div>
         <div style="text-align:right;">
           <div class="chip">{order_status_label(order.status)}</div>
@@ -2814,30 +2856,30 @@ def print_order(
       </div>
 
       <div class="section">
-        <strong>ลูกค้า:</strong> {order.customer_name}<br>
-        <strong>เบอร์โทร:</strong> {order.customer_phone or '-'}<br>
-        <strong>ที่อยู่:</strong> {order.customer_address or '-'}
+        <strong>เธฅเธนเธเธเนเธฒ:</strong> {order.customer_name}<br>
+        <strong>เน€เธเธญเธฃเนเนเธ—เธฃ:</strong> {order.customer_phone or '-'}<br>
+        <strong>เธ—เธตเนเธญเธขเธนเน:</strong> {order.customer_address or '-'}
       </div>
 
       <div class="section">
-        <strong>ผู้รับออเดอร์:</strong> {order.created_by_name} ({order.created_by_id})<br>
-        <strong>ผู้ส่ง:</strong> {order.assigned_to_name or '-'} {f"({order.assigned_to_id})" if order.assigned_to_id else ""}
+        <strong>เธเธนเนเธฃเธฑเธเธญเธญเน€เธ”เธญเธฃเน:</strong> {order.created_by_name} ({order.created_by_id})<br>
+        <strong>เธเธนเนเธชเนเธ:</strong> {order.assigned_to_name or '-'} {f"({order.assigned_to_id})" if order.assigned_to_id else ""}
       </div>
 
       <div class="section">
-        <strong>หมายเหตุ:</strong> {order.note or '-'}
+        <strong>เธซเธกเธฒเธขเน€เธซเธ•เธธ:</strong> {order.note or '-'}
       </div>
 
       <div class="section">
-        <strong>รายการสินค้า</strong>
+        <strong>เธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ</strong>
         <table>
           <thead>
             <tr style="background:#f3e7d8;">
-              <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">เธฅเธณเธ”เธฑเธ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">เธชเธดเธเธเนเธฒ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">เธเธณเธเธงเธ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">เธซเธเนเธงเธข</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">เธเธฃเธ</th>
             </tr>
           </thead>
           <tbody>
@@ -2847,8 +2889,8 @@ def print_order(
       </div>
 
       <div class="signatures">
-        <div class="line">ผู้จัดสินค้า / ผู้ส่งของ</div>
-        <div class="line">ผู้ตรวจสอบ / ลูกค้า</div>
+        <div class="line">เธเธนเนเธเธฑเธ”เธชเธดเธเธเนเธฒ / เธเธนเนเธชเนเธเธเธญเธ</div>
+        <div class="line">เธเธนเนเธ•เธฃเธงเธเธชเธญเธ / เธฅเธนเธเธเนเธฒ</div>
       </div>
     </div>
   </div>
@@ -2889,32 +2931,32 @@ def print_packing_slip(
 <body>
   <div class="wrap">
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบปะหน้า</button>
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">เธเธดเธกเธเนเนเธเธเธฐเธซเธเนเธฒ</button>
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
         <div>
-          <p class="title">ใบปะหน้าจัดของ</p>
-          <div>ลูกค้า: {order.customer_name}</div>
-          <div>ผู้ส่ง: {order.assigned_to_name or '-'}</div>
-          <div>ที่อยู่: {order.customer_address or '-'}</div>
+          <p class="title">เนเธเธเธฐเธซเธเนเธฒเธเธฑเธ”เธเธญเธ</p>
+          <div>เธฅเธนเธเธเนเธฒ: {order.customer_name}</div>
+          <div>เธเธนเนเธชเนเธ: {order.assigned_to_name or '-'}</div>
+          <div>เธ—เธตเนเธญเธขเธนเน: {order.customer_address or '-'}</div>
         </div>
         <div class="code">{short_id}</div>
       </div>
       <table>
         <thead>
           <tr style="background:#f3e7d8;">
-            <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">เธฅเธณเธ”เธฑเธ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">เธชเธดเธเธเนเธฒ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">เธเธณเธเธงเธ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">เธซเธเนเธงเธข</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">เธเธฃเธ</th>
           </tr>
         </thead>
         <tbody>{item_rows}</tbody>
       </table>
       <div style="margin-top:24px;">
-        <strong>หมายเหตุ:</strong> ________________________________________________
+        <strong>เธซเธกเธฒเธขเน€เธซเธ•เธธ:</strong> ________________________________________________
       </div>
     </div>
   </div>
@@ -3002,13 +3044,13 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
         params = {"movement_limit": 5000}
         token, expires_at = create_export_token(user.user_id, export_name, params)
         export_labels = {
-            "all_xlsx": "ไฟล์ Excel",
-            "products_csv": "ไฟล์สินค้า CSV",
-            "users_csv": "ไฟล์ผู้ใช้ CSV",
-            "movements_csv": "ไฟล์ประวัติ CSV",
+            "all_xlsx": "เนเธเธฅเน Excel",
+            "products_csv": "เนเธเธฅเนเธชเธดเธเธเนเธฒ CSV",
+            "users_csv": "เนเธเธฅเนเธเธนเนเนเธเน CSV",
+            "movements_csv": "เนเธเธฅเนเธเธฃเธฐเธงเธฑเธ•เธด CSV",
         }
         return ChatAssistantResponse(
-            message=f"นี่คือลิงก์{export_labels.get(export_name, 'ไฟล์ที่ขอ')} กดเปิดหรือคัดลอกลิงก์ได้เลย",
+            message=f"เธเธตเนเธเธทเธญเธฅเธดเธเธเน{export_labels.get(export_name, 'เนเธเธฅเนเธ—เธตเนเธเธญ')} เธเธ”เน€เธเธดเธ”เธซเธฃเธทเธญเธเธฑเธ”เธฅเธญเธเธฅเธดเธเธเนเนเธ”เนเน€เธฅเธข",
             download_link=ExportLinkResponse(
                 url=f"/exports/download/{token}",
                 expires_at=expires_at,
@@ -3045,14 +3087,14 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
     summary = build_stock_summary_payload()
     normalized = normalize_chat_text(payload.message)
 
-    if any(keyword in normalized for keyword in ["ใกล้หมด", "ของหมด", "สตอกต่ำ", "สต๊อกต่ำ", "lowstock", "หมดหรือยัง", "หมดยัง", "ต่ำกว่าขั้นต่ำ"]):
+    if any(keyword in normalized for keyword in ["เนเธเธฅเนเธซเธกเธ”", "เธเธญเธเธซเธกเธ”", "เธชเธ•เธญเธเธ•เนเธณ", "เธชเธ•เนเธญเธเธ•เนเธณ", "lowstock", "เธซเธกเธ”เธซเธฃเธทเธญเธขเธฑเธ", "เธซเธกเธ”เธขเธฑเธ", "เธ•เนเธณเธเธงเนเธฒเธเธฑเนเธเธ•เนเธณ"]):
         low_stock_items = sorted(
             summary["low_stock_items"],
             key=lambda item: item.current_stock,
         )
         if not low_stock_items:
             return ChatAssistantResponse(
-                message="ตอนนี้ยังไม่มีสินค้าที่อยู่ในระดับใกล้หมด",
+                message="เธ•เธญเธเธเธตเนเธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเธ—เธตเนเธญเธขเธนเนเนเธเธฃเธฐเธ”เธฑเธเนเธเธฅเนเธซเธกเธ”",
                 ai_enabled=ai_chat_enabled(),
             )
         preview = ", ".join(
@@ -3060,17 +3102,17 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             for item in low_stock_items[:5]
         )
         return ChatAssistantResponse(
-            message=f"มีสินค้าใกล้หมด {len(low_stock_items)} รายการ: {preview}",
+            message=f"เธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {len(low_stock_items)} เธฃเธฒเธขเธเธฒเธฃ: {preview}",
             matched_products=low_stock_items[:5],
             ai_enabled=ai_chat_enabled(),
         )
 
-    if any(keyword in normalized for keyword in ["ทั้งหมด", "รวม", "กี่รายการ", "summary", "ภาพรวม", "สรุป"]):
+    if any(keyword in normalized for keyword in ["เธ—เธฑเนเธเธซเธกเธ”", "เธฃเธงเธก", "เธเธตเนเธฃเธฒเธขเธเธฒเธฃ", "summary", "เธ เธฒเธเธฃเธงเธก", "เธชเธฃเธธเธ"]):
         return ChatAssistantResponse(
             message=(
-                f"ตอนนี้มีสินค้า {summary['total_products']} รายการ "
-                f"รวมจำนวนคงเหลือ {summary['total_units']} ชิ้น/หน่วย "
-                f"และมีสินค้าใกล้หมด {summary['low_stock_count']} รายการ"
+                f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒ {summary['total_products']} เธฃเธฒเธขเธเธฒเธฃ "
+                f"เธฃเธงเธกเธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ {summary['total_units']} เธเธดเนเธ/เธซเธเนเธงเธข "
+                f"เนเธฅเธฐเธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {summary['low_stock_count']} เธฃเธฒเธขเธเธฒเธฃ"
             ),
             ai_enabled=ai_chat_enabled(),
         )
@@ -3082,10 +3124,10 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             f"{item.name} ({item.current_stock} {item.unit})"
             for item in preview_items
         )
-        suffix = "" if len(product_list) <= 10 else " และยังมีรายการอื่นอีก"
+        suffix = "" if len(product_list) <= 10 else " เนเธฅเธฐเธขเธฑเธเธกเธตเธฃเธฒเธขเธเธฒเธฃเธญเธทเนเธเธญเธตเธ"
         return ChatAssistantResponse(
             message=(
-                f"ตอนนี้มีสินค้าในระบบ {len(product_list)} รายการ เช่น {preview}{suffix}"
+                f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒเนเธเธฃเธฐเธเธ {len(product_list)} เธฃเธฒเธขเธเธฒเธฃ เน€เธเนเธ {preview}{suffix}"
             ),
             matched_products=preview_items,
             ai_enabled=ai_chat_enabled(),
@@ -3094,26 +3136,26 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
     matches = find_chat_products(payload.message)
     if len(matches) == 1:
         product = matches[0]
-        status = "สินค้าใกล้หมดแล้ว" if product.current_stock <= product.minimum_stock else "สินค้ายังไม่ใกล้หมด"
-        location = f" ตำแหน่ง {product.location}" if product.location else ""
-        if any(keyword in normalized for keyword in ["ขั้นต่ำ", "ขั้นต่ำเท่าไหร่", "min", "minimum"]):
+        status = "เธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ”เนเธฅเนเธง" if product.current_stock <= product.minimum_stock else "เธชเธดเธเธเนเธฒเธขเธฑเธเนเธกเนเนเธเธฅเนเธซเธกเธ”"
+        location = f" เธ•เธณเนเธซเธเนเธ {product.location}" if product.location else ""
+        if any(keyword in normalized for keyword in ["เธเธฑเนเธเธ•เนเธณ", "เธเธฑเนเธเธ•เนเธณเน€เธ—เนเธฒเนเธซเธฃเน", "min", "minimum"]):
             deterministic_reply = (
-                f"{product.name} ตั้งค่าขั้นต่ำไว้ {product.minimum_stock} {product.unit} "
-                f"และตอนนี้คงเหลือ {product.current_stock} {product.unit} {status}.{location}"
+                f"{product.name} เธ•เธฑเนเธเธเนเธฒเธเธฑเนเธเธ•เนเธณเนเธงเน {product.minimum_stock} {product.unit} "
+                f"เนเธฅเธฐเธ•เธญเธเธเธตเนเธเธเน€เธซเธฅเธทเธญ {product.current_stock} {product.unit} {status}.{location}"
             )
         else:
             deterministic_reply = (
-                f"{product.name} คงเหลือ {product.current_stock} {product.unit} "
-                f"ขั้นต่ำ {product.minimum_stock} {product.unit} {status}.{location}"
+                f"{product.name} เธเธเน€เธซเธฅเธทเธญ {product.current_stock} {product.unit} "
+                f"เธเธฑเนเธเธ•เนเธณ {product.minimum_stock} {product.unit} {status}.{location}"
             )
     elif len(matches) > 1:
         preview = ", ".join(item.name for item in matches[:5])
         deterministic_reply = (
-            f"เจอหลายรายการที่ใกล้เคียงกัน: {preview} ลองพิมพ์ชื่อหรือบาร์โค้ดให้เฉพาะเจาะจงขึ้น"
+            f"เน€เธเธญเธซเธฅเธฒเธขเธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเนเธเธฅเนเน€เธเธตเธขเธเธเธฑเธ: {preview} เธฅเธญเธเธเธดเธกเธเนเธเธทเนเธญเธซเธฃเธทเธญเธเธฒเธฃเนเนเธเนเธ”เนเธซเนเน€เธเธเธฒเธฐเน€เธเธฒเธฐเธเธเธเธถเนเธ"
         )
     else:
         deterministic_reply = (
-            "ยังหาไม่เจอ ลองพิมพ์ชื่อสินค้าให้สั้นลง หรือใช้บาร์โค้ด/รหัสสินค้า เช่น \"น้ำดื่มเหลือเท่าไหร่\""
+            "เธขเธฑเธเธซเธฒเนเธกเนเน€เธเธญ เธฅเธญเธเธเธดเธกเธเนเธเธทเนเธญเธชเธดเธเธเนเธฒเนเธซเนเธชเธฑเนเธเธฅเธ เธซเธฃเธทเธญเนเธเนเธเธฒเธฃเนเนเธเนเธ”/เธฃเธซเธฑเธชเธชเธดเธเธเนเธฒ เน€เธเนเธ \"เธเนเธณเธ”เธทเนเธกเน€เธซเธฅเธทเธญเน€เธ—เนเธฒเนเธซเธฃเน\""
         )
 
     ai_reply = build_ai_chat_reply(payload.message, matches, summary)
@@ -3140,7 +3182,7 @@ def build_products_csv_response() -> Response:
     ]
     return csv_response(
         "products.csv",
-        ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"],
+        ["เน€เธยเน€เธเธ’เน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธโ€", "SKU", "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธเธเน€เธเธ”เน€เธยเน€เธยเน€เธยเน€เธเธ’", "เน€เธเธเน€เธยเน€เธยเน€เธเธเน€เธเธ", "เน€เธยเน€เธเธ“เน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธโฌเน€เธเธเน€เธเธ…เน€เธเธ—เน€เธเธ", "เน€เธเธเน€เธเธเน€เธเธเน€เธโ€เน€เธเธเน€เธเธเน€เธเธเน€เธย", "เน€เธโ€ขเน€เธเธ“เน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธเธ‘เน€เธโ€เน€เธโฌเน€เธยเน€เธยเน€เธย"],
         rows,
     )
 
@@ -3158,7 +3200,7 @@ def build_users_csv_response() -> Response:
     ]
     return csv_response(
         "users.csv",
-        ["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"],
+        ["เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย", "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย", "เน€เธเธเน€เธเธ”เน€เธโ€”เน€เธยเน€เธเธ”เน€เธย", "เน€เธยเน€เธยเน€เธยเน€เธยเน€เธเธ’เน€เธยเน€เธเธเน€เธเธเน€เธเธเน€เธย", "เน€เธเธเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธเธ…เน€เธย"],
         rows,
     )
 
@@ -3194,18 +3236,18 @@ def build_movements_csv_response(
     return csv_response(
         "movements.csv",
         [
-            "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
-            "เธงเธฑเธเน€เธงเธฅเธฒ",
-            "เธเธฒเธฃเนเนเธเนเธ”",
-            "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
-            "เธเธฃเธฐเน€เธ เธ—",
-            "เธเธณเธเธงเธ",
-            "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
-            "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธ‘เน€เธยเน€เธโฌเน€เธเธเน€เธเธ…เน€เธเธ’",
+            "เน€เธยเน€เธเธ’เน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธโ€",
+            "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธเธเน€เธเธ”เน€เธยเน€เธยเน€เธยเน€เธเธ’",
+            "เน€เธยเน€เธเธเน€เธเธเน€เธโฌเน€เธย เน€เธโ€”",
+            "เน€เธยเน€เธเธ“เน€เธยเน€เธเธเน€เธย",
+            "เน€เธเธเน€เธโ€ขเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธโ€ขเน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธเธ…เน€เธเธ‘เน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ’เน€เธเธเน€เธโฌเน€เธเธเน€เธโ€ขเน€เธเธ",
+            "เน€เธโฌเน€เธเธ…เน€เธยเน€เธเธเน€เธยเน€เธเธ’เน€เธยเน€เธเธเน€เธเธ”เน€เธย",
         ],
         rows,
     )
@@ -3223,9 +3265,9 @@ def build_all_xlsx_response(movement_limit: int = 5000) -> Response:
     workbook = Workbook()
 
     products_sheet = workbook.active
-    products_sheet.title = "เธชเธดเธเธเนเธฒ"
+    products_sheet.title = "เน€เธเธเน€เธเธ”เน€เธยเน€เธยเน€เธยเน€เธเธ’"
     products_sheet.append(
-        ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"]
+        ["เน€เธยเน€เธเธ’เน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธโ€", "SKU", "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธเธเน€เธเธ”เน€เธยเน€เธยเน€เธยเน€เธเธ’", "เน€เธเธเน€เธยเน€เธยเน€เธเธเน€เธเธ", "เน€เธยเน€เธเธ“เน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธโฌเน€เธเธเน€เธเธ…เน€เธเธ—เน€เธเธ", "เน€เธเธเน€เธเธเน€เธเธเน€เธโ€เน€เธเธเน€เธเธเน€เธเธเน€เธย", "เน€เธโ€ขเน€เธเธ“เน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธเธ‘เน€เธโ€เน€เธโฌเน€เธยเน€เธยเน€เธย"]
     )
     for product in sorted(products.values(), key=lambda item: item.name.lower()):
         products_sheet.append(
@@ -3241,29 +3283,29 @@ def build_all_xlsx_response(movement_limit: int = 5000) -> Response:
         )
     auto_fit_worksheet_columns(products_sheet)
 
-    users_sheet = workbook.create_sheet("เธเธนเนเนเธเน")
-    users_sheet.append(["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"])
+    users_sheet = workbook.create_sheet("เน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย")
+    users_sheet.append(["เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย", "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธย", "เน€เธเธเน€เธเธ”เน€เธโ€”เน€เธยเน€เธเธ”เน€เธย", "เน€เธยเน€เธยเน€เธยเน€เธยเน€เธเธ’เน€เธยเน€เธเธเน€เธเธเน€เธเธเน€เธย", "เน€เธเธเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธเธ…เน€เธย"])
     for user in sorted(users.values(), key=lambda item: item.user_name.lower()):
         users_sheet.append(
             [user.user_id, user.user_name, user.role, user.active, user.profile_image_url or ""]
         )
     auto_fit_worksheet_columns(users_sheet)
 
-    movements_sheet = workbook.create_sheet("เธเธฃเธฐเธงเธฑเธ•เธด")
+    movements_sheet = workbook.create_sheet("เน€เธยเน€เธเธเน€เธเธเน€เธเธเน€เธเธ‘เน€เธโ€ขเน€เธเธ”")
     movements_sheet.append(
         [
-            "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
-            "เธงเธฑเธเน€เธงเธฅเธฒ",
-            "เธเธฒเธฃเนเนเธเนเธ”",
-            "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
-            "เธเธฃเธฐเน€เธ เธ—",
-            "เธเธณเธเธงเธ",
-            "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
-            "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
-            "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธ‘เน€เธยเน€เธโฌเน€เธเธเน€เธเธ…เน€เธเธ’",
+            "เน€เธยเน€เธเธ’เน€เธเธเน€เธยเน€เธยเน€เธยเน€เธยเน€เธโ€",
+            "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธเธเน€เธเธ”เน€เธยเน€เธยเน€เธยเน€เธเธ’",
+            "เน€เธยเน€เธเธเน€เธเธเน€เธโฌเน€เธย เน€เธโ€”",
+            "เน€เธยเน€เธเธ“เน€เธยเน€เธเธเน€เธย",
+            "เน€เธเธเน€เธโ€ขเน€เธยเน€เธเธเน€เธยเน€เธยเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธโ€ขเน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธเธ…เน€เธเธ‘เน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ‘เน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธยเน€เธเธ—เน€เธยเน€เธเธเน€เธยเน€เธเธเน€เธยเน€เธโ€”เน€เธเธ“เน€เธเธเน€เธเธ’เน€เธเธเน€เธยเน€เธเธ’เน€เธเธ",
+            "เน€เธเธเน€เธเธเน€เธเธ’เน€เธเธเน€เธโฌเน€เธเธเน€เธโ€ขเน€เธเธ",
+            "เน€เธโฌเน€เธเธ…เน€เธยเน€เธเธเน€เธยเน€เธเธ’เน€เธยเน€เธเธเน€เธเธ”เน€เธย",
         ]
     )
     for item in movements[:movement_limit]:
@@ -3333,7 +3375,7 @@ def download_export_by_token(token: str) -> Response:
         ]
         return csv_response(
             "products.csv",
-            ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"],
+            ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"],
             rows,
         )
     if export_name == "users_csv":
@@ -3349,7 +3391,7 @@ def download_export_by_token(token: str) -> Response:
         ]
         return csv_response(
             "users.csv",
-            ["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"],
+            ["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"],
             rows,
         )
     if export_name == "movements_csv":
@@ -3381,18 +3423,18 @@ def download_export_by_token(token: str) -> Response:
         return csv_response(
             "movements.csv",
             [
-                "รหัสรายการ",
-                "วันเวลา",
-                "บาร์โค้ด",
-                "ชื่อสินค้า",
-                "ประเภท",
-                "จำนวน",
-                "สต๊อกก่อนทำรายการ",
-                "สต๊อกหลังทำรายการ",
-                "รหัสผู้ทำรายการ",
-                "ชื่อผู้ทำรายการ",
-                "หมายเหตุ",
-                "เลขอ้างอิง",
+                "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
+                "เธงเธฑเธเน€เธงเธฅเธฒ",
+                "เธเธฒเธฃเนเนเธเนเธ”",
+                "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
+                "เธเธฃเธฐเน€เธ เธ—",
+                "เธเธณเธเธงเธ",
+                "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
+                "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
             ],
             rows,
         )
@@ -3409,9 +3451,9 @@ def download_export_by_token(token: str) -> Response:
         workbook = Workbook()
 
         products_sheet = workbook.active
-        products_sheet.title = "สินค้า"
+        products_sheet.title = "เธชเธดเธเธเนเธฒ"
         products_sheet.append(
-            ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"]
+            ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"]
         )
         for product in sorted(products.values(), key=lambda item: item.name.lower()):
             products_sheet.append(
@@ -3427,29 +3469,29 @@ def download_export_by_token(token: str) -> Response:
             )
         auto_fit_worksheet_columns(products_sheet)
 
-        users_sheet = workbook.create_sheet("ผู้ใช้")
-        users_sheet.append(["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"])
+        users_sheet = workbook.create_sheet("เธเธนเนเนเธเน")
+        users_sheet.append(["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"])
         for user in sorted(users.values(), key=lambda item: item.user_name.lower()):
             users_sheet.append(
                 [user.user_id, user.user_name, user.role, user.active, user.profile_image_url or ""]
             )
         auto_fit_worksheet_columns(users_sheet)
 
-        movements_sheet = workbook.create_sheet("ประวัติ")
+        movements_sheet = workbook.create_sheet("เธเธฃเธฐเธงเธฑเธ•เธด")
         movements_sheet.append(
             [
-                "รหัสรายการ",
-                "วันเวลา",
-                "บาร์โค้ด",
-                "ชื่อสินค้า",
-                "ประเภท",
-                "จำนวน",
-                "สต๊อกก่อนทำรายการ",
-                "สต๊อกหลังทำรายการ",
-                "รหัสผู้ทำรายการ",
-                "ชื่อผู้ทำรายการ",
-                "หมายเหตุ",
-                "เลขอ้างอิง",
+                "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
+                "เธงเธฑเธเน€เธงเธฅเธฒ",
+                "เธเธฒเธฃเนเนเธเนเธ”",
+                "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
+                "เธเธฃเธฐเน€เธ เธ—",
+                "เธเธณเธเธงเธ",
+                "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+                "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
+                "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
             ]
         )
         for item in movements[: min(max(movement_limit, 1), 20000)]:
@@ -3503,7 +3545,7 @@ def export_products_csv(
     ]
     return csv_response(
         "products.csv",
-        ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"],
+        ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"],
         rows,
     )
 
@@ -3526,7 +3568,7 @@ def export_users_csv(
     ]
     return csv_response(
         "users.csv",
-        ["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"],
+        ["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"],
         rows,
     )
 
@@ -3566,18 +3608,18 @@ def export_movements_csv(
     return csv_response(
         "movements.csv",
         [
-            "รหัสรายการ",
-            "วันเวลา",
-            "บาร์โค้ด",
-            "ชื่อสินค้า",
-            "ประเภท",
-            "จำนวน",
-            "สต็อกก่อนทำรายการ",
-            "สต็อกหลังทำรายการ",
-            "รหัสผู้ทำรายการ",
-            "ชื่อผู้ทำรายการ",
-            "หมายเหตุ",
-            "เลขอ้างอิง",
+            "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
+            "เธงเธฑเธเน€เธงเธฅเธฒ",
+            "เธเธฒเธฃเนเนเธเนเธ”",
+            "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
+            "เธเธฃเธฐเน€เธ เธ—",
+            "เธเธณเธเธงเธ",
+            "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
+            "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
         ],
         rows,
     )
@@ -3601,9 +3643,9 @@ def export_all_xlsx(
     workbook = Workbook()
 
     products_sheet = workbook.active
-    products_sheet.title = "สินค้า"
+    products_sheet.title = "เธชเธดเธเธเนเธฒ"
     products_sheet.append(
-        ["บาร์โค้ด", "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนคงเหลือ", "หมวดหมู่", "ตำแหน่งจัดเก็บ"]
+        ["เธเธฒเธฃเนเนเธเนเธ”", "SKU", "เธเธทเนเธญเธชเธดเธเธเนเธฒ", "เธซเธเนเธงเธข", "เธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ", "เธซเธกเธงเธ”เธซเธกเธนเน", "เธ•เธณเนเธซเธเนเธเธเธฑเธ”เน€เธเนเธ"]
     )
     for product in sorted(products.values(), key=lambda item: item.name.lower()):
         products_sheet.append(
@@ -3619,29 +3661,29 @@ def export_all_xlsx(
         )
     auto_fit_worksheet_columns(products_sheet)
 
-    users_sheet = workbook.create_sheet("ผู้ใช้")
-    users_sheet.append(["รหัสผู้ใช้", "ชื่อผู้ใช้", "สิทธิ์", "ใช้งานอยู่", "รูปโปรไฟล์"])
+    users_sheet = workbook.create_sheet("เธเธนเนเนเธเน")
+    users_sheet.append(["เธฃเธซเธฑเธชเธเธนเนเนเธเน", "เธเธทเนเธญเธเธนเนเนเธเน", "เธชเธดเธ—เธเธดเน", "เนเธเนเธเธฒเธเธญเธขเธนเน", "เธฃเธนเธเนเธเธฃเนเธเธฅเน"])
     for user in sorted(users.values(), key=lambda item: item.user_name.lower()):
         users_sheet.append(
             [user.user_id, user.user_name, user.role, user.active, user.profile_image_url or ""]
         )
     auto_fit_worksheet_columns(users_sheet)
 
-    movements_sheet = workbook.create_sheet("ประวัติ")
+    movements_sheet = workbook.create_sheet("เธเธฃเธฐเธงเธฑเธ•เธด")
     movements_sheet.append(
         [
-            "รหัสรายการ",
-            "วันเวลา",
-            "บาร์โค้ด",
-            "ชื่อสินค้า",
-            "ประเภท",
-            "จำนวน",
-            "สต็อกก่อนทำรายการ",
-            "สต็อกหลังทำรายการ",
-            "รหัสผู้ทำรายการ",
-            "ชื่อผู้ทำรายการ",
-            "หมายเหตุ",
-            "เลขอ้างอิง",
+            "เธฃเธซเธฑเธชเธฃเธฒเธขเธเธฒเธฃ",
+            "เธงเธฑเธเน€เธงเธฅเธฒ",
+            "เธเธฒเธฃเนเนเธเนเธ”",
+            "เธเธทเนเธญเธชเธดเธเธเนเธฒ",
+            "เธเธฃเธฐเน€เธ เธ—",
+            "เธเธณเธเธงเธ",
+            "เธชเธ•เนเธญเธเธเนเธญเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธชเธ•เนเธญเธเธซเธฅเธฑเธเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธฃเธซเธฑเธชเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธเธทเนเธญเธเธนเนเธ—เธณเธฃเธฒเธขเธเธฒเธฃ",
+            "เธซเธกเธฒเธขเน€เธซเธ•เธธ",
+            "เน€เธฅเธเธญเนเธฒเธเธญเธดเธ",
         ]
     )
     for item in movements[:movement_limit]:
@@ -3825,3 +3867,5 @@ def webhook(data: dict, request: Request) -> dict:
         if provided_secret != expected_secret:
             raise HTTPException(status_code=401, detail="Invalid webhook secret.")
     return {"status": "ok", "received": data}
+
+
