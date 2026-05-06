@@ -170,6 +170,21 @@ class StockApiService {
     }
   }
 
+  Future<void> registerDeviceToken({
+    required String requesterId,
+    required String platform,
+    required String token,
+  }) async {
+    await _postJson(
+      "/devices/register",
+      {
+        "platform": platform,
+        "token": token,
+      },
+      {"requester_id": requesterId},
+    );
+  }
+
   Future<String> getNextBarcode() async {
     final response = await _get("/products/barcode/next");
     final body = _decode(response) as Map<String, dynamic>;
