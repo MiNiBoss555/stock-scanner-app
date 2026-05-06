@@ -3,7 +3,10 @@ import "dart:io";
 import "dart:typed_data";
 import "dart:ui" as ui;
 
+import "dart:convert";
 import "package:barcode_widget/barcode_widget.dart";
+import "package:firebase_core/firebase_core.dart";
+import "package:firebase_messaging/firebase_messaging.dart";
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/rendering.dart";
@@ -152,9 +155,10 @@ String _normalizeFeedbackMessage(String message) {
   if (cleaned.isEmpty) {
     return "เกิดข้อผิดพลาดบางอย่าง กรุณาลองใหม่อีกครั้ง";
   }
+  final repaired = _repairThaiMojibake(cleaned);
 
-  final lowered = cleaned.toLowerCase();
-  if (cleaned.contains("เน€") ||
+  final lowered = repaired.toLowerCase();
+  if (repaired.contains("เน€") ||
       lowered.contains("server is taking longer") ||
       lowered.contains("responding more slowly") ||
       lowered.contains("timeout") ||
@@ -183,7 +187,26 @@ String _normalizeFeedbackMessage(String message) {
     return "ไม่พบปลายทางที่ต้องการบนเซิร์ฟเวอร์ อาจเป็นเพราะ backend ยังไม่อัปเดต";
   }
 
-  return cleaned;
+  return repaired;
+}
+
+String _repairThaiMojibake(String value) {
+  var repaired = value;
+  for (var i = 0; i < 2; i++) {
+    if (!(repaired.contains("เธ") ||
+        repaired.contains("เน") ||
+        repaired.contains("โ€") ||
+        repaired.contains("ย") ||
+        repaired.contains("ย"))) {
+      break;
+    }
+    try {
+      repaired = utf8.decode(latin1.encode(repaired));
+    } catch (_) {
+      break;
+    }
+  }
+  return repaired;
 }
 
 void _showAppSnack(
@@ -236,7 +259,9 @@ String _roleLabel(String role) {
   return role.trim().toLowerCase() == "admin" ? "ผู้ดูแลระบบ" : "พนักงาน";
 }
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const StockScannerApp());
 }
 
@@ -252,6 +277,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   static const Duration _minSplashDuration = Duration(seconds: 3);
   AppUser? _currentUser;
   bool _isRestoring = true;
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   @override
   void initState() {
@@ -280,6 +306,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
             _isRestoring = false;
           });
         }
+        await _registerPushForUser(user.userId);
         return;
       } catch (_) {
         _api.clearAccessToken();
@@ -302,6 +329,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
             _isRestoring = false;
           });
         }
+        await _registerPushForUser(session.user.userId);
         return;
       } catch (_) {
         _api.clearAccessToken();
@@ -331,6 +359,23 @@ class _StockScannerAppState extends State<StockScannerApp> {
       setState(() {
         _currentUser = session.user;
       });
+    }
+    await _registerPushForUser(session.user.userId);
+  }
+
+  Future<void> _registerPushForUser(String userId) async {
+    if (kIsWeb) return;
+    try {
+      await _messaging.requestPermission(alert: true, badge: true, sound: true);
+      final token = await _messaging.getToken();
+      if (token == null || token.isEmpty) return;
+      await _api.registerDeviceToken(
+        requesterId: userId,
+        platform: Platform.isAndroid ? "android" : "ios",
+        token: token,
+      );
+    } catch (_) {
+      // best effort
     }
   }
 
@@ -2883,17 +2928,18 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Card(
-                  color: _brandPrimary.withOpacity(0.06),
-                  child: ListTile(
-                    leading: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
-                    title: Text("งานค้างส่ง ${data.activeOrders.length} ออเดอร์"),
-                    subtitle: const Text("แตะเพื่อเปิดแท็บออเดอร์และจัดส่งทันที"),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: widget.onOpenOrdersTab,
+                if (data.activeOrders.isNotEmpty)
+                  Card(
+                    color: _brandPrimary.withOpacity(0.06),
+                    child: ListTile(
+                      leading: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
+                      title: Text("งานค้างส่ง ${data.activeOrders.length} ออเดอร์"),
+                      subtitle: const Text("แตะเพื่อเปิดแท็บออเดอร์และจัดส่งทันที"),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: widget.onOpenOrdersTab,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                if (data.activeOrders.isNotEmpty) const SizedBox(height: 12),
                 TextField(
                   controller: _productSearchController,
                   onChanged: (value) {
@@ -2963,47 +3009,72 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                 const SizedBox(height: 20),
-                Text("ออเดอร์ที่ต้องจัดส่ง", style: Theme.of(context).textTheme.titleMedium),
+                Text("อัปเดตล่าสุด", style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                if (data.activeOrders.isEmpty)
-                  const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
-                else
+                if (data.activeOrders.isNotEmpty)
                   ...data.activeOrders.map(
                     (order) => Card(
                       margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        onTap: () => _showOrderPreview(order),
-                        leading: CircleAvatar(
-                          backgroundColor: _brandPrimary.withOpacity(0.10),
-                          child: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
-                        ),
-                        title: Text(order.customerName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(
-                          "${order.items.length} รายการ • ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Text(
-                          order.status == "new"
-                              ? "ใหม่"
-                              : order.status == "assigned"
-                                  ? "มอบหมายแล้ว"
-                                  : order.status == "preparing"
-                                      ? "กำลังจัด"
-                                      : order.status == "out_for_delivery"
-                                          ? "กำลังส่ง"
-                                          : order.status,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: _brandDeep,
-                                fontWeight: FontWeight.w700,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              onTap: () => _showOrderPreview(order),
+                              leading: CircleAvatar(
+                                backgroundColor: _brandPrimary.withOpacity(0.10),
+                                child: const Icon(Icons.local_shipping_outlined, color: _brandPrimary),
                               ),
+                              title: Text(order.customerName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(
+                                "${order.items.length} รายการ • ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: (order.status == "out_for_delivery" ? _brandPrimary : _profileAccent)
+                                      .withOpacity(0.16),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  order.status == "new"
+                                      ? "ใหม่"
+                                      : order.status == "assigned"
+                                          ? "มอบหมายแล้ว"
+                                          : order.status == "preparing"
+                                              ? "กำลังจัด"
+                                              : order.status == "out_for_delivery"
+                                                  ? "กำลังส่ง"
+                                                  : order.status,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () => _showOrderPreview(order),
+                                  icon: const Icon(Icons.visibility_outlined),
+                                  label: const Text("ดูออเดอร์"),
+                                ),
+                                FilledButton.tonalIcon(
+                                  onPressed: widget.onOpenOrdersTab,
+                                  icon: const Icon(Icons.local_shipping_outlined),
+                                  label: const Text("ไปจัดส่ง"),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                const SizedBox(height: 20),
-                Text("\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14", style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
                 if (data.notifications.isEmpty)
                   const _EmptyTile(message: "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e41\u0e08\u0e49\u0e07\u0e40\u0e15\u0e37\u0e2d\u0e19")
                 else
@@ -4745,6 +4816,7 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _assigneeFilter,
                 decoration: const InputDecoration(labelText: "พนักงานส่ง"),
                 items: [
@@ -4760,6 +4832,7 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _dateFilter,
                 decoration: const InputDecoration(labelText: "ช่วงวันที่"),
                 items: const [
@@ -5297,7 +5370,7 @@ class _ChatMessage {
     ExportLink? downloadLink,
   }) {
     return _ChatMessage(
-      text: text,
+      text: _repairThaiMojibake(text),
       isUser: false,
       products: products,
       usedAi: usedAi,

@@ -90,6 +90,11 @@ class UserDeleteResponse(BaseModel):
     status: Literal["ok"] = "ok"
     message: str
     deleted_user_id: str
+
+
+class DeviceTokenRegisterRequest(BaseModel):
+    platform: str = Field(..., min_length=1)
+    token: str = Field(..., min_length=1)
     deleted_movements: int = 0
 
 
@@ -689,6 +694,18 @@ def init_database() -> None:
                 uploaded_by_name TEXT NOT NULL,
                 photo_url TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS device_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             )
             """
         )
@@ -1651,6 +1668,23 @@ def order_status_label(status: OrderStatus) -> str:
     }[status]
 
 
+def repair_thai_text(value: str) -> str:
+    if not value:
+        return value
+    repaired = value
+    for _ in range(2):
+        if not any(token in repaired for token in ("เธ", "เน", "โ€", "ย", "ย")):
+            break
+        try:
+            next_value = repaired.encode("cp874").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            break
+        if next_value == repaired:
+            break
+        repaired = next_value
+    return repaired
+
+
 def order_short_id(order_id: str) -> str:
     compact = order_id.replace("-", "").upper()
     return f"ORD-{compact[:6]}"
@@ -1686,12 +1720,15 @@ def ai_chat_enabled() -> bool:
 
 
 def normalize_chat_text(value: str) -> str:
+    value = repair_thai_text(value)
     return "".join(ch for ch in value.strip().lower() if ch.isalnum() or "\u0e00" <= ch <= "\u0e7f")
 
 
 def strip_chat_noise(value: str) -> str:
-    normalized = value
-    for token in [
+    normalized = repair_thai_text(value)
+    for token in map(
+        repair_thai_text,
+        [
         "เธกเธต",
         "เธชเธดเธเธเนเธฒ",
         "เธ•เธฑเธง",
@@ -1713,7 +1750,8 @@ def strip_chat_noise(value: str) -> str:
         "เน€เธซเธฅเธทเธญ",
         "เธชเธ•เนเธญเธ",
         "เธชเธ•เธญเธ",
-    ]:
+        ],
+    ):
         normalized = normalized.replace(token, "")
     return normalized.strip()
 
@@ -1770,11 +1808,11 @@ def build_stock_summary_payload() -> dict[str, Any]:
 
 
 def detect_chat_action(message: str) -> tuple[MovementType, int, str] | None:
-    lowered = message.strip().lower()
+    lowered = repair_thai_text(message).strip().lower()
     intent_map = {
-        MovementType.IN: ["เน€เธเธดเนเธก", "เธฃเธฑเธเน€เธเนเธฒ", "เน€เธ•เธดเธก", "stockin", "เธเธณเน€เธเนเธฒ", "เน€เธญเธฒเน€เธเนเธฒ", "เน€เธเธดเนเธกเธชเธ•เนเธญเธ", "เน€เธเธดเนเธกเธชเธ•เธญเธ"],
-        MovementType.OUT: ["เน€เธเธดเธ", "เธ•เธฑเธ”", "เธฅเธ”", "เธเนเธฒเธขเธญเธญเธ", "stockout", "เน€เธญเธฒเธญเธญเธ", "เธฅเธ”เธชเธ•เนเธญเธ", "เธฅเธ”เธชเธ•เธญเธ", "เธ•เธฑเธ”เธชเธ•เนเธญเธ", "เธ•เธฑเธ”เธชเธ•เธญเธ"],
-        MovementType.ISSUE: ["issue", "เนเธเนเนเธ", "เธเธณเธญเธญเธเนเธเน", "เธซเธขเธดเธเนเธเน", "เน€เธเธดเธเนเธเน"],
+        MovementType.IN: list(map(repair_thai_text, ["เน€เธเธดเนเธก", "เธฃเธฑเธเน€เธเนเธฒ", "เน€เธ•เธดเธก", "stockin", "เธเธณเน€เธเนเธฒ", "เน€เธญเธฒเน€เธเนเธฒ", "เน€เธเธดเนเธกเธชเธ•เนเธญเธ", "เน€เธเธดเนเธกเธชเธ•เธญเธ"])),
+        MovementType.OUT: list(map(repair_thai_text, ["เน€เธเธดเธ", "เธ•เธฑเธ”", "เธฅเธ”", "เธเนเธฒเธขเธญเธญเธ", "stockout", "เน€เธญเธฒเธญเธญเธ", "เธฅเธ”เธชเธ•เนเธญเธ", "เธฅเธ”เธชเธ•เธญเธ", "เธ•เธฑเธ”เธชเธ•เนเธญเธ", "เธ•เธฑเธ”เธชเธ•เธญเธ"])),
+        MovementType.ISSUE: list(map(repair_thai_text, ["issue", "เนเธเนเนเธ", "เธเธณเธญเธญเธเนเธเน", "เธซเธขเธดเธเนเธเน", "เน€เธเธดเธเนเธเน"])),
     }
     selected_action: MovementType | None = None
     for action, keywords in intent_map.items():
@@ -1792,7 +1830,7 @@ def detect_chat_action(message: str) -> tuple[MovementType, int, str] | None:
     if quantity is None or quantity <= 0:
         return None
 
-    product_hint = message
+    product_hint = repair_thai_text(message)
     for keyword_list in intent_map.values():
         for keyword in keyword_list:
             product_hint = product_hint.replace(keyword, " ")
@@ -1807,6 +1845,7 @@ def detect_chat_action(message: str) -> tuple[MovementType, int, str] | None:
 
 
 def execute_chat_stock_action(message: str, user: User) -> tuple[str, list[Product], ChatAssistantAction | None, dict | None]:
+    message = repair_thai_text(message)
     detected = detect_chat_action(message)
     if not detected:
         return "", [], None, None
@@ -1954,22 +1993,22 @@ def build_ai_chat_reply(message: str, matched_products: list[Product], summary: 
 
 def detect_export_request(message: str) -> str | None:
     normalized = normalize_chat_text(message)
-    if not any(keyword in normalized for keyword in ["เนเธเธฅเน", "เธ”เธฒเธงเธเนเนเธซเธฅเธ”", "export", "เนเธซเธฅเธ”", "เธเธญ"]):
+    if not any(keyword in normalized for keyword in map(repair_thai_text, ["เนเธเธฅเน", "เธ”เธฒเธงเธเนเนเธซเธฅเธ”", "export", "เนเธซเธฅเธ”", "เธเธญ"])):
         return None
-    if "เธชเธดเธเธเนเธฒ" in normalized and "csv" in normalized:
+    if repair_thai_text("เธชเธดเธเธเนเธฒ") in normalized and "csv" in normalized:
         return "products_csv"
-    if "เธเธนเนเนเธเน" in normalized and "csv" in normalized:
+    if repair_thai_text("เธเธนเนเนเธเน") in normalized and "csv" in normalized:
         return "users_csv"
-    if ("เธเธฃเธฐเธงเธฑเธ•เธด" in normalized or "movement" in normalized) and "csv" in normalized:
+    if (repair_thai_text("เธเธฃเธฐเธงเธฑเธ•เธด") in normalized or "movement" in normalized) and "csv" in normalized:
         return "movements_csv"
     if "excel" in normalized or "xlsx" in normalized:
         return "all_xlsx"
     if "csv" in normalized:
-        if "เธชเธดเธเธเนเธฒ" in normalized:
+        if repair_thai_text("เธชเธดเธเธเนเธฒ") in normalized:
             return "products_csv"
-        if "เธเธนเนเนเธเน" in normalized:
+        if repair_thai_text("เธเธนเนเนเธเน") in normalized:
             return "users_csv"
-        if "เธเธฃเธฐเธงเธฑเธ•เธด" in normalized or "movement" in normalized:
+        if repair_thai_text("เธเธฃเธฐเธงเธฑเธ•เธด") in normalized or "movement" in normalized:
             return "movements_csv"
         return "products_csv"
     return None
@@ -1978,14 +2017,17 @@ def detect_export_request(message: str) -> str | None:
 def is_product_listing_request(normalized: str) -> bool:
     return any(
         keyword in normalized
-        for keyword in [
+        for keyword in map(
+            repair_thai_text,
+            [
             "เธกเธตเธชเธดเธเธเนเธฒเธญเธฐเนเธฃเธเนเธฒเธ",
             "เธกเธตเธชเธดเธเธเนเธฒเธญเธฐเนเธฃเนเธเธฃเธฐเธเธเธเนเธฒเธ",
             "เธเธญเธ”เธนเธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ",
             "เนเธชเธ”เธเธชเธดเธเธเนเธฒเธ—เธฑเนเธเธซเธกเธ”",
             "เธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ",
             "เธชเธดเธเธเนเธฒเธกเธตเธญเธฐเนเธฃเธเนเธฒเธ",
-        ]
+            ],
+        )
     )
 
 
@@ -2495,6 +2537,36 @@ def list_movements(
 @app.get("/notifications")
 def list_notifications(limit: int = Query(20, ge=1, le=100)) -> list[dict]:
     return [create_notification(item) for item in movements[:limit]]
+
+
+@app.post("/devices/register")
+def register_device_token(
+    payload: DeviceTokenRegisterRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> dict[str, str]:
+    user = resolve_request_user(request, requester_id)
+    now = utc_now().isoformat()
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO device_tokens (id, user_id, platform, token, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(token) DO UPDATE SET
+                user_id = excluded.user_id,
+                platform = excluded.platform,
+                updated_at = excluded.updated_at
+            """,
+            (
+                str(uuid4()),
+                user.user_id,
+                payload.platform.strip().lower(),
+                payload.token.strip(),
+                now,
+                now,
+            ),
+        )
+    return {"status": "ok"}
 
 
 @app.get("/orders", response_model=list[Order])
@@ -3039,6 +3111,7 @@ def stock_summary() -> dict:
 @app.post("/assistant/chat", response_model=ChatAssistantResponse)
 async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> ChatAssistantResponse:
     user = resolve_request_user(request)
+    payload.message = repair_thai_text(payload.message)
     export_name = detect_export_request(payload.message)
     if export_name:
         params = {"movement_limit": 5000}
@@ -3050,7 +3123,9 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             "movements_csv": "เนเธเธฅเนเธเธฃเธฐเธงเธฑเธ•เธด CSV",
         }
         return ChatAssistantResponse(
-            message=f"เธเธตเนเธเธทเธญเธฅเธดเธเธเน{export_labels.get(export_name, 'เนเธเธฅเนเธ—เธตเนเธเธญ')} เธเธ”เน€เธเธดเธ”เธซเธฃเธทเธญเธเธฑเธ”เธฅเธญเธเธฅเธดเธเธเนเนเธ”เนเน€เธฅเธข",
+            message=repair_thai_text(
+                f"เธเธตเนเธเธทเธญเธฅเธดเธเธเน{export_labels.get(export_name, 'เนเธเธฅเนเธ—เธตเนเธเธญ')} เธเธ”เน€เธเธดเธ”เธซเธฃเธทเธญเธเธฑเธ”เธฅเธญเธเธฅเธดเธเธเนเนเธ”เนเน€เธฅเธข"
+            ),
             download_link=ExportLinkResponse(
                 url=f"/exports/download/{token}",
                 expires_at=expires_at,
@@ -3094,7 +3169,7 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
         )
         if not low_stock_items:
             return ChatAssistantResponse(
-                message="เธ•เธญเธเธเธตเนเธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเธ—เธตเนเธญเธขเธนเนเนเธเธฃเธฐเธ”เธฑเธเนเธเธฅเนเธซเธกเธ”",
+                message=repair_thai_text("เธ•เธญเธเธเธตเนเธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเธ—เธตเนเธญเธขเธนเนเนเธเธฃเธฐเธ”เธฑเธเนเธเธฅเนเธซเธกเธ”"),
                 ai_enabled=ai_chat_enabled(),
             )
         preview = ", ".join(
@@ -3102,17 +3177,19 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             for item in low_stock_items[:5]
         )
         return ChatAssistantResponse(
-            message=f"เธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {len(low_stock_items)} เธฃเธฒเธขเธเธฒเธฃ: {preview}",
+            message=repair_thai_text(f"เธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {len(low_stock_items)} เธฃเธฒเธขเธเธฒเธฃ: {preview}"),
             matched_products=low_stock_items[:5],
             ai_enabled=ai_chat_enabled(),
         )
 
     if any(keyword in normalized for keyword in ["เธ—เธฑเนเธเธซเธกเธ”", "เธฃเธงเธก", "เธเธตเนเธฃเธฒเธขเธเธฒเธฃ", "summary", "เธ เธฒเธเธฃเธงเธก", "เธชเธฃเธธเธ"]):
         return ChatAssistantResponse(
-            message=(
+            message=repair_thai_text(
+                (
                 f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒ {summary['total_products']} เธฃเธฒเธขเธเธฒเธฃ "
                 f"เธฃเธงเธกเธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ {summary['total_units']} เธเธดเนเธ/เธซเธเนเธงเธข "
                 f"เนเธฅเธฐเธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {summary['low_stock_count']} เธฃเธฒเธขเธเธฒเธฃ"
+                )
             ),
             ai_enabled=ai_chat_enabled(),
         )
@@ -3126,8 +3203,10 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
         )
         suffix = "" if len(product_list) <= 10 else " เนเธฅเธฐเธขเธฑเธเธกเธตเธฃเธฒเธขเธเธฒเธฃเธญเธทเนเธเธญเธตเธ"
         return ChatAssistantResponse(
-            message=(
+            message=repair_thai_text(
+                (
                 f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒเนเธเธฃเธฐเธเธ {len(product_list)} เธฃเธฒเธขเธเธฒเธฃ เน€เธเนเธ {preview}{suffix}"
+                )
             ),
             matched_products=preview_items,
             ai_enabled=ai_chat_enabled(),
@@ -3160,7 +3239,7 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
 
     ai_reply = build_ai_chat_reply(payload.message, matches, summary)
     return ChatAssistantResponse(
-        message=ai_reply or deterministic_reply,
+        message=repair_thai_text(ai_reply or deterministic_reply),
         matched_products=matches[:5],
         ai_enabled=ai_chat_enabled(),
         used_ai=bool(ai_reply),
