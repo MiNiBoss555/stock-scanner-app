@@ -1757,6 +1757,18 @@ def repair_thai_text(value: str) -> str:
         if best == repaired:
             break
         repaired = best
+
+    # Final phrase-level cleanup for common Thai mojibake patterns where some bytes
+    # were already replaced with U+FFFD and cannot be perfectly reconstructed.
+    phrase_fixes = {
+        "สินค้า�?ั้งหม�?มีกี่รายการ": "สินค้าทั้งหมดมีกี่รายการ",
+        "สินค้า�?ั้งหม�?": "สินค้าทั้งหมด",
+        "�?ั้งหม�?": "ทั้งหมด",
+        "มีกี่รายกา�?": "มีกี่รายการ",
+    }
+    for bad, good in phrase_fixes.items():
+        repaired = repaired.replace(bad, good)
+
     return repaired
 
 
