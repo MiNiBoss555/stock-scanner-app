@@ -2162,6 +2162,16 @@ def health() -> dict:
     }
 
 
+@app.get("/debug/encoding")
+def debug_encoding() -> dict[str, str]:
+    sample = "เธชเธดเธเธเนเธฒเธ—เธฑเนเธเธซเธกเธ”เธกเธตเธเธตเนเธฃเธฒเธขเธเธฒเธฃ"
+    return {
+        "raw": sample,
+        "repaired": repair_thai_text(sample),
+        "probe": "encoding-debug-v1",
+    }
+
+
 @app.get("/products", response_model=list[Product])
 def list_products(low_stock_only: bool = False) -> list[Product]:
     items = list(products.values())
