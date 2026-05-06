@@ -3214,14 +3214,14 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
         params = {"movement_limit": 5000}
         token, expires_at = create_export_token(user.user_id, export_name, params)
         export_labels = {
-            "all_xlsx": "เนเธเธฅเน Excel",
-            "products_csv": "เนเธเธฅเนเธชเธดเธเธเนเธฒ CSV",
-            "users_csv": "เนเธเธฅเนเธเธนเนเนเธเน CSV",
-            "movements_csv": "เนเธเธฅเนเธเธฃเธฐเธงเธฑเธ•เธด CSV",
+            "all_xlsx": "ไฟล์ Excel",
+            "products_csv": "ไฟล์สินค้า CSV",
+            "users_csv": "ไฟล์ผู้ใช้ CSV",
+            "movements_csv": "ไฟล์ประวัติ CSV",
         }
         return ChatAssistantResponse(
             message=repair_thai_text(
-                f"เธเธตเนเธเธทเธญเธฅเธดเธเธเน{export_labels.get(export_name, 'เนเธเธฅเนเธ—เธตเนเธเธญ')} เธเธ”เน€เธเธดเธ”เธซเธฃเธทเธญเธเธฑเธ”เธฅเธญเธเธฅเธดเธเธเนเนเธ”เนเน€เธฅเธข"
+                f"นี่คือลิงก์{export_labels.get(export_name, 'ไฟล์ที่ขอ')} กดเปิดหรือคัดลอกลิงก์ได้เลย"
             ),
             download_link=ExportLinkResponse(
                 url=f"/exports/download/{token}",
@@ -3259,14 +3259,14 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
     summary = build_stock_summary_payload()
     normalized = normalize_chat_text(payload.message)
 
-    if any(keyword in normalized for keyword in ["เนเธเธฅเนเธซเธกเธ”", "เธเธญเธเธซเธกเธ”", "เธชเธ•เธญเธเธ•เนเธณ", "เธชเธ•เนเธญเธเธ•เนเธณ", "lowstock", "เธซเธกเธ”เธซเธฃเธทเธญเธขเธฑเธ", "เธซเธกเธ”เธขเธฑเธ", "เธ•เนเธณเธเธงเนเธฒเธเธฑเนเธเธ•เนเธณ"]):
+    if any(keyword in normalized for keyword in ["ใกล้หมด", "ของหมด", "สต๊อกต่ำ", "สต็อกต่ำ", "lowstock", "หมดยัง", "ต่ำกว่าขั้นต่ำ"]):
         low_stock_items = sorted(
             summary["low_stock_items"],
             key=lambda item: item.current_stock,
         )
         if not low_stock_items:
             return ChatAssistantResponse(
-                message=repair_thai_text("เธ•เธญเธเธเธตเนเธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเธ—เธตเนเธญเธขเธนเนเนเธเธฃเธฐเธ”เธฑเธเนเธเธฅเนเธซเธกเธ”"),
+                message=repair_thai_text("ตอนนี้ยังไม่มีสินค้าที่อยู่ในระดับใกล้หมด"),
                 ai_enabled=ai_chat_enabled(),
             )
         preview = ", ".join(
@@ -3274,18 +3274,18 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             for item in low_stock_items[:5]
         )
         return ChatAssistantResponse(
-            message=repair_thai_text(f"เธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {len(low_stock_items)} เธฃเธฒเธขเธเธฒเธฃ: {preview}"),
+            message=repair_thai_text(f"มีสินค้าใกล้หมด {len(low_stock_items)} รายการ: {preview}"),
             matched_products=low_stock_items[:5],
             ai_enabled=ai_chat_enabled(),
         )
 
-    if any(keyword in normalized for keyword in ["เธ—เธฑเนเธเธซเธกเธ”", "เธฃเธงเธก", "เธเธตเนเธฃเธฒเธขเธเธฒเธฃ", "summary", "เธ เธฒเธเธฃเธงเธก", "เธชเธฃเธธเธ"]):
+    if any(keyword in normalized for keyword in ["ทั้งหมด", "รวม", "กี่รายการ", "summary", "ภาพรวม", "สรุป"]):
         return ChatAssistantResponse(
             message=repair_thai_text(
                 (
-                f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒ {summary['total_products']} เธฃเธฒเธขเธเธฒเธฃ "
-                f"เธฃเธงเธกเธเธณเธเธงเธเธเธเน€เธซเธฅเธทเธญ {summary['total_units']} เธเธดเนเธ/เธซเธเนเธงเธข "
-                f"เนเธฅเธฐเธกเธตเธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ” {summary['low_stock_count']} เธฃเธฒเธขเธเธฒเธฃ"
+                f"ตอนนี้มีสินค้า {summary['total_products']} รายการ "
+                f"รวมจำนวนคงเหลือ {summary['total_units']} ชิ้น/หน่วย "
+                f"และมีสินค้าใกล้หมด {summary['low_stock_count']} รายการ"
                 )
             ),
             ai_enabled=ai_chat_enabled(),
@@ -3298,11 +3298,11 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
             f"{item.name} ({item.current_stock} {item.unit})"
             for item in preview_items
         )
-        suffix = "" if len(product_list) <= 10 else " เนเธฅเธฐเธขเธฑเธเธกเธตเธฃเธฒเธขเธเธฒเธฃเธญเธทเนเธเธญเธตเธ"
+        suffix = "" if len(product_list) <= 10 else " และยังมีรายการอื่นอีก"
         return ChatAssistantResponse(
             message=repair_thai_text(
                 (
-                f"เธ•เธญเธเธเธตเนเธกเธตเธชเธดเธเธเนเธฒเนเธเธฃเธฐเธเธ {len(product_list)} เธฃเธฒเธขเธเธฒเธฃ เน€เธเนเธ {preview}{suffix}"
+                f"ตอนนี้มีสินค้าในระบบ {len(product_list)} รายการ เช่น {preview}{suffix}"
                 )
             ),
             matched_products=preview_items,
@@ -3312,26 +3312,26 @@ async def assistant_chat(payload: ChatAssistantRequest, request: Request) -> Cha
     matches = find_chat_products(payload.message)
     if len(matches) == 1:
         product = matches[0]
-        status = "เธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ”เนเธฅเนเธง" if product.current_stock <= product.minimum_stock else "เธชเธดเธเธเนเธฒเธขเธฑเธเนเธกเนเนเธเธฅเนเธซเธกเธ”"
-        location = f" เธ•เธณเนเธซเธเนเธ {product.location}" if product.location else ""
-        if any(keyword in normalized for keyword in ["เธเธฑเนเธเธ•เนเธณ", "เธเธฑเนเธเธ•เนเธณเน€เธ—เนเธฒเนเธซเธฃเน", "min", "minimum"]):
+        status = "สินค้าใกล้หมดแล้ว" if product.current_stock <= product.minimum_stock else "สินค้ายังไม่ใกล้หมด"
+        location = f" ตำแหน่ง {product.location}" if product.location else ""
+        if any(keyword in normalized for keyword in ["ขั้นต่ำ", "ขั้นต่ำเท่าไหร่", "min", "minimum"]):
             deterministic_reply = (
-                f"{product.name} เธ•เธฑเนเธเธเนเธฒเธเธฑเนเธเธ•เนเธณเนเธงเน {product.minimum_stock} {product.unit} "
-                f"เนเธฅเธฐเธ•เธญเธเธเธตเนเธเธเน€เธซเธฅเธทเธญ {product.current_stock} {product.unit} {status}.{location}"
+                f"{product.name} ตั้งค่าขั้นต่ำไว้ {product.minimum_stock} {product.unit} "
+                f"และตอนนี้คงเหลือ {product.current_stock} {product.unit} {status}.{location}"
             )
         else:
             deterministic_reply = (
-                f"{product.name} เธเธเน€เธซเธฅเธทเธญ {product.current_stock} {product.unit} "
-                f"เธเธฑเนเธเธ•เนเธณ {product.minimum_stock} {product.unit} {status}.{location}"
+                f"{product.name} คงเหลือ {product.current_stock} {product.unit} "
+                f"ขั้นต่ำ {product.minimum_stock} {product.unit} {status}.{location}"
             )
     elif len(matches) > 1:
         preview = ", ".join(item.name for item in matches[:5])
         deterministic_reply = (
-            f"เน€เธเธญเธซเธฅเธฒเธขเธฃเธฒเธขเธเธฒเธฃเธ—เธตเนเนเธเธฅเนเน€เธเธตเธขเธเธเธฑเธ: {preview} เธฅเธญเธเธเธดเธกเธเนเธเธทเนเธญเธซเธฃเธทเธญเธเธฒเธฃเนเนเธเนเธ”เนเธซเนเน€เธเธเธฒเธฐเน€เธเธฒเธฐเธเธเธเธถเนเธ"
+            f"เจอหลายรายการที่ใกล้เคียงกัน: {preview} ลองพิมพ์ชื่อหรือบาร์โค้ดให้เฉพาะเจาะจงขึ้น"
         )
     else:
         deterministic_reply = (
-            "เธขเธฑเธเธซเธฒเนเธกเนเน€เธเธญ เธฅเธญเธเธเธดเธกเธเนเธเธทเนเธญเธชเธดเธเธเนเธฒเนเธซเนเธชเธฑเนเธเธฅเธ เธซเธฃเธทเธญเนเธเนเธเธฒเธฃเนเนเธเนเธ”/เธฃเธซเธฑเธชเธชเธดเธเธเนเธฒ เน€เธเนเธ \"เธเนเธณเธ”เธทเนเธกเน€เธซเธฅเธทเธญเน€เธ—เนเธฒเนเธซเธฃเน\""
+            "ยังหาไม่เจอ ลองพิมพ์ชื่อสินค้าให้สั้นลง หรือใช้บาร์โค้ด/รหัสสินค้า เช่น \"น้ำดื่มเหลือเท่าไหร่\""
         )
 
     ai_reply = build_ai_chat_reply(payload.message, matches, summary)
