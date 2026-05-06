@@ -1672,16 +1672,43 @@ def repair_thai_text(value: str) -> str:
     if not value:
         return value
     repaired = value
-    for _ in range(2):
+
+    def _score(text: str) -> int:
+        thai_chars = sum(1 for ch in text if "\u0e00" <= ch <= "\u0e7f")
+        bad_tokens = sum(text.count(token) for token in ("เธ", "เน", "โ€", "ย", "ย", "�"))
+        return thai_chars * 4 - bad_tokens * 10
+
+    for _ in range(3):
         if not any(token in repaired for token in ("เธ", "เน", "โ€", "ย", "ย")):
             break
+        candidates = [repaired.strip()]
+
+        def _try_repair(source: str, source_encoding: str) -> None:
+            try:
+                converted = source.encode(source_encoding, errors="replace").decode("utf-8", errors="replace")
+                converted = converted.strip()
+                if converted:
+                    candidates.append(converted)
+            except Exception:
+                pass
+
+        _try_repair(repaired, "cp874")
+        _try_repair(repaired, "tis-620")
+        _try_repair(repaired, "cp1252")
+        _try_repair(repaired, "latin1")
+
         try:
-            next_value = repaired.encode("cp874").decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
+            raw_bytes = bytes(ord(ch) & 0xFF for ch in repaired)
+            converted = raw_bytes.decode("utf-8", errors="replace").strip()
+            if converted:
+                candidates.append(converted)
+        except Exception:
+            pass
+
+        best = max(candidates, key=_score)
+        if best == repaired:
             break
-        if next_value == repaired:
-            break
-        repaired = next_value
+        repaired = best
     return repaired
 
 
