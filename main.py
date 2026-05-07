@@ -31,6 +31,10 @@ class MovementType(str, Enum):
 class OrderStatus(str, Enum):
     NEW = "new"
     ASSIGNED = "assigned"
+    IN_PRODUCTION = "in_production"
+    QC_PENDING = "qc_pending"
+    REWORK_REQUIRED = "rework_required"
+    QC_PASSED = "qc_passed"
     PREPARING = "preparing"
     OUT_FOR_DELIVERY = "out_for_delivery"
     DELIVERED = "delivered"
@@ -187,6 +191,13 @@ class Order(BaseModel):
     created_by_name: str
     assigned_to_id: str | None = None
     assigned_to_name: str | None = None
+    production_user_id: str | None = None
+    production_user_name: str | None = None
+    qc_user_id: str | None = None
+    qc_user_name: str | None = None
+    delivery_user_id: str | None = None
+    delivery_user_name: str | None = None
+    scheduled_delivery_at: datetime | None = None
     items: list[OrderItem] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -203,11 +214,21 @@ class OrderCreateRequest(BaseModel):
     customer_address: str | None = None
     note: str | None = None
     assigned_to_id: str | None = None
+    production_user_id: str | None = None
+    qc_user_id: str | None = None
+    delivery_user_id: str | None = None
+    scheduled_delivery_at: datetime | None = None
     items: list[OrderCreateItem] = Field(..., min_length=1)
 
 
 class OrderAssignRequest(BaseModel):
     assigned_to_id: str = Field(..., min_length=1)
+
+
+class OrderTeamAssignRequest(BaseModel):
+    production_user_id: str | None = None
+    qc_user_id: str | None = None
+    delivery_user_id: str | None = None
 
 
 class OrderStatusUpdateRequest(BaseModel):
@@ -659,11 +680,35 @@ def init_database() -> None:
                 created_by_name TEXT NOT NULL,
                 assigned_to_id TEXT,
                 assigned_to_name TEXT,
+                production_user_id TEXT,
+                production_user_name TEXT,
+                qc_user_id TEXT,
+                qc_user_name TEXT,
+                delivery_user_id TEXT,
+                delivery_user_name TEXT,
+                scheduled_delivery_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             """
         )
+        order_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(orders)").fetchall()
+        }
+        if "production_user_id" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN production_user_id TEXT")
+        if "production_user_name" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN production_user_name TEXT")
+        if "qc_user_id" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN qc_user_id TEXT")
+        if "qc_user_name" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN qc_user_name TEXT")
+        if "delivery_user_id" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN delivery_user_id TEXT")
+        if "delivery_user_name" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN delivery_user_name TEXT")
+        if "scheduled_delivery_at" not in order_columns:
+            connection.execute("ALTER TABLE orders ADD COLUMN scheduled_delivery_at TEXT")
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS order_items (
@@ -865,6 +910,13 @@ def load_state_from_db() -> None:
             created_by_name=row["created_by_name"],
             assigned_to_id=row["assigned_to_id"],
             assigned_to_name=row["assigned_to_name"],
+            production_user_id=row["production_user_id"],
+            production_user_name=row["production_user_name"],
+            qc_user_id=row["qc_user_id"],
+            qc_user_name=row["qc_user_name"],
+            delivery_user_id=row["delivery_user_id"],
+            delivery_user_name=row["delivery_user_name"],
+            scheduled_delivery_at=normalize_datetime(row["scheduled_delivery_at"]) if row["scheduled_delivery_at"] else None,
             items=items_by_order.get(row["id"], []),
             created_at=normalize_datetime(row["created_at"]),
             updated_at=normalize_datetime(row["updated_at"]),
@@ -989,8 +1041,10 @@ def save_order(order: Order) -> None:
             INSERT INTO orders (
                 id, customer_name, customer_phone, customer_address, note, status,
                 created_by_id, created_by_name, assigned_to_id, assigned_to_name,
+                production_user_id, production_user_name, qc_user_id, qc_user_name,
+                delivery_user_id, delivery_user_name, scheduled_delivery_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 customer_name = excluded.customer_name,
                 customer_phone = excluded.customer_phone,
@@ -1001,6 +1055,13 @@ def save_order(order: Order) -> None:
                 created_by_name = excluded.created_by_name,
                 assigned_to_id = excluded.assigned_to_id,
                 assigned_to_name = excluded.assigned_to_name,
+                production_user_id = excluded.production_user_id,
+                production_user_name = excluded.production_user_name,
+                qc_user_id = excluded.qc_user_id,
+                qc_user_name = excluded.qc_user_name,
+                delivery_user_id = excluded.delivery_user_id,
+                delivery_user_name = excluded.delivery_user_name,
+                scheduled_delivery_at = excluded.scheduled_delivery_at,
                 created_at = excluded.created_at,
                 updated_at = excluded.updated_at
             """,
@@ -1015,6 +1076,13 @@ def save_order(order: Order) -> None:
                 order.created_by_name,
                 order.assigned_to_id,
                 order.assigned_to_name,
+                order.production_user_id,
+                order.production_user_name,
+                order.qc_user_id,
+                order.qc_user_name,
+                order.delivery_user_id,
+                order.delivery_user_name,
+                order.scheduled_delivery_at.isoformat() if order.scheduled_delivery_at else None,
                 order.created_at.isoformat(),
                 order.updated_at.isoformat(),
             ),
@@ -2245,6 +2313,8 @@ def health() -> dict:
         "features": {
             "assistant_chat": True,
             "ai_chat": ai_chat_enabled(),
+            "order_team_roles": True,
+            "order_scheduled_delivery": True,
         },
     }
 
@@ -2679,7 +2749,13 @@ def list_orders(
         result = [
             item
             for item in result
-            if item.created_by_id == user.user_id or item.assigned_to_id == user.user_id
+            if (
+                item.created_by_id == user.user_id
+                or item.assigned_to_id == user.user_id
+                or item.production_user_id == user.user_id
+                or item.qc_user_id == user.user_id
+                or item.delivery_user_id == user.user_id
+            )
         ]
     if assigned_only:
         result = [item for item in result if item.assigned_to_id == user.user_id]
@@ -2696,8 +2772,21 @@ async def create_order(
 ) -> Order:
     user = resolve_request_user(request, requester_id)
     assigned_user: User | None = None
+    production_user: User | None = None
+    qc_user: User | None = None
+    delivery_user: User | None = None
     if payload.assigned_to_id:
         assigned_user = get_user_or_404(payload.assigned_to_id)
+    if payload.production_user_id:
+        production_user = get_user_or_404(payload.production_user_id)
+    if payload.qc_user_id:
+        qc_user = get_user_or_404(payload.qc_user_id)
+    if payload.delivery_user_id:
+        delivery_user = get_user_or_404(payload.delivery_user_id)
+    if production_user is None:
+        production_user = user
+    if delivery_user is None and assigned_user is not None:
+        delivery_user = assigned_user
 
     built_items: list[OrderItem] = []
     for item in payload.items:
@@ -2725,6 +2814,13 @@ async def create_order(
         created_by_name=user.user_name,
         assigned_to_id=assigned_user.user_id if assigned_user else None,
         assigned_to_name=assigned_user.user_name if assigned_user else None,
+        production_user_id=production_user.user_id if production_user else None,
+        production_user_name=production_user.user_name if production_user else None,
+        qc_user_id=qc_user.user_id if qc_user else None,
+        qc_user_name=qc_user.user_name if qc_user else None,
+        delivery_user_id=delivery_user.user_id if delivery_user else None,
+        delivery_user_name=delivery_user.user_name if delivery_user else None,
+        scheduled_delivery_at=payload.scheduled_delivery_at,
         items=built_items,
         created_at=now,
         updated_at=now,
@@ -2770,6 +2866,45 @@ async def assign_order(
     return updated
 
 
+@app.post("/orders/{order_id}/team", response_model=Order)
+async def assign_order_team(
+    order_id: str,
+    payload: OrderTeamAssignRequest,
+    request: Request,
+    requester_id: str | None = Query(None, min_length=1),
+) -> Order:
+    user = resolve_request_user(request, requester_id)
+    if user.role.strip().lower() not in {"admin", "staff"}:
+        raise HTTPException(status_code=403, detail="Permission denied.")
+    order = get_order_or_404(order_id)
+    production_user = get_user_or_404(payload.production_user_id) if payload.production_user_id else None
+    qc_user = get_user_or_404(payload.qc_user_id) if payload.qc_user_id else None
+    delivery_user = get_user_or_404(payload.delivery_user_id) if payload.delivery_user_id else None
+    updated = order.model_copy(
+        update={
+            "production_user_id": production_user.user_id if production_user else None,
+            "production_user_name": production_user.user_name if production_user else None,
+            "qc_user_id": qc_user.user_id if qc_user else None,
+            "qc_user_name": qc_user.user_name if qc_user else None,
+            "delivery_user_id": delivery_user.user_id if delivery_user else None,
+            "delivery_user_name": delivery_user.user_name if delivery_user else None,
+            "assigned_to_id": delivery_user.user_id if delivery_user else order.assigned_to_id,
+            "assigned_to_name": delivery_user.user_name if delivery_user else order.assigned_to_name,
+            "updated_at": utc_now(),
+        }
+    )
+    for index, item in enumerate(orders):
+        if item.id == order_id:
+            orders[index] = updated
+            break
+    save_order(updated)
+    await broadcast_realtime_event(
+        "order_updated",
+        {"order": updated.model_dump(mode="json")},
+    )
+    return updated
+
+
 @app.post("/orders/{order_id}/status", response_model=Order)
 async def update_order_status(
     order_id: str,
@@ -2786,8 +2921,27 @@ async def update_order_status(
                 status_code=400,
                 detail="เธ•เนเธญเธเธญเธฑเธเนเธซเธฅเธ”เธฃเธนเธเธซเธฅเธฑเธเธเธฒเธเธเนเธญเธเน€เธเธฅเธตเนเธขเธเธชเธ–เธฒเธเธฐเน€เธเนเธเธชเนเธเนเธฅเนเธง",
             )
-    if user.role.strip().lower() != "admin" and order.assigned_to_id != user.user_id and order.created_by_id != user.user_id:
-        raise HTTPException(status_code=403, detail="Permission denied.")
+    is_admin = user.role.strip().lower() == "admin"
+    if not is_admin:
+        allowed = False
+        next_status = payload.status
+        if next_status in {OrderStatus.ASSIGNED, OrderStatus.IN_PRODUCTION, OrderStatus.QC_PENDING}:
+            allowed = (
+                order.production_user_id == user.user_id
+                or order.created_by_id == user.user_id
+                or order.assigned_to_id == user.user_id
+                or (order.production_user_id is None and order.delivery_user_id == user.user_id)
+            )
+        elif next_status in {OrderStatus.REWORK_REQUIRED, OrderStatus.QC_PASSED}:
+            allowed = order.qc_user_id == user.user_id
+        elif next_status in {OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED}:
+            allowed = order.delivery_user_id == user.user_id or order.assigned_to_id == user.user_id
+        elif next_status == OrderStatus.CANCELLED:
+            allowed = order.created_by_id == user.user_id
+        else:
+            allowed = order.created_by_id == user.user_id
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Permission denied for this workflow step.")
     updated = order.model_copy(update={"status": payload.status, "updated_at": utc_now()})
     for index, item in enumerate(orders):
         if item.id == order_id:
