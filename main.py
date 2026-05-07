@@ -1727,12 +1727,16 @@ def get_order_or_404(order_id: str) -> Order:
 
 def order_status_label(status: OrderStatus) -> str:
     return {
-        OrderStatus.NEW: "เธญเธญเน€เธ”เธญเธฃเนเนเธซเธกเน",
-        OrderStatus.ASSIGNED: "เธกเธญเธเธซเธกเธฒเธขเนเธฅเนเธง",
-        OrderStatus.PREPARING: "เธเธณเธฅเธฑเธเธเธฑเธ”เธชเธดเธเธเนเธฒ",
-        OrderStatus.OUT_FOR_DELIVERY: "เธเธณเธฅเธฑเธเธชเนเธ",
-        OrderStatus.DELIVERED: "เธชเนเธเนเธฅเนเธง",
-        OrderStatus.CANCELLED: "เธขเธเน€เธฅเธดเธ",
+        OrderStatus.NEW: "ออเดอร์ใหม่",
+        OrderStatus.ASSIGNED: "มอบหมายแล้ว",
+        OrderStatus.IN_PRODUCTION: "กำลังผลิต",
+        OrderStatus.QC_PENDING: "รอตรวจคุณภาพ",
+        OrderStatus.REWORK_REQUIRED: "ต้องแก้ไขงาน",
+        OrderStatus.QC_PASSED: "ตรวจผ่านแล้ว",
+        OrderStatus.PREPARING: "กำลังจัดสินค้า",
+        OrderStatus.OUT_FOR_DELIVERY: "กำลังส่ง",
+        OrderStatus.DELIVERED: "ส่งแล้ว",
+        OrderStatus.CANCELLED: "ยกเลิก",
     }[status]
 
 
@@ -2783,10 +2787,8 @@ async def create_order(
         qc_user = get_user_or_404(payload.qc_user_id)
     if payload.delivery_user_id:
         delivery_user = get_user_or_404(payload.delivery_user_id)
-    if production_user is None:
-        production_user = user
-    if delivery_user is None and assigned_user is not None:
-        delivery_user = assigned_user
+    # Do not auto-assign roles when not provided. The UI should show "-" / "ไม่มี"
+    # so the admin can explicitly choose responsibilities per order.
 
     built_items: list[OrderItem] = []
     for item in payload.items:
@@ -3079,13 +3081,13 @@ async def upload_order_proof_photo(
     order = get_order_or_404(order_id)
     ensure_order_view_permission(order, user)
     if not image.filename:
-        raise HTTPException(status_code=400, detail="เธเธทเนเธญเนเธเธฅเนเธฃเธนเธเนเธกเนเธ–เธนเธเธ•เนเธญเธ")
+        raise HTTPException(status_code=400, detail="ชื่อไฟล์รูปไม่ถูกต้อง")
     ext = Path(image.filename).suffix.lower() or ".jpg"
     filename = f"{order_id}-{uuid4().hex}{ext}"
     destination = ORDER_PROOF_UPLOADS_DIR / filename
     content = await image.read()
     if not content:
-        raise HTTPException(status_code=400, detail="เนเธเธฅเนเธฃเธนเธเธงเนเธฒเธเน€เธเธฅเนเธฒ")
+        raise HTTPException(status_code=400, detail="ไฟล์รูปว่างเปล่า")
     destination.write_bytes(content)
     photo_url = build_order_proof_photo_url(filename)
     record = {
@@ -3111,7 +3113,7 @@ async def upload_order_proof_photo(
                 record["created_at"],
             ),
         )
-    return {"message": "เธญเธฑเธเนเธซเธฅเธ”เธฃเธนเธเธซเธฅเธฑเธเธเธฒเธเนเธฅเนเธง", "photo": record}
+    return {"message": "อัปโหลดรูปหลักฐานแล้ว", "photo": record}
 
 
 @app.get("/orders/{order_id}/proof-photos")
@@ -3161,16 +3163,16 @@ def print_order(
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">เธเธดเธกเธเนเนเธเธญเธญเน€เธ”เธญเธฃเน</button>
+    <div class="wrap">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบออเดอร์</button>
     </div>
     <div class="card">
       <div class="head">
         <div>
-          <p class="title">เนเธเธญเธญเน€เธ”เธญเธฃเน</p>
-          <div class="muted">เน€เธฅเธเธ—เธตเนเธญเธญเน€เธ”เธญเธฃเน: {short_id}</div>
-          <div class="muted">เธงเธฑเธเธ—เธตเนเธชเธฃเนเธฒเธ: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
+          <p class="title">ใบออเดอร์</p>
+          <div class="muted">เลขที่ออเดอร์: {short_id}</div>
+          <div class="muted">วันที่สร้าง: {order.created_at.strftime("%d/%m/%Y %H:%M")}</div>
         </div>
         <div style="text-align:right;">
           <div class="chip">{order_status_label(order.status)}</div>
@@ -3179,30 +3181,30 @@ def print_order(
       </div>
 
       <div class="section">
-        <strong>เธฅเธนเธเธเนเธฒ:</strong> {order.customer_name}<br>
-        <strong>เน€เธเธญเธฃเนเนเธ—เธฃ:</strong> {order.customer_phone or '-'}<br>
-        <strong>เธ—เธตเนเธญเธขเธนเน:</strong> {order.customer_address or '-'}
+        <strong>ลูกค้า:</strong> {order.customer_name}<br>
+        <strong>เบอร์โทร:</strong> {order.customer_phone or '-'}<br>
+        <strong>ที่อยู่:</strong> {order.customer_address or '-'}
       </div>
 
       <div class="section">
-        <strong>เธเธนเนเธฃเธฑเธเธญเธญเน€เธ”เธญเธฃเน:</strong> {order.created_by_name} ({order.created_by_id})<br>
-        <strong>เธเธนเนเธชเนเธ:</strong> {order.assigned_to_name or '-'} {f"({order.assigned_to_id})" if order.assigned_to_id else ""}
+        <strong>ผู้รับออเดอร์:</strong> {order.created_by_name} ({order.created_by_id})<br>
+        <strong>ผู้ส่ง:</strong> {order.assigned_to_name or '-'} {f"({order.assigned_to_id})" if order.assigned_to_id else ""}
       </div>
 
       <div class="section">
-        <strong>เธซเธกเธฒเธขเน€เธซเธ•เธธ:</strong> {order.note or '-'}
+        <strong>หมายเหตุ:</strong> {order.note or '-'}
       </div>
 
       <div class="section">
-        <strong>เธฃเธฒเธขเธเธฒเธฃเธชเธดเธเธเนเธฒ</strong>
+        <strong>รายการสินค้า</strong>
         <table>
           <thead>
             <tr style="background:#f3e7d8;">
-              <th style="padding:10px;border:1px solid #d7c0a5;">เธฅเธณเธ”เธฑเธ</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">เธชเธดเธเธเนเธฒ</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">เธเธณเธเธงเธ</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">เธซเธเนเธงเธข</th>
-              <th style="padding:10px;border:1px solid #d7c0a5;">เธเธฃเธ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
+              <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
             </tr>
           </thead>
           <tbody>
@@ -3212,8 +3214,8 @@ def print_order(
       </div>
 
       <div class="signatures">
-        <div class="line">เธเธนเนเธเธฑเธ”เธชเธดเธเธเนเธฒ / เธเธนเนเธชเนเธเธเธญเธ</div>
-        <div class="line">เธเธนเนเธ•เธฃเธงเธเธชเธญเธ / เธฅเธนเธเธเนเธฒ</div>
+        <div class="line">ผู้จัดสินค้า / ผู้ส่งของ</div>
+        <div class="line">ผู้ตรวจสอบ / ลูกค้า</div>
       </div>
     </div>
   </div>
@@ -3254,32 +3256,32 @@ def print_packing_slip(
 <body>
   <div class="wrap">
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">เธเธดเธกเธเนเนเธเธเธฐเธซเธเนเธฒ</button>
+      <button class="print-btn" onclick="window.print()" style="padding:10px 14px;border:none;border-radius:12px;background:#8A5A3C;color:#fff;font-weight:700;cursor:pointer;">พิมพ์ใบปะหน้า</button>
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
         <div>
-          <p class="title">เนเธเธเธฐเธซเธเนเธฒเธเธฑเธ”เธเธญเธ</p>
-          <div>เธฅเธนเธเธเนเธฒ: {order.customer_name}</div>
-          <div>เธเธนเนเธชเนเธ: {order.assigned_to_name or '-'}</div>
-          <div>เธ—เธตเนเธญเธขเธนเน: {order.customer_address or '-'}</div>
+          <p class="title">ใบปะหน้าจัดของ</p>
+          <div>ลูกค้า: {order.customer_name}</div>
+          <div>ผู้ส่ง: {order.assigned_to_name or '-'}</div>
+          <div>ที่อยู่: {order.customer_address or '-'}</div>
         </div>
         <div class="code">{short_id}</div>
       </div>
       <table>
         <thead>
           <tr style="background:#f3e7d8;">
-            <th style="padding:10px;border:1px solid #d7c0a5;">เธฅเธณเธ”เธฑเธ</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">เธชเธดเธเธเนเธฒ</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">เธเธณเธเธงเธ</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">เธซเธเนเธงเธข</th>
-            <th style="padding:10px;border:1px solid #d7c0a5;">เธเธฃเธ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">ลำดับ</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">สินค้า</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">จำนวน</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">หน่วย</th>
+            <th style="padding:10px;border:1px solid #d7c0a5;">ครบ</th>
           </tr>
         </thead>
         <tbody>{item_rows}</tbody>
       </table>
       <div style="margin-top:24px;">
-        <strong>เธซเธกเธฒเธขเน€เธซเธ•เธธ:</strong> ________________________________________________
+        <strong>หมายเหตุ:</strong> ________________________________________________
       </div>
     </div>
   </div>
