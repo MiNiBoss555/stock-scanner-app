@@ -12,7 +12,8 @@ class StockApiService {
   static const String _loginTimeoutMessage =
       "Server is taking longer than usual. Please wait a moment and try again.";
   static const String _timeoutMessage =
-      "เซิร์ฟเวอร์ใช้เวลาตอบกลับนานกว่าปกติ อาจกำลังเริ่มทำงานอยู่ กรุณารอสักครู่แล้วลองใหม่";
+      "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่";
+
   String? _accessToken;
 
   void setAccessToken(String? value) {
@@ -84,8 +85,7 @@ class StockApiService {
           .timeout(_requestTimeout);
     } on TimeoutException {
       throw Exception(
-        "เซิร์ฟเวอร์ใช้เวลาตอบกลับนานกว่าปกติ อาจกำลังเริ่มทำงานอยู่ กรุณารอสักครู่แล้วลองใหม่",
-      );
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
   }
 
@@ -103,13 +103,15 @@ class StockApiService {
     }
   }
 
-  Future<http.Response> _get(String path, [Map<String, String>? queryParameters]) async {
+  Future<http.Response> _get(String path,
+      [Map<String, String>? queryParameters]) async {
     try {
       return await http
           .get(_uri(path, queryParameters), headers: _headers())
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception(
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
   }
 
@@ -127,12 +129,14 @@ class StockApiService {
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception(
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
   }
 
   Future<List<Product>> getProducts({bool lowStockOnly = false}) async {
-    final response = await _get("/products", {"low_stock_only": lowStockOnly.toString()});
+    final response =
+        await _get("/products", {"low_stock_only": lowStockOnly.toString()});
     final body = _decode(response);
     return (body as List<dynamic>)
         .map((item) => Product.fromJson(item as Map<String, dynamic>))
@@ -153,7 +157,8 @@ class StockApiService {
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(_timeoutMessage);
+      throw Exception(
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
   }
 
@@ -166,7 +171,8 @@ class StockApiService {
           .delete(_uri(path, queryParameters), headers: _headers())
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(_timeoutMessage);
+      throw Exception(
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
   }
 
@@ -192,7 +198,8 @@ class StockApiService {
   }
 
   Future<List<AppUser>> getUsers({bool activeOnly = true}) async {
-    final response = await _get("/users", {"active_only": activeOnly.toString()});
+    final response =
+        await _get("/users", {"active_only": activeOnly.toString()});
     final body = _decode(response);
     return (body as List<dynamic>)
         .map((item) => AppUser.fromJson(item as Map<String, dynamic>))
@@ -217,7 +224,8 @@ class StockApiService {
       response = await _postLoginFriendly(payload);
     }
 
-    final session = LoginSession.fromJson(_decode(response) as Map<String, dynamic>);
+    final session =
+        LoginSession.fromJson(_decode(response) as Map<String, dynamic>);
     setAccessToken(session.accessToken);
     return session;
   }
@@ -235,8 +243,7 @@ class StockApiService {
     });
     if (response.statusCode == 404) {
       throw Exception(
-        "เซิร์ฟเวอร์ที่ใช้อยู่ยังไม่รองรับการแก้ชื่อ กรุณาอัปเดต backend แล้วลองใหม่",
-      );
+          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
     }
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -263,6 +270,7 @@ class StockApiService {
     required String userId,
     required String userName,
     String role = "staff",
+    String? position,
     bool active = true,
     String? pin,
     String? profileImageUrl,
@@ -272,6 +280,7 @@ class StockApiService {
       "user_id": userId,
       "user_name": userName,
       "role": role,
+      "position": position,
       "active": active,
       "pin": pin,
       "profile_image_url": profileImageUrl,
@@ -385,7 +394,8 @@ class StockApiService {
     ).then((response) {
       final body = _decode(response) as Map<String, dynamic>;
       final link = ExportLink.fromJson(body);
-      final normalizedPath = link.url.startsWith("/") ? link.url : "/${link.url}";
+      final normalizedPath =
+          link.url.startsWith("/") ? link.url : "/${link.url}";
       return ExportLink(
         url: "${AppConfig.baseUrl}$normalizedPath",
         expiresAt: link.expiresAt,
@@ -472,11 +482,13 @@ class StockApiService {
     } catch (error) {
       final text = error.toString().toLowerCase();
       if (text.contains("not found")) {
-        throw Exception("Backend ยังไม่รองรับฟีเจอร์แชท กรุณาอัปเดตเซิร์ฟเวอร์ก่อนใช้งาน");
+        throw Exception(
+            "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
       }
       rethrow;
     }
-    final result = ChatAssistantResult.fromJson(_decode(response) as Map<String, dynamic>);
+    final result =
+        ChatAssistantResult.fromJson(_decode(response) as Map<String, dynamic>);
     final link = result.downloadLink;
     if (link == null) {
       return result;
@@ -499,11 +511,13 @@ class StockApiService {
     required String requesterId,
     bool assignedOnly = false,
     bool mineOnly = false,
+    int limit = 300,
   }) async {
     final response = await _get("/orders", {
       "requester_id": requesterId,
       "assigned_only": assignedOnly.toString(),
       "mine_only": mineOnly.toString(),
+      "limit": limit.toString(),
     });
     final body = _decode(response);
     return (body as List<dynamic>)
@@ -518,6 +532,10 @@ class StockApiService {
     String? customerAddress,
     String? note,
     String? assignedToId,
+    String? productionUserId,
+    String? qcUserId,
+    String? deliveryUserId,
+    DateTime? scheduledDeliveryAt,
     required List<Map<String, dynamic>> items,
   }) async {
     final response = await _postJson(
@@ -528,11 +546,56 @@ class StockApiService {
         "customer_address": customerAddress,
         "note": note,
         "assigned_to_id": assignedToId,
+        "production_user_id": productionUserId,
+        "qc_user_id": qcUserId,
+        "delivery_user_id": deliveryUserId,
+        "scheduled_delivery_at": scheduledDeliveryAt?.toUtc().toIso8601String(),
         "items": items,
       },
       {"requester_id": requesterId},
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<List<OrderMessageModel>> getOrderMessages({
+    required String requesterId,
+    required String orderId,
+  }) async {
+    final response = await _get(
+      "/orders/$orderId/messages",
+      {"requester_id": requesterId},
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    final items = body["items"] as List<dynamic>? ?? const [];
+    return items
+        .map((item) => OrderMessageModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<OrderMessageModel> postOrderMessage({
+    required String requesterId,
+    required String orderId,
+    required String message,
+  }) async {
+    final response = await _postJson(
+      "/orders/$orderId/messages",
+      {"message": message},
+      {"requester_id": requesterId},
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    final item = body["item"] as Map<String, dynamic>;
+    return OrderMessageModel.fromJson(item);
+  }
+
+  Future<void> markOrderMessagesRead({
+    required String requesterId,
+    required String orderId,
+  }) async {
+    await _postJson(
+      "/orders/$orderId/messages/read",
+      const {},
+      {"requester_id": requesterId},
+    );
   }
 
   Future<DeliveryOrder> assignOrder({
@@ -544,6 +607,25 @@ class StockApiService {
       "/orders/$orderId/assign",
       {
         "assigned_to_id": assignedToId,
+      },
+      {"requester_id": requesterId},
+    );
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryOrder> assignOrderTeam({
+    required String requesterId,
+    required String orderId,
+    String? productionUserId,
+    String? qcUserId,
+    String? deliveryUserId,
+  }) async {
+    final response = await _postJson(
+      "/orders/$orderId/team",
+      {
+        "production_user_id": productionUserId,
+        "qc_user_id": qcUserId,
+        "delivery_user_id": deliveryUserId,
       },
       {"requester_id": requesterId},
     );
@@ -622,7 +704,8 @@ class StockApiService {
     final body = _decode(response) as Map<String, dynamic>;
     final items = body["items"] as List<dynamic>? ?? [];
     return items
-        .map((item) => (item as Map<String, dynamic>)["photo_url"] as String? ?? "")
+        .map((item) =>
+            (item as Map<String, dynamic>)["photo_url"] as String? ?? "")
         .where((url) => url.isNotEmpty)
         .map(resolveAssetUrl)
         .toList();
@@ -632,21 +715,24 @@ class StockApiService {
     required String orderId,
     required String requesterId,
   }) {
-    return _uri("/orders/$orderId/print", {"requester_id": requesterId}).toString();
+    return _uri("/orders/$orderId/print", {"requester_id": requesterId})
+        .toString();
   }
 
   String orderPackingSlipUrl({
     required String orderId,
     required String requesterId,
   }) {
-    return _uri("/orders/$orderId/packing-slip", {"requester_id": requesterId}).toString();
+    return _uri("/orders/$orderId/packing-slip", {"requester_id": requesterId})
+        .toString();
   }
 
   String orderPdfUrl({
     required String orderId,
     required String requesterId,
   }) {
-    return _uri("/orders/$orderId/print.pdf", {"requester_id": requesterId}).toString();
+    return _uri("/orders/$orderId/print.pdf", {"requester_id": requesterId})
+        .toString();
   }
 
   Object _decode(http.Response response) {

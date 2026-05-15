@@ -40,6 +40,7 @@ class AppUser {
     required this.userId,
     required this.userName,
     required this.role,
+    this.position,
     required this.active,
     this.profileImageUrl,
   });
@@ -49,6 +50,7 @@ class AppUser {
       userId: json["user_id"] as String,
       userName: json["user_name"] as String,
       role: (json["role"] as String?) ?? "staff",
+      position: json["position"] as String?,
       active: json["active"] as bool? ?? true,
       profileImageUrl: json["profile_image_url"] as String?,
     );
@@ -57,6 +59,7 @@ class AppUser {
   final String userId;
   final String userName;
   final String role;
+  final String? position;
   final bool active;
   final String? profileImageUrl;
 
@@ -216,7 +219,8 @@ class ScanResult {
     return ScanResult(
       lowStock: json["low_stock"] as bool? ?? false,
       product: Product.fromJson(json["product"] as Map<String, dynamic>),
-      movement: MovementRecord.fromJson(json["movement"] as Map<String, dynamic>),
+      movement:
+          MovementRecord.fromJson(json["movement"] as Map<String, dynamic>),
       notification: AppNotification.fromJson(
         json["notification"] as Map<String, dynamic>,
       ),
@@ -288,7 +292,8 @@ class ChatAssistantResult {
       usedAi: json["used_ai"] as bool? ?? false,
       action: json["action"] == null
           ? null
-          : ChatAssistantAction.fromJson(json["action"] as Map<String, dynamic>),
+          : ChatAssistantAction.fromJson(
+              json["action"] as Map<String, dynamic>),
       downloadLink: json["download_link"] == null
           ? null
           : ExportLink.fromJson(json["download_link"] as Map<String, dynamic>),
@@ -301,6 +306,35 @@ class ChatAssistantResult {
   final ExportLink? downloadLink;
   final bool aiEnabled;
   final bool usedAi;
+}
+
+class OrderMessageModel {
+  const OrderMessageModel({
+    required this.id,
+    required this.orderId,
+    required this.userId,
+    required this.userName,
+    required this.message,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String orderId;
+  final String userId;
+  final String userName;
+  final String message;
+  final DateTime createdAt;
+
+  factory OrderMessageModel.fromJson(Map<String, dynamic> json) {
+    return OrderMessageModel(
+      id: json["id"] as String,
+      orderId: json["order_id"] as String,
+      userId: json["user_id"] as String,
+      userName: json["user_name"] as String,
+      message: json["message"] as String,
+      createdAt: DateTime.parse(json["created_at"] as String),
+    );
+  }
 }
 
 class OrderItemModel {
@@ -344,6 +378,17 @@ class DeliveryOrder {
     this.note,
     this.assignedToId,
     this.assignedToName,
+    this.productionUserId,
+    this.productionUserName,
+    this.qcUserId,
+    this.qcUserName,
+    this.deliveryUserId,
+    this.deliveryUserName,
+    this.lastHandoffFrom,
+    this.lastHandoffTo,
+    this.lastHandoffAt,
+    this.scheduledDeliveryAt,
+    this.unreadCount = 0,
   });
 
   factory DeliveryOrder.fromJson(Map<String, dynamic> json) {
@@ -361,6 +406,21 @@ class DeliveryOrder {
       createdByName: json["created_by_name"] as String,
       assignedToId: json["assigned_to_id"] as String?,
       assignedToName: json["assigned_to_name"] as String?,
+      productionUserId: json["production_user_id"] as String?,
+      productionUserName: json["production_user_name"] as String?,
+      qcUserId: json["qc_user_id"] as String?,
+      qcUserName: json["qc_user_name"] as String?,
+      deliveryUserId: json["delivery_user_id"] as String?,
+      deliveryUserName: json["delivery_user_name"] as String?,
+      lastHandoffFrom: json["last_handoff_from"] as String?,
+      lastHandoffTo: json["last_handoff_to"] as String?,
+      lastHandoffAt: json["last_handoff_at"] == null
+          ? null
+          : DateTime.parse(json["last_handoff_at"] as String).toLocal(),
+      scheduledDeliveryAt: json["scheduled_delivery_at"] == null
+          ? null
+          : DateTime.parse(json["scheduled_delivery_at"] as String).toLocal(),
+      unreadCount: (json["unread_count"] as num?)?.toInt() ?? 0,
       items: items,
       createdAt: DateTime.parse(json["created_at"] as String).toLocal(),
       updatedAt: DateTime.parse(json["updated_at"] as String).toLocal(),
@@ -377,6 +437,17 @@ class DeliveryOrder {
   final String createdByName;
   final String? assignedToId;
   final String? assignedToName;
+  final String? productionUserId;
+  final String? productionUserName;
+  final String? qcUserId;
+  final String? qcUserName;
+  final String? deliveryUserId;
+  final String? deliveryUserName;
+  final String? lastHandoffFrom;
+  final String? lastHandoffTo;
+  final DateTime? lastHandoffAt;
+  final DateTime? scheduledDeliveryAt;
+  final int unreadCount;
   final List<OrderItemModel> items;
   final DateTime createdAt;
   final DateTime updatedAt;
