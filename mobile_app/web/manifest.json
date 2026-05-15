@@ -1,11 +1,11 @@
 {
-    "name": "stock_scanner_mobile",
-    "short_name": "stock_scanner_mobile",
+    "name": "StockScanner Portal",
+    "short_name": "StockScanner",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "StockScanner Portal",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -23,6 +23,15 @@ mobile_app/.dart_tool/
 mobile_app/.flutter-plugins
 mobile_app/.flutter-plugins-dependencies
 mobile_app/build/
+mobile_app/crash.log
+mobile_app/devtools_options.yaml
+
+# Firebase (do not commit secrets/credentials)
+mobile_app/.firebase/
+mobile_app/.firebaserc
+mobile_app/firebase.json
+mobile_app/android/app/google-services.json
+secrets/
 
 # Android / Gradle
 mobile_app/android/.gradle/

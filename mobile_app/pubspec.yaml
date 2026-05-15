@@ -21,6 +21,8 @@ dependencies:
   share_plus: ^10.1.2
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.1
+  firebase_core: ^4.7.0
+  firebase_messaging: ^16.2.0
 
 flutter:
   uses-material-design: true
@@ -29,3 +31,4 @@ flutter:
     - assets/branding/scan_product_logo_mark.png
     - assets/branding/scan_product_logo_mark_tight.png
     - assets/delivery/delivery_success.gif
+    - assets/web_hero.jpg
