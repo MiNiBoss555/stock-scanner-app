@@ -300,6 +300,8 @@ class StockScannerApp extends StatefulWidget {
 }
 
 class _StockScannerAppState extends State<StockScannerApp> {
+  static final RouteObserver<ModalRoute<void>> _routeObserver =
+      RouteObserver<ModalRoute<void>>();
   final StockApiService _api = StockApiService();
   static const Duration _minSplashDuration = Duration(milliseconds: 900);
   static const Duration _restoreTimeout = Duration(seconds: 4);
@@ -565,6 +567,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
         ),
         useMaterial3: true,
       ),
+      navigatorObservers: [_routeObserver],
       home: _isRestoring
           ? const _SplashScreen()
           : Builder(
@@ -1283,6 +1286,8 @@ class StockHomePage extends StatefulWidget {
 class _StockHomePageState extends State<StockHomePage> {
   int _currentIndex = 0;
   final ValueNotifier<int> _realtimeRevision = ValueNotifier<int>(0);
+  final GlobalKey<_DashboardPageState> _dashboardKey =
+      GlobalKey<_DashboardPageState>();
   WebSocket? _realtimeSocket;
   Timer? _realtimeReconnectTimer;
   bool _realtimeShouldReconnect = true;
@@ -1364,6 +1369,7 @@ class _StockHomePageState extends State<StockHomePage> {
   Widget build(BuildContext context) {
     final pages = <Widget>[
       DashboardPage(
+        key: _dashboardKey,
         api: widget.api,
         refreshSignal: _realtimeRevision,
         currentUser: widget.currentUser,
@@ -1445,6 +1451,9 @@ class _StockHomePageState extends State<StockHomePage> {
               setState(() {
                 _currentIndex = index;
               });
+              if (index == 0) {
+                _dashboardKey.currentState?.refreshNow();
+              }
             },
             destinations: const [
               NavigationDestination(
@@ -3276,7 +3285,7 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage> with RouteAware {
   late Future<DashboardData> _future;
   final TextEditingController _productSearchController =
       TextEditingController();
@@ -3290,10 +3299,33 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      _StockScannerAppState._routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
     _productSearchController.dispose();
     widget.refreshSignal.removeListener(_handleRealtimeRefresh);
+    _StockScannerAppState._routeObserver.unsubscribe(this);
     super.dispose();
+  }
+
+  void refreshNow() {
+    if (!mounted) return;
+    setState(() {
+      _future = _load();
+    });
+  }
+
+  @override
+  void didPopNext() {
+    // Returned to Dashboard from another page -> refresh.
+    refreshNow();
   }
 
   List<Product> _filterProducts(List<Product> products) {
