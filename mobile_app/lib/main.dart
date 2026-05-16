@@ -6885,6 +6885,7 @@ class _OrdersPageState extends State<OrdersPage> {
   bool _showAdvancedTeam = false;
   AutovalidateMode _createOrderAutovalidate = AutovalidateMode.disabled;
   bool _isSaving = false;
+  String? _orderPickerId;
   late Future<_OrdersPageData> _future;
   late List<_DraftOrderItem> _draftItems;
 
@@ -8179,6 +8180,41 @@ class _OrdersPageState extends State<OrdersPage> {
                                   .where((o) => o.status != "cancelled")
                                   .toList();
                               return <Widget>[
+                                if (active.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: DropdownMenu<String>(
+                                      initialSelection: _orderPickerId,
+                                      expandedInsets: EdgeInsets.zero,
+                                      enableFilter: true,
+                                      enableSearch: true,
+                                      leadingIcon:
+                                          const Icon(Icons.search_rounded),
+                                      label: const Text("เลือกออเดอร์"),
+                                      hintText:
+                                          "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
+                                      dropdownMenuEntries: active
+                                          .map(
+                                            (order) => DropdownMenuEntry<String>(
+                                              value: order.id,
+                                              label:
+                                                  "${order.customerName} • ${order.id.substring(0, 8)} • ${order.status}",
+                                            ),
+                                          )
+                                          .toList(),
+                                      onSelected: (value) async {
+                                        if (value == null) return;
+                                        setState(() {
+                                          _orderPickerId = value;
+                                        });
+                                        final target = active.firstWhere(
+                                          (o) => o.id == value,
+                                          orElse: () => active.first,
+                                        );
+                                        await _showOrderPreview(target);
+                                      },
+                                    ),
+                                  ),
                                 if (cancelled.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
