@@ -4208,6 +4208,10 @@ class _MobileDashboardHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final latestOrders = data.activeOrders.take(4).toList();
     final todayOrders = data.todayUpdatedOrders.take(4).toList();
+    final unreadOrders = data.activeOrders
+        .where((order) => order.unreadCount > 0)
+        .toList()
+      ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
 
     return ColoredBox(
       color: _brandSurface,
@@ -4277,6 +4281,19 @@ class _MobileDashboardHome extends StatelessWidget {
               icon: Icons.local_shipping_outlined,
               onTap: onOpenOrdersTab,
             ),
+          if (unreadOrders.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ActionBanner(
+              title: "แชทค้างอ่าน ${unreadOrders.length} ออเดอร์",
+              subtitle: unreadOrders
+                  .take(3)
+                  .map((o) => "${o.customerName} (+${o.unreadCount})")
+                  .join(" • "),
+              icon: Icons.mark_chat_unread_rounded,
+              tone: Colors.redAccent,
+              onTap: onOpenOrdersTab,
+            ),
+          ],
           const SizedBox(height: 22),
           const _DashboardSectionHeader(
             eyebrow: "Focus now",
