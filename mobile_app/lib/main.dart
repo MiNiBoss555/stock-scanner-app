@@ -9786,6 +9786,110 @@ class _OrderChatPageState extends State<OrderChatPage> {
     });
   }
 
+  Future<void> _showOrderPreview(DeliveryOrder order) async {
+    final statusLabel = order.status == "new"
+        ? "ใหม่"
+        : order.status == "assigned"
+            ? "มอบหมายแล้ว"
+            : order.status == "in_production"
+                ? "กำลังผลิต"
+                : order.status == "qc_pending"
+                    ? "รอ QC"
+                    : order.status == "qc_passed"
+                        ? "ผ่าน QC"
+                        : order.status == "preparing"
+                            ? "กำลังจัดสินค้า"
+                            : order.status == "out_for_delivery"
+                                ? "กำลังส่ง"
+                                : order.status == "delivered"
+                                    ? "ส่งแล้ว"
+                                    : order.status == "cancelled"
+                                        ? "ยกเลิก"
+                                        : order.status;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.5,
+        child: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          "ใบสรุปออเดอร์",
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          order.customerName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await Navigator.of(this.context).push(
+                          MaterialPageRoute(
+                            builder: (_) => OrderChatPage(
+                              api: widget.api,
+                              currentUser: widget.currentUser,
+                              order: order,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text("แชทติดตามงาน"),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  _receiptRow("สถานะ", statusLabel),
+                  _receiptRow("ผู้รับออเดอร์", order.createdByName),
+                  _receiptRow("ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  if (order.customerPhone != null &&
+                      order.customerPhone!.isNotEmpty)
+                    _receiptRow("โทร", order.customerPhone!),
+                  if (order.customerAddress != null &&
+                      order.customerAddress!.isNotEmpty)
+                    _receiptRow("ที่อยู่", order.customerAddress!),
+                  if (order.scheduledDeliveryAt != null)
+                    _receiptRow(
+                        "กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _pollTimer?.cancel();
