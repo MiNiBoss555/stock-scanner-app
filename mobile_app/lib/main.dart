@@ -196,7 +196,13 @@ String _normalizeFeedbackMessage(String message) {
   if (lowered.contains("authentication required")) {
     return "กรุณาเข้าสู่ระบบใหม่อีกครั้ง";
   }
-  if (lowered.contains("backend เธขเธฑเธเนเธกเนเธฃเธญเธเธฃเธฑเธเธเธตเน€เธเธญเธฃเนเนเธเธ—")) {
+  // Backend not updated / missing chat endpoints.
+  // We avoid matching mojibake literals here; just look for stable Thai/English keywords.
+  if (repaired.contains("ฟีเจอร์แชท") &&
+      (repaired.contains("ยังไม่อัปเดต") ||
+          lowered.contains("not updated") ||
+          lowered.contains("missing") ||
+          lowered.contains("endpoint"))) {
     return "เซิร์ฟเวอร์ยังไม่อัปเดตฟีเจอร์แชท กรุณา deploy backend เวอร์ชันล่าสุดก่อน";
   }
   if (lowered.contains("not found")) {
@@ -208,12 +214,13 @@ String _normalizeFeedbackMessage(String message) {
 
 String _repairThaiMojibake(String value) {
   var repaired = value;
+  // Typical Thai mojibake sequences when UTF-8 is mis-decoded as Latin-1/Windows-1252.
+  // Examples: "à¸", "à¹", "Ã", "�".
+  bool looksMojibake(String s) {
+    return RegExp(r"(à¸|à¹|Ã|�)").hasMatch(s);
+  }
   for (var i = 0; i < 2; i++) {
-    if (!(repaired.contains("เน€เธ") ||
-        repaired.contains("เน€เธ") ||
-        repaired.contains("เนโฌ") ||
-        repaired.contains("เธขย") ||
-        repaired.contains("เธขย"))) {
+    if (!looksMojibake(repaired)) {
       break;
     }
     try {
