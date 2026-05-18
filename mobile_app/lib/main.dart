@@ -1506,13 +1506,14 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
   late List<_ChatMessage> _messages;
   bool _isSending = false;
   bool? _assistantAvailable;
+  bool _isOpeningWithdraw = false;
 
   @override
   void initState() {
     super.initState();
     _messages = [
       _ChatMessage.bot(
-        "ถามข้อมูลสต็อก ให้ AI ช่วยตอบ หรือสั่งงานได้เลย เช่น \"โค้กเหลือกี่ชิ้น\", \"อะไรใกล้หมดบ้าง\", \"เบิก 2 8851234567890\"",
+        "ถามสต็อกหรือสั่งงานได้เลย เช่น \"อะไรใกล้หมดบ้าง\" หรือ \"เบิก 2 8851234567890\"",
       ),
     ];
     widget.refreshSignal.addListener(_handleRealtimeRefresh);
@@ -1535,7 +1536,7 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
       _messages = [
         ..._messages,
         _ChatMessage.bot(
-            "ข้อมูลสต็อกมีการอัปเดตแล้ว ถามใหม่ได้เลยเพื่อดูตัวเลขล่าสุด"),
+            "สต็อกมีการอัปเดตแล้ว ถามใหม่ได้เลย"),
       ];
     });
     _scrollToBottom();
@@ -1678,18 +1679,165 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
     Navigator.of(context).maybePop();
   }
 
+  Future<void> _openWithdrawFlow() async {
+    if (_isOpeningWithdraw || _assistantAvailable == false) {
+      return;
+    }
+    setState(() {
+      _isOpeningWithdraw = true;
+    });
+    try {
+      final products = await widget.api.getProducts();
+      if (!mounted) return;
+
+      final qtyController = TextEditingController(text: "1");
+      String? selectedBarcode;
+
+      final confirmed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.remove_circle_outline,
+                          color: _brandPrimary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "เบิกสินค้า",
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: "ปิด",
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Material(
+                    type: MaterialType.transparency,
+                    child: DropdownMenu<String>(
+                      expandedInsets: EdgeInsets.zero,
+                      enableFilter: true,
+                      enableSearch: true,
+                      leadingIcon: const Icon(Icons.search_rounded),
+                      label: const Text("เลือกสินค้า"),
+                      hintText: "พิมพ์ชื่อ / บาร์โค้ด / SKU",
+                      initialSelection: selectedBarcode,
+                      dropdownMenuEntries: products
+                          .map(
+                            (p) => DropdownMenuEntry<String>(
+                              value: p.barcode,
+                              label:
+                                  "${p.name} • ${p.barcode} • คงเหลือ ${p.currentStock} ${p.unit}",
+                            ),
+                          )
+                          .toList(),
+                      onSelected: (value) {
+                        setSheetState(() {
+                          selectedBarcode = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: qtyController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "จำนวนที่ต้องการเบิก",
+                      prefixIcon: Icon(Icons.numbers_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(false),
+                          child: const Text("ยกเลิก"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            if (selectedBarcode == null ||
+                                selectedBarcode!.trim().isEmpty) {
+                              _showAppSnack(context, "กรุณาเลือกสินค้า",
+                                  isError: true);
+                              return;
+                            }
+                            final qty = int.tryParse(qtyController.text.trim());
+                            if (qty == null || qty <= 0) {
+                              _showAppSnack(context, "จำนวนไม่ถูกต้อง",
+                                  isError: true);
+                              return;
+                            }
+                            Navigator.of(sheetContext).pop(true);
+                          },
+                          child: const Text("เบิก"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (confirmed == true && mounted) {
+        final qty = int.tryParse(qtyController.text.trim()) ?? 1;
+        final barcode = (selectedBarcode ?? "").trim();
+        if (barcode.isNotEmpty) {
+          await _sendMessage("เบิก $qty $barcode");
+        }
+      }
+
+      qtyController.dispose();
+    } catch (error) {
+      if (mounted) {
+        _showAppSnack(
+          context,
+          "โหลดรายการสินค้าไม่สำเร็จ: ${_normalizeFeedbackMessage(error.toString())}",
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningWithdraw = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const suggestions = [
       "อะไรใกล้หมดบ้าง",
-      "สินค้าทั้งหมดมีกี่รายการ",
-      "ตอนนี้มีสินค้าอะไรบ้าง",
-      "มีน้ำดื่มเหลือเท่าไหร่",
-      "เบิก 1 8850001110012",
-      "ขั้นต่ำของน้ำดื่มเท่าไหร่",
       "ขอไฟล์ Excel",
-      "ขอไฟล์ CSV สินค้า",
-      "ขอไฟล์ CSV ประวัติ",
+      "เบิกสินค้า",
     ];
 
     return Material(
@@ -1737,7 +1885,15 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
                     return ActionChip(
                       label: Text(suggestion),
                       onPressed:
-                          _isSending ? null : () => _sendMessage(suggestion),
+                          _isSending
+                              ? null
+                              : () {
+                                  if (suggestion == "เบิกสินค้า") {
+                                    _openWithdrawFlow();
+                                    return;
+                                  }
+                                  _sendMessage(suggestion);
+                                },
                     );
                   },
                 ),
@@ -4244,6 +4400,10 @@ class _MobileDashboardHome extends StatelessWidget {
         .where((order) => order.unreadCount > 0)
         .toList()
       ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
+    final outOfStock = data.products
+        .where((p) => p.currentStock <= 0)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     return ColoredBox(
       color: _brandSurface,
@@ -4313,6 +4473,19 @@ class _MobileDashboardHome extends StatelessWidget {
               icon: Icons.local_shipping_outlined,
               onTap: onOpenOrdersTab,
             ),
+          if (outOfStock.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ActionBanner(
+              title: "สินค้าหมด: ${outOfStock.length} รายการ",
+              subtitle: outOfStock
+                  .take(3)
+                  .map((p) => p.name)
+                  .join(" · "),
+              icon: Icons.inventory_2_outlined,
+              tone: Colors.redAccent,
+              onTap: () => _showOutOfStockSheet(context, outOfStock),
+            ),
+          ],
           if (unreadOrders.isNotEmpty) ...[
             const SizedBox(height: 12),
             _ActionBanner(
@@ -4648,6 +4821,10 @@ class _WebDashboardHome extends StatelessWidget {
         .where((order) => order.unreadCount > 0)
         .toList()
       ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
+    final outOfStock = data.products
+        .where((p) => p.currentStock <= 0)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -4811,6 +4988,17 @@ class _WebDashboardHome extends StatelessWidget {
           subtitle: "รายการสำคัญที่ควรเปิดเช็กจากหน้า dashboard",
         ),
         const SizedBox(height: 10),
+        if (outOfStock.isNotEmpty) ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonalIcon(
+              onPressed: () => _showOutOfStockSheet(context, outOfStock),
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: Text("สินค้าหมด: ${outOfStock.length} รายการ"),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         ...data.summary.lowStockItems.take(3).map(
               (item) => _LowStockFocusCard(
                 product: item,
@@ -5656,6 +5844,7 @@ class _DashboardUpdateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = _displayStatusTone();
     final dueWarning = _dueWarningLabel();
+    final dueDays = _daysUntilDue();
     return _HoverLift(
       lift: 6,
       scale: 1.008,
@@ -5876,6 +6065,23 @@ class _DashboardUpdateCard extends StatelessWidget {
                                                 ?.copyWith(
                                                   color: tone.withOpacity(0.92),
                                                   fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                      if (dueDays != null && dueDays < 0)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 2),
+                                          child: Text(
+                                            "เลยกำหนดส่งมา ${-dueDays} วัน",
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color: tone.withOpacity(0.92),
+                                                  fontWeight: FontWeight.w800,
                                                 ),
                                           ),
                                         ),
@@ -6888,6 +7094,135 @@ class _OrdersPageState extends State<OrdersPage> {
   String? _orderPickerId;
   late Future<_OrdersPageData> _future;
   late List<_DraftOrderItem> _draftItems;
+
+  Future<void> _showOrderPreview(DeliveryOrder order) async {
+    final statusLabel = order.status == "new"
+        ? "ใหม่"
+        : order.status == "assigned"
+            ? "มอบหมายแล้ว"
+            : order.status == "in_production"
+                ? "กำลังผลิต"
+                : order.status == "qc_pending"
+                    ? "รอ QC"
+                    : order.status == "qc_passed"
+                        ? "ผ่าน QC"
+                        : order.status == "preparing"
+                            ? "กำลังจัดสินค้า"
+                            : order.status == "out_for_delivery"
+                                ? "กำลังส่ง"
+                                : order.status == "delivered"
+                                    ? "ส่งแล้ว"
+                                    : order.status == "cancelled"
+                                        ? "ยกเลิก"
+                                        : order.status;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.52,
+        child: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          "ใบสรุปออเดอร์",
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          order.customerName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  _receiptRow("สถานะ", statusLabel),
+                  _receiptRow("ผู้รับออเดอร์", order.createdByName),
+                  _receiptRow("ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  if (order.customerPhone != null &&
+                      order.customerPhone!.isNotEmpty)
+                    _receiptRow("โทร", order.customerPhone!),
+                  if (order.customerAddress != null &&
+                      order.customerAddress!.isNotEmpty)
+                    _receiptRow("ที่อยู่", order.customerAddress!),
+                  if (order.scheduledDeliveryAt != null)
+                    _receiptRow("กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _openOrder(order);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: const Text("เปิดออเดอร์นี้"),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.black.withOpacity(0.60),
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openOrder(DeliveryOrder order) {
+    // Keep this lightweight: the order is already visible in the list.
+    setState(() {
+      _orderPickerId = order.id;
+    });
+    _showAppSnack(context, "เลือกออเดอร์แล้ว เลื่อนลงเพื่อจัดการได้เลย");
+  }
 
   @override
   void initState() {
@@ -8183,36 +8518,40 @@ class _OrdersPageState extends State<OrdersPage> {
                                 if (active.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
-                                    child: DropdownMenu<String>(
-                                      initialSelection: _orderPickerId,
-                                      expandedInsets: EdgeInsets.zero,
-                                      enableFilter: true,
-                                      enableSearch: true,
-                                      leadingIcon:
-                                          const Icon(Icons.search_rounded),
-                                      label: const Text("เลือกออเดอร์"),
-                                      hintText:
-                                          "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
-                                      dropdownMenuEntries: active
-                                          .map(
-                                            (order) => DropdownMenuEntry<String>(
-                                              value: order.id,
-                                              label:
-                                                  "${order.customerName} • ${order.id.substring(0, 8)} • ${order.status}",
-                                            ),
-                                          )
-                                          .toList(),
-                                      onSelected: (value) async {
-                                        if (value == null) return;
-                                        setState(() {
-                                          _orderPickerId = value;
-                                        });
-                                        final target = active.firstWhere(
-                                          (o) => o.id == value,
-                                          orElse: () => active.first,
-                                        );
-                                        await _showOrderPreview(target);
-                                      },
+                                    child: Material(
+                                      type: MaterialType.transparency,
+                                      child: DropdownMenu<String>(
+                                        initialSelection: _orderPickerId,
+                                        expandedInsets: EdgeInsets.zero,
+                                        enableFilter: true,
+                                        enableSearch: true,
+                                        leadingIcon:
+                                            const Icon(Icons.search_rounded),
+                                        label: const Text("เลือกออเดอร์"),
+                                        hintText:
+                                            "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
+                                        dropdownMenuEntries: active
+                                            .map(
+                                              (order) =>
+                                                  DropdownMenuEntry<String>(
+                                                value: order.id,
+                                                label:
+                                                    "${order.customerName} • ${order.id.substring(0, 8)} • ${order.status}",
+                                              ),
+                                            )
+                                            .toList(),
+                                        onSelected: (value) async {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _orderPickerId = value;
+                                          });
+                                          final target = active.firstWhere(
+                                            (o) => o.id == value,
+                                            orElse: () => active.first,
+                                          );
+                                          await _showOrderPreview(target);
+                                        },
+                                      ),
                                     ),
                                   ),
                                 if (cancelled.isNotEmpty)
@@ -9786,110 +10125,6 @@ class _OrderChatPageState extends State<OrderChatPage> {
     });
   }
 
-  Future<void> _showOrderPreview(DeliveryOrder order) async {
-    final statusLabel = order.status == "new"
-        ? "ใหม่"
-        : order.status == "assigned"
-            ? "มอบหมายแล้ว"
-            : order.status == "in_production"
-                ? "กำลังผลิต"
-                : order.status == "qc_pending"
-                    ? "รอ QC"
-                    : order.status == "qc_passed"
-                        ? "ผ่าน QC"
-                        : order.status == "preparing"
-                            ? "กำลังจัดสินค้า"
-                            : order.status == "out_for_delivery"
-                                ? "กำลังส่ง"
-                                : order.status == "delivered"
-                                    ? "ส่งแล้ว"
-                                    : order.status == "cancelled"
-                                        ? "ยกเลิก"
-                                        : order.status;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.5,
-        child: SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          "ใบสรุปออเดอร์",
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          order.customerName,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await Navigator.of(this.context).push(
-                          MaterialPageRoute(
-                            builder: (_) => OrderChatPage(
-                              api: widget.api,
-                              currentUser: widget.currentUser,
-                              order: order,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      label: const Text("แชทติดตามงาน"),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const _ReceiptDivider(),
-                  const SizedBox(height: 8),
-                  _receiptRow("สถานะ", statusLabel),
-                  _receiptRow("ผู้รับออเดอร์", order.createdByName),
-                  _receiptRow("ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
-                  if (order.customerPhone != null &&
-                      order.customerPhone!.isNotEmpty)
-                    _receiptRow("โทร", order.customerPhone!),
-                  if (order.customerAddress != null &&
-                      order.customerAddress!.isNotEmpty)
-                    _receiptRow("ที่อยู่", order.customerAddress!),
-                  if (order.scheduledDeliveryAt != null)
-                    _receiptRow(
-                        "กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _pollTimer?.cancel();
@@ -10891,6 +11126,90 @@ Future<void> _showCustomLabelSheet(BuildContext context, String label) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (context) => _CustomLabelSheet(label: label),
+  );
+}
+
+Future<void> _showOutOfStockSheet(BuildContext context, List<Product> products) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.72,
+      minChildSize: 0.48,
+      maxChildSize: 0.94,
+      builder: (context, controller) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, color: Colors.redAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "สินค้าหมด: ${products.length} รายการ",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: _brandDeep,
+                        ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: "ปิด",
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "แตะสินค้าเพื่อดู barcode/QR และพิมพ์ป้ายได้ทันที",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: _brandInk.withOpacity(0.72),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                controller: controller,
+                itemCount: products.length,
+                itemBuilder: (context, index) {
+                  final product = products[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.redAccent.withOpacity(0.10),
+                      child: const Icon(Icons.error_outline,
+                          color: Colors.redAccent),
+                    ),
+                    title: Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _showProductCodeSheet(context, product),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 }
 
