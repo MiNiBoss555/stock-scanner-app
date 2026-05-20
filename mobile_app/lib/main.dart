@@ -10716,10 +10716,14 @@ class _OrderTile extends StatelessWidget {
                       onPressed: () => onStatusChanged("in_production"),
                       child: const Text("เริ่มผลิต"),
                     ),
-                  if (hasProduction &&
-                      hasQc &&
+                  // Allow sending to QC even if production wasn't assigned (some teams skip the production step).
+                  if (hasQc &&
                       (currentUser.isAdmin || isProducer) &&
-                      order.status == "in_production")
+                      (order.status == "in_production" ||
+                          ((!hasProduction) &&
+                              (order.status == "new" ||
+                                  order.status == "assigned" ||
+                                  order.status == "rework_required"))))
                     FilledButton.tonal(
                       onPressed: () => onStatusChanged("qc_pending"),
                       child: const Text("ส่ง QC"),
