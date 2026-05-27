@@ -307,7 +307,9 @@ class StockApiService {
   Future<AppUser> uploadProfileImage({
     required String requesterId,
     required String targetUserId,
-    required String filePath,
+    String? filePath,
+    List<int>? bytes,
+    String? filename,
   }) async {
     final request = http.MultipartRequest(
       "POST",
@@ -315,8 +317,21 @@ class StockApiService {
     )
       ..headers.addAll(_headers())
       ..fields["requester_id"] = requesterId
-      ..fields["target_user_id"] = targetUserId
-      ..files.add(await http.MultipartFile.fromPath("image", filePath));
+      ..fields["target_user_id"] = targetUserId;
+
+    if (bytes != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          "image",
+          bytes,
+          filename: filename ?? "profile.jpg",
+        ),
+      );
+    } else if (filePath != null) {
+      request.files.add(await http.MultipartFile.fromPath("image", filePath));
+    } else {
+      throw Exception("Missing image payload.");
+    }
 
     final streamed = await request.send().timeout(_requestTimeout);
     final response = await http.Response.fromStream(streamed);

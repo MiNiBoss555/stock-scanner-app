@@ -6,6 +6,7 @@ import "dart:ui" as ui;
 
 import "dart:convert";
 import "package:barcode_widget/barcode_widget.dart";
+import "package:file_picker/file_picker.dart";
 import "package:firebase_core/firebase_core.dart";
 import "package:firebase_messaging/firebase_messaging.dart";
 import "package:flutter/foundation.dart";
@@ -2327,13 +2328,32 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _pickAndUploadProfileImage(AppUser targetUser) async {
     try {
-      final file = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1600,
-      );
-      if (file == null) {
-        return;
+      String? filePath;
+      List<int>? bytes;
+      String? filename;
+
+      if (kIsWeb) {
+        final picked = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          withData: true,
+        );
+        final platformFile = picked?.files.isNotEmpty == true ? picked!.files.first : null;
+        if (platformFile == null || platformFile.bytes == null) {
+          return;
+        }
+        bytes = platformFile.bytes!;
+        filename = platformFile.name;
+      } else {
+        final file = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+          maxWidth: 1600,
+        );
+        if (file == null) {
+          return;
+        }
+        filePath = file.path;
+        filename = file.name;
       }
 
       setState(() {
@@ -2343,7 +2363,9 @@ class _ProfilePageState extends State<ProfilePage> {
       await widget.api.uploadProfileImage(
         requesterId: widget.currentUser.userId,
         targetUserId: targetUser.userId,
-        filePath: file.path,
+        filePath: filePath,
+        bytes: bytes,
+        filename: filename,
       );
       await _reload();
       _showSnack(
