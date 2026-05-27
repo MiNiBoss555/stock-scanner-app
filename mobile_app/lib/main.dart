@@ -1734,24 +1734,35 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
                   const SizedBox(height: 10),
                   Material(
                     type: MaterialType.transparency,
-                    child: DropdownMenu<String>(
-                      expandedInsets: EdgeInsets.zero,
-                      enableFilter: true,
-                      enableSearch: true,
-                      leadingIcon: const Icon(Icons.search_rounded),
-                      label: const Text("เลือกสินค้า"),
-                      hintText: "พิมพ์ชื่อ / บาร์โค้ด / SKU",
-                      initialSelection: selectedBarcode,
-                      dropdownMenuEntries: products
-                          .map(
-                            (p) => DropdownMenuEntry<String>(
-                              value: p.barcode,
-                              label:
-                                  "${p.name} • ${p.barcode} • คงเหลือ ${p.currentStock} ${p.unit}",
+                    // DropdownMenu inside a modal bottom sheet has caused framework assertions
+                    // on some devices/emulators. DropdownButtonFormField is more stable here.
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: (selectedBarcode != null &&
+                              products.any((p) => p.barcode == selectedBarcode))
+                          ? selectedBarcode
+                          : null,
+                      decoration: const InputDecoration(
+                        labelText: "เลือกสินค้า",
+                        hintText: "เลือกจากรายการ",
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text("— เลือกสินค้า —"),
+                        ),
+                        ...products.map(
+                          (p) => DropdownMenuItem<String>(
+                            value: p.barcode,
+                            child: Text(
+                              "${p.name} • ${p.barcode} • คงเหลือ ${p.currentStock} ${p.unit}",
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          )
-                          .toList(),
-                      onSelected: (value) {
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
                         setSheetState(() {
                           selectedBarcode = value;
                         });
