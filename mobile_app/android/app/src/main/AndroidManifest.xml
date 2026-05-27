@@ -4,13 +4,13 @@
     <application
         android:label="Scan Product"
         android:name="${applicationName}"
-        android:icon="@drawable/ic_launcher_custom"
-        android:roundIcon="@drawable/ic_launcher_custom"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:label="Scan Product"
-            android:icon="@drawable/ic_launcher_custom"
+            android:icon="@mipmap/ic_launcher"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
