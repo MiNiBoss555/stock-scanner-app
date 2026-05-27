@@ -4877,76 +4877,8 @@ class _WebDashboardHome extends StatelessWidget {
               ),
           const SizedBox(height: 18),
         ],
-        const _DashboardSectionHeader(
-          eyebrow: "Quick access",
-          title: "ค้นหาเร็ว",
-          subtitle: "ค้นหาสินค้าแล้วพิมพ์ป้ายหรือเปิดดู barcode ได้ทันที",
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: _softPanelDecoration(
-            tone: _brandPrimary,
-            surfaceStrength: 0.58,
-            radius: 24,
-          ),
-          child: Column(
-            children: [
-              TextField(
-                controller: productSearchController,
-                onChanged: onProductSearchChanged,
-                decoration: InputDecoration(
-                  labelText: "พิมพ์ชื่อสินค้าเพื่อค้นหาและพิมพ์ป้าย",
-                  hintText: "เช่น Printer Paper, น้ำดื่ม, 8850...",
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: productSearch.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: onClearProductSearch,
-                          icon: const Icon(Icons.close),
-                          tooltip: "ล้างคำค้น",
-                        ),
-                ),
-              ),
-              if (productSearch.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _showCustomLabelSheet(
-                      context,
-                      productSearch.trim(),
-                    ),
-                    icon: const Icon(Icons.print_outlined),
-                    label: const Text("พิมพ์ชื่อที่ค้นหาอยู่เลย"),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        if (productSearch.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          Text(
-            "ผลการค้นหา",
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (matchedProducts.isEmpty)
-            const _EmptyTile(
-              message: "ไม่พบสินค้าที่ค้นหา ลองพิมพ์ชื่อสินค้า บาร์โค้ด หรือ SKU",
-            )
-          else
-            ...matchedProducts.map(
-              (item) => _ProductTile(
-                product: item,
-                onOpenCode: () => _showProductCodeSheet(context, item),
-                onPrintLabel: () => _showProductCodeSheet(context, item),
-              ),
-            ),
-          const SizedBox(height: 20),
-        ] else
-          const SizedBox(height: 18),
+        // Keep the homepage short: move product search to the Stock tab.
+        const SizedBox(height: 18),
         const _DashboardSectionHeader(
           eyebrow: "Overview",
           title: "ภาพรวมด่วน",
@@ -5006,35 +4938,7 @@ class _WebDashboardHome extends StatelessWidget {
               ),
             ),
         const SizedBox(height: 18),
-        if (data.activeOrders.isNotEmpty)
-          _HeroReveal(
-            delayMs: 120,
-            child: _ActionBanner(
-              title: "งานค้างส่ง ${data.activeOrders.length} ออเดอร์",
-              subtitle: "มีงานที่ควรเปิดจัดส่งต่อทันทีจากหน้า dashboard",
-              icon: Icons.local_shipping_outlined,
-              onTap: onOpenOrdersTab,
-            ),
-          ),
-        if (data.activeOrders.isNotEmpty) const SizedBox(height: 18),
-        const _DashboardSectionHeader(
-          eyebrow: "Realtime feed",
-          title: "อัปเดตล่าสุด",
-          subtitle: "ภาพรวมงานจัดส่งที่ยังต้องตามต่อ",
-        ),
-        const SizedBox(height: 10),
-        if (data.activeOrders.isEmpty)
-          const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
-        else
-          ...data.activeOrders.toList().asMap().entries.map(
-                (entry) => _HeroReveal(
-                  delayMs: 180 + (entry.key * 50),
-                  child: _DashboardUpdateCard(
-                    order: entry.value,
-                    onTap: onOpenOrdersTab,
-                  ),
-                ),
-              ),
+        // The homepage already shows active orders above; avoid duplicating the same feed.
       ],
     );
   }
