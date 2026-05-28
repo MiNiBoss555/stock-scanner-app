@@ -1988,6 +1988,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<AppUser>> _usersFuture;
   late AppUser _profileUser;
+  int _profileImageNonce = 0;
   final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _userIdController = TextEditingController();
   final TextEditingController _userNameController = TextEditingController();
@@ -2375,6 +2376,12 @@ class _ProfilePageState extends State<ProfilePage> {
         filename: filename,
       );
       await _reload();
+      if (mounted) {
+        setState(() {
+          // Bust browser caches so the new image shows immediately on web.
+          _profileImageNonce = DateTime.now().millisecondsSinceEpoch;
+        });
+      }
       _showSnack(
           "\u0e2d\u0e31\u0e1b\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b\u0e42\u0e1b\u0e23\u0e44\u0e1f\u0e25\u0e4c\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22");
     } catch (error) {
@@ -2577,13 +2584,20 @@ class _ProfilePageState extends State<ProfilePage> {
                                     border: Border.all(
                                         color: _profileTeal.withOpacity(0.08)),
                                   ),
-                                  child: _UserAvatar(
-                                    imageUrl: widget.api.resolveAssetUrl(
-                                      _profileUser.profileImageUrl,
+                                    child: _UserAvatar(
+                                      imageUrl: (() {
+                                        final base = widget.api.resolveAssetUrl(
+                                          _profileUser.profileImageUrl,
+                                        );
+                                        if (base.isEmpty) return base;
+                                        final nonce = _profileImageNonce;
+                                        if (nonce == 0) return base;
+                                        final sep = base.contains("?") ? "&" : "?";
+                                        return "$base${sep}v=$nonce";
+                                      })(),
+                                      name: _profileUser.userName,
+                                      radius: 58,
                                     ),
-                                    name: _profileUser.userName,
-                                    radius: 58,
-                                  ),
                                 ),
                               ),
                             ),
