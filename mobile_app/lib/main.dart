@@ -2337,8 +2337,14 @@ class _ProfilePageState extends State<ProfilePage> {
           type: FileType.image,
           withData: true,
         );
-        final platformFile = picked?.files.isNotEmpty == true ? picked!.files.first : null;
-        if (platformFile == null || platformFile.bytes == null) {
+        final platformFile =
+            picked?.files.isNotEmpty == true ? picked!.files.first : null;
+        if (platformFile == null) {
+          _showSnack("ยังไม่ได้เลือกไฟล์รูป");
+          return;
+        }
+        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+          _showSnack("ไม่สามารถอ่านไฟล์รูปจากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
           return;
         }
         bytes = platformFile.bytes!;
@@ -2350,6 +2356,7 @@ class _ProfilePageState extends State<ProfilePage> {
           maxWidth: 1600,
         );
         if (file == null) {
+          _showSnack("ยังไม่ได้เลือกรูป");
           return;
         }
         filePath = file.path;
