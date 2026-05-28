@@ -10387,8 +10387,11 @@ class _OrderTile extends StatelessWidget {
         isDelivery;
     final hasProduction = (order.productionUserId ?? "").isNotEmpty ||
         (order.productionUserName ?? "").trim().isNotEmpty;
-    final hasQc =
-        (order.qcUserId ?? "").isNotEmpty || (order.qcUserName ?? "").trim().isNotEmpty;
+    final qcAssigned = (order.qcUserId ?? "").isNotEmpty ||
+        (order.qcUserName ?? "").trim().isNotEmpty;
+    // If the team didn't explicitly assign QC, still allow QC-role staff/admin
+    // to see and claim QC steps.
+    final qcEnabled = qcAssigned || currentUser.isAdmin || isQcRole;
     final canMarkDelivered = proofCount > 0;
     final deliveredCount = order.items
         .where((item) => item.deliveredQuantity >= item.quantity)
@@ -10675,25 +10678,25 @@ class _OrderTile extends StatelessWidget {
                       child: const Text("เริ่มผลิต"),
                     ),
                   // Allow sending to QC even if production wasn't assigned (some teams skip the production step).
-                  if (hasQc &&
+                  if (qcEnabled &&
                       (currentUser.isAdmin || isProducer) &&
                       (order.status == "in_production" ||
                           ((!hasProduction) &&
                               (order.status == "new" ||
-                                  order.status == "assigned" ||
-                                  order.status == "rework_required"))))
+                                   order.status == "assigned" ||
+                                   order.status == "rework_required"))))
                     FilledButton.tonal(
                       onPressed: () => onStatusChanged("qc_pending"),
                       child: const Text("ส่ง QC"),
                     ),
-                  if (hasQc &&
+                  if (qcEnabled &&
                       (currentUser.isAdmin || isQc) &&
                       order.status == "qc_pending")
                     FilledButton.tonal(
                       onPressed: () => onStatusChanged("rework_required"),
                       child: const Text("ตีกลับแก้"),
                     ),
-                  if (hasQc &&
+                  if (qcEnabled &&
                       (currentUser.isAdmin || isQc) &&
                       order.status == "qc_pending")
                     FilledButton.tonal(
@@ -10702,13 +10705,13 @@ class _OrderTile extends StatelessWidget {
                     ),
                   if ((currentUser.isAdmin || isDelivery) &&
                       ((hasProduction &&
-                              hasQc &&
+                              qcAssigned &&
                               order.status == "qc_passed") ||
                           (hasProduction &&
-                              !hasQc &&
+                              !qcAssigned &&
                               order.status == "in_production") ||
                           (!hasProduction &&
-                              !hasQc &&
+                              !qcAssigned &&
                               (order.status == "new" ||
                                   order.status == "assigned"))))
                     FilledButton.tonal(
