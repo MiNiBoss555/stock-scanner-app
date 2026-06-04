@@ -365,6 +365,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
             _isRestoring = false;
           });
         }
+        _api.setAccessToken(session.accessToken);
         await _registerPushForUser(session.user.userId);
         return;
       } catch (_) {
@@ -388,6 +389,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
 
   Future<void> _handleLogin(LoginSession session) async {
     final prefs = await SharedPreferences.getInstance();
+    _api.setAccessToken(session.accessToken);
     await prefs.setString(_sessionUserIdKey, session.user.userId);
     await prefs.setString(_sessionAccessTokenKey, session.accessToken);
     await prefs.remove(_sessionPinKey);
@@ -396,7 +398,11 @@ class _StockScannerAppState extends State<StockScannerApp> {
         _currentUser = session.user;
       });
     }
-    await _registerPushForUser(session.user.userId);
+    try {
+      await _registerPushForUser(session.user.userId);
+    } catch (_) {
+      // best effort
+    }
   }
 
   Future<void> _registerPushForUser(String userId) async {
@@ -2334,7 +2340,7 @@ class _ProfilePageState extends State<ProfilePage> {
       String? filename;
 
       if (kIsWeb) {
-        final picked = await FilePicker.platform.pickFiles(
+        final picked = await FilePicker.pickFiles(
           type: FileType.image,
           withData: true,
         );
@@ -7811,7 +7817,21 @@ class _OrdersPageState extends State<OrdersPage> {
                     itemBuilder: (context, index) {
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(photos[index], fit: BoxFit.cover),
+                        child: Image.network(
+                          photos[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: _brandSurfaceStrong.withValues(alpha: 0.35),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(12),
+                              child: const Text(
+                                "ดูรูปไม่ได้",
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
@@ -8903,6 +8923,72 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _pickAndImportProductsExcel() async {
+    if (!widget.currentUser.isAdmin) {
+      _showSnack(
+          "\u0e40\u0e09\u0e1e\u0e32\u0e30 admin \u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49\u0e44\u0e14\u0e49");
+      return;
+    }
+
+    try {
+      String? filePath;
+      List<int>? bytes;
+      String? filename;
+
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ["xlsx", "xlsm"],
+        withData: kIsWeb,
+      );
+      final platformFile =
+          picked?.files.isNotEmpty == true ? picked!.files.first : null;
+      if (platformFile == null) {
+        _showSnack("ยังไม่ได้เลือกไฟล์ Excel");
+        return;
+      }
+
+      filename = platformFile.name;
+      if (kIsWeb) {
+        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+          _showSnack("ไม่สามารถอ่านไฟล์ Excel จากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
+          return;
+        }
+        bytes = platformFile.bytes!;
+      } else {
+        filePath = platformFile.path;
+        if (filePath == null || filePath.isEmpty) {
+          _showSnack("ไม่พบ path ของไฟล์ Excel");
+          return;
+        }
+      }
+
+      setState(() {
+        _isRunning = true;
+      });
+      final message = await widget.api.importProductsExcel(
+        requesterId: widget.currentUser.userId,
+        filePath: filePath,
+        bytes: bytes,
+        filename: filename,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastMessage = message;
+      });
+      _showSnack(message);
+    } catch (error) {
+      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRunning = false;
+        });
+      }
+    }
+  }
+
   void _showSnack(String message) {
     _showAppSnack(context, message);
   }
@@ -9083,6 +9169,12 @@ class _AdminPageState extends State<AdminPage> {
                               ),
                       child: const Text(
                           "\u0e0b\u0e34\u0e07\u0e01\u0e4c\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32"),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonal(
+                      onPressed: _isRunning ? null : _pickAndImportProductsExcel,
+                      child: const Text(
+                          "\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32 Excel \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32"),
                     ),
                     const SizedBox(height: 8),
                     FilledButton(
@@ -9911,6 +10003,8 @@ class _UserAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageProvider = _networkImageProvider(imageUrl);
     return CircleAvatar(
+      // Force a fresh image resolution when the URL changes (helps on web + in-app caches).
+      key: ValueKey(imageUrl),
       radius: radius,
       backgroundColor: _brandSurfaceStrong,
       backgroundImage: imageProvider,

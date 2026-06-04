@@ -2,6 +2,7 @@
 import "dart:async";
 import "dart:io";
 
+import "package:flutter/foundation.dart";
 import "package:http/http.dart" as http;
 
 import "config.dart";
@@ -14,7 +15,7 @@ class StockApiService {
   static const String _timeoutMessage =
       "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่";
 
-  String? _accessToken;
+  static String? _accessToken;
 
   void setAccessToken(String? value) {
     final trimmed = value?.trim();
@@ -103,11 +104,14 @@ class StockApiService {
     }
   }
 
-  Future<http.Response> _get(String path,
-      [Map<String, String>? queryParameters]) async {
+  Future<http.Response> _get(
+    String path, [
+    Map<String, String>? queryParameters,
+    Map<String, String>? headers,
+  ]) async {
     try {
       return await http
-          .get(_uri(path, queryParameters), headers: _headers())
+          .get(_uri(path, queryParameters), headers: _headers(headers))
           .timeout(_requestTimeout);
     } on TimeoutException {
       throw Exception(
@@ -119,12 +123,16 @@ class StockApiService {
     String path,
     Map<String, dynamic> payload, [
     Map<String, String>? queryParameters,
+    Map<String, String>? headers,
   ]) async {
     try {
       return await http
           .post(
             _uri(path, queryParameters),
-            headers: _headers({"Content-Type": "application/json"}),
+            headers: _headers({
+              "Content-Type": "application/json",
+              ...?headers,
+            }),
             body: jsonEncode(payload),
           )
           .timeout(_requestTimeout);
@@ -165,10 +173,11 @@ class StockApiService {
   Future<http.Response> _delete(
     String path, [
     Map<String, String>? queryParameters,
+    Map<String, String>? headers,
   ]) async {
     try {
       return await http
-          .delete(_uri(path, queryParameters), headers: _headers())
+          .delete(_uri(path, queryParameters), headers: _headers(headers))
           .timeout(_requestTimeout);
     } on TimeoutException {
       throw Exception(
@@ -188,6 +197,7 @@ class StockApiService {
         "token": token,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
   }
 
@@ -249,7 +259,7 @@ class StockApiService {
   }
 
   Future<void> logout() async {
-    await _postJson("/auth/logout", {});
+    await _postJson("/auth/logout", {}, null, _headers());
     clearAccessToken();
   }
 
@@ -257,10 +267,15 @@ class StockApiService {
     required String currentPin,
     required String newPin,
   }) async {
-    final response = await _postJson("/auth/change-pin", {
-      "current_pin": currentPin,
-      "new_pin": newPin,
-    });
+    final response = await _postJson(
+      "/auth/change-pin",
+      {
+        "current_pin": currentPin,
+        "new_pin": newPin,
+      },
+      null,
+      _headers(),
+    );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "PIN changed successfully.";
   }
@@ -275,16 +290,21 @@ class StockApiService {
     String? pin,
     String? profileImageUrl,
   }) async {
-    final response = await _postJson("/users/upsert", {
-      "requester_id": requesterId,
-      "user_id": userId,
-      "user_name": userName,
-      "role": role,
-      "position": position,
-      "active": active,
-      "pin": pin,
-      "profile_image_url": profileImageUrl,
-    });
+    final response = await _postJson(
+      "/users/upsert",
+      {
+        "requester_id": requesterId,
+        "user_id": userId,
+        "user_name": userName,
+        "role": role,
+        "position": position,
+        "active": active,
+        "pin": pin,
+        "profile_image_url": profileImageUrl,
+      },
+      null,
+      _headers(),
+    );
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
@@ -299,6 +319,7 @@ class StockApiService {
         "requester_id": requesterId,
         "delete_movements": deleteMovements.toString(),
       },
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Deleted user";
@@ -355,6 +376,7 @@ class StockApiService {
       "/integrations/google-sheets/sync/products",
       {},
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Synced products";
@@ -365,6 +387,7 @@ class StockApiService {
       "/integrations/google-sheets/sync/users",
       {},
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Synced users";
@@ -375,6 +398,7 @@ class StockApiService {
       "/integrations/google-sheets/sync/stocks",
       {},
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Synced stocks";
@@ -385,9 +409,49 @@ class StockApiService {
       "/integrations/google-sheets/append-test",
       {},
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Append test completed";
+  }
+
+  Future<String> importProductsExcel({
+    required String requesterId,
+    String? filePath,
+    List<int>? bytes,
+    String? filename,
+  }) async {
+    final request = http.MultipartRequest(
+      "POST",
+      _uri("/products/import-excel"),
+    )..headers.addAll(_headers());
+
+    request.fields["requester_id"] = requesterId;
+
+    if (bytes != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          "file",
+          bytes,
+          filename: filename ?? "products.xlsx",
+        ),
+      );
+    } else if (filePath != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          filePath,
+          filename: filename,
+        ),
+      );
+    } else {
+      throw Exception("Missing Excel file payload.");
+    }
+
+    final streamed = await request.send().timeout(_requestTimeout);
+    final response = await http.Response.fromStream(streamed);
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "นำเข้า Excel สำเร็จ";
   }
 
   Future<ExportLink> createExportLink({
@@ -406,6 +470,7 @@ class StockApiService {
         "actor_id": actorId,
       },
       {"requester_id": requesterId},
+      _headers(),
     ).then((response) {
       final body = _decode(response) as Map<String, dynamic>;
       final link = ExportLink.fromJson(body);
@@ -467,22 +532,27 @@ class StockApiService {
     String? productLocation,
     String? productSku,
   }) async {
-    final response = await _postJson("/scan", {
-      "barcode": barcode,
-      "action": action,
-      "quantity": quantity,
-      "actor_id": actorId,
-      "actor_name": actorName,
-      "note": note,
-      "reference": reference,
-      "auto_create_product": autoCreateProduct,
-      "product_name": productName,
-      "product_unit": productUnit,
-      "product_minimum_stock": productMinimumStock,
-      "product_category": productCategory,
-      "product_location": productLocation,
-      "product_sku": productSku,
-    });
+    final response = await _postJson(
+      "/scan",
+      {
+        "barcode": barcode,
+        "action": action,
+        "quantity": quantity,
+        "actor_id": actorId,
+        "actor_name": actorName,
+        "note": note,
+        "reference": reference,
+        "auto_create_product": autoCreateProduct,
+        "product_name": productName,
+        "product_unit": productUnit,
+        "product_minimum_stock": productMinimumStock,
+        "product_category": productCategory,
+        "product_location": productLocation,
+        "product_sku": productSku,
+      },
+      null,
+      _headers(),
+    );
     return ScanResult.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
@@ -491,9 +561,14 @@ class StockApiService {
   }) async {
     http.Response response;
     try {
-      response = await _postJson("/assistant/chat", {
-        "message": message,
-      });
+      response = await _postJson(
+        "/assistant/chat",
+        {
+          "message": message,
+        },
+        null,
+        _headers(),
+      );
     } catch (error) {
       final text = error.toString().toLowerCase();
       if (text.contains("not found")) {
@@ -528,12 +603,22 @@ class StockApiService {
     bool mineOnly = false,
     int limit = 300,
   }) async {
-    final response = await _get("/orders", {
-      "requester_id": requesterId,
-      "assigned_only": assignedOnly.toString(),
-      "mine_only": mineOnly.toString(),
-      "limit": limit.toString(),
-    });
+    assert(() {
+      debugPrint(
+        "[api] getOrders requester=$requesterId token=${_accessToken == null ? 'null' : '${_accessToken!.substring(0, _accessToken!.length.clamp(0, 8))}...'}",
+      );
+      return true;
+    }());
+    final response = await _get(
+      "/orders",
+      {
+        "requester_id": requesterId,
+        "assigned_only": assignedOnly.toString(),
+        "mine_only": mineOnly.toString(),
+        "limit": limit.toString(),
+      },
+      _headers(),
+    );
     final body = _decode(response);
     return (body as List<dynamic>)
         .map((item) => DeliveryOrder.fromJson(item as Map<String, dynamic>))
@@ -568,6 +653,7 @@ class StockApiService {
         "items": items,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -579,6 +665,7 @@ class StockApiService {
     final response = await _get(
       "/orders/$orderId/messages",
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     final items = body["items"] as List<dynamic>? ?? const [];
@@ -596,6 +683,7 @@ class StockApiService {
       "/orders/$orderId/messages",
       {"message": message},
       {"requester_id": requesterId},
+      _headers(),
     );
     final body = _decode(response) as Map<String, dynamic>;
     final item = body["item"] as Map<String, dynamic>;
@@ -610,6 +698,7 @@ class StockApiService {
       "/orders/$orderId/messages/read",
       const {},
       {"requester_id": requesterId},
+      _headers(),
     );
   }
 
@@ -624,6 +713,7 @@ class StockApiService {
         "assigned_to_id": assignedToId,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -643,6 +733,7 @@ class StockApiService {
         "delivery_user_id": deliveryUserId,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -658,6 +749,7 @@ class StockApiService {
         "status": status,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -675,6 +767,7 @@ class StockApiService {
         "note": note,
       },
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -687,6 +780,7 @@ class StockApiService {
       "/orders/$orderId/resolve-backorder",
       const {},
       {"requester_id": requesterId},
+      _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
