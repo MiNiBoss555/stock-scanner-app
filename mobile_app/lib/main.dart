@@ -1,4 +1,4 @@
-﻿import "dart:async";
+import "dart:async";
 import "dart:io";
 import "dart:math";
 import "dart:typed_data";
@@ -44,6 +44,7 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
 const _sessionUserIdKey = "session_user_id";
 const _sessionPinKey = "session_pin";
 const _sessionAccessTokenKey = "session_access_token";
+const _sessionUserJsonKey = "session_user_json";
 const _brandPrimary = Color(0xFF005AA7);
 const _brandSurface = Colors.white;
 const _brandSurfaceStrong = Color(0xFFB9D6F2);
@@ -220,6 +221,7 @@ String _repairThaiMojibake(String value) {
   bool looksMojibake(String s) {
     return RegExp(r"(à¸|à¹|Ã|�)").hasMatch(s);
   }
+
   for (var i = 0; i < 2; i++) {
     if (!looksMojibake(repaired)) {
       break;
@@ -325,11 +327,39 @@ class _StockScannerAppState extends State<StockScannerApp> {
     final savedToken = prefs.getString(_sessionAccessTokenKey);
     final savedUserId = prefs.getString(_sessionUserIdKey);
     final savedPin = prefs.getString(_sessionPinKey);
+    final savedUserJson = prefs.getString(_sessionUserJsonKey);
+
+    if (savedToken != null &&
+        savedToken.isNotEmpty &&
+        savedUserJson != null &&
+        savedUserJson.isNotEmpty) {
+      try {
+        final cachedUser = AppUser.fromJson(
+          jsonDecode(savedUserJson) as Map<String, dynamic>,
+        );
+        _api.setAccessToken(savedToken);
+        final elapsed = DateTime.now().difference(startedAt);
+        if (elapsed < _minSplashDuration) {
+          await Future<void>.delayed(_minSplashDuration - elapsed);
+        }
+        if (mounted) {
+          setState(() {
+            _currentUser = cachedUser;
+            _isRestoring = false;
+          });
+        }
+        unawaited(_refreshRestoredSession(prefs));
+        return;
+      } catch (_) {
+        await prefs.remove(_sessionUserJsonKey);
+      }
+    }
 
     if (savedToken != null && savedToken.isNotEmpty) {
       try {
         _api.setAccessToken(savedToken);
         final user = await _api.getCurrentUser().timeout(_restoreTimeout);
+        await prefs.setString(_sessionUserJsonKey, jsonEncode(user.toJson()));
         final elapsed = DateTime.now().difference(startedAt);
         if (elapsed < _minSplashDuration) {
           await Future<void>.delayed(_minSplashDuration - elapsed);
@@ -345,6 +375,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
       } catch (_) {
         _api.clearAccessToken();
         await prefs.remove(_sessionAccessTokenKey);
+        await prefs.remove(_sessionUserJsonKey);
       }
     }
 
@@ -354,6 +385,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
             .login(userId: savedUserId, pin: savedPin)
             .timeout(_restoreTimeout);
         await prefs.setString(_sessionAccessTokenKey, session.accessToken);
+        await prefs.setString(
+            _sessionUserJsonKey, jsonEncode(session.user.toJson()));
         await prefs.remove(_sessionPinKey);
         final elapsed = DateTime.now().difference(startedAt);
         if (elapsed < _minSplashDuration) {
@@ -373,6 +406,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
         await prefs.remove(_sessionAccessTokenKey);
         await prefs.remove(_sessionUserIdKey);
         await prefs.remove(_sessionPinKey);
+        await prefs.remove(_sessionUserJsonKey);
       }
     }
 
@@ -387,11 +421,37 @@ class _StockScannerAppState extends State<StockScannerApp> {
     }
   }
 
+  Future<void> _refreshRestoredSession(SharedPreferences prefs) async {
+    try {
+      final user = await _api.getCurrentUser().timeout(_restoreTimeout);
+      await prefs.setString(_sessionUserJsonKey, jsonEncode(user.toJson()));
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+        });
+      }
+      await _registerPushForUser(user.userId);
+    } catch (_) {
+      _api.clearAccessToken();
+      await prefs.remove(_sessionAccessTokenKey);
+      await prefs.remove(_sessionUserIdKey);
+      await prefs.remove(_sessionPinKey);
+      await prefs.remove(_sessionUserJsonKey);
+      if (mounted) {
+        setState(() {
+          _currentUser = null;
+        });
+      }
+    }
+  }
+
   Future<void> _handleLogin(LoginSession session) async {
     final prefs = await SharedPreferences.getInstance();
     _api.setAccessToken(session.accessToken);
     await prefs.setString(_sessionUserIdKey, session.user.userId);
     await prefs.setString(_sessionAccessTokenKey, session.accessToken);
+    await prefs.setString(
+        _sessionUserJsonKey, jsonEncode(session.user.toJson()));
     await prefs.remove(_sessionPinKey);
     if (mounted) {
       setState(() {
@@ -433,6 +493,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
     await prefs.remove(_sessionAccessTokenKey);
     await prefs.remove(_sessionUserIdKey);
     await prefs.remove(_sessionPinKey);
+    await prefs.remove(_sessionUserJsonKey);
     if (mounted) {
       setState(() {
         _currentUser = null;
@@ -445,6 +506,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
       return;
     }
     final refreshed = await _api.getCurrentUser();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionUserJsonKey, jsonEncode(refreshed.toJson()));
     if (mounted) {
       setState(() {
         _currentUser = refreshed;
@@ -1090,8 +1153,7 @@ class _LoginPageState extends State<LoginPage> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                  "เข้าสู่ระบบ",
+                              Text("เข้าสู่ระบบ",
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall),
@@ -1102,7 +1164,8 @@ class _LoginPageState extends State<LoginPage> {
                               const SizedBox(height: 20),
                               TextField(
                                 controller: _userIdController,
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(
                                     RegExp(r"[A-Za-z0-9_-]"),
@@ -1145,8 +1208,7 @@ class _LoginPageState extends State<LoginPage> {
                                             strokeWidth: 2),
                                       )
                                     : const Icon(Icons.login),
-                                label: const Text(
-                                    "เข้าสู่ระบบ"),
+                                label: const Text("เข้าสู่ระบบ"),
                               ),
                               const SizedBox(height: 12),
                               const Text(
@@ -1542,8 +1604,7 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
     setState(() {
       _messages = [
         ..._messages,
-        _ChatMessage.bot(
-            "สต็อกมีการอัปเดตแล้ว ถามใหม่ได้เลย"),
+        _ChatMessage.bot("สต็อกมีการอัปเดตแล้ว ถามใหม่ได้เลย"),
       ];
     });
     _scrollToBottom();
@@ -1790,7 +1851,8 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => Navigator.of(sheetContext).pop(false),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(false),
                           child: const Text("ยกเลิก"),
                         ),
                       ),
@@ -1902,16 +1964,15 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
                     final suggestion = suggestions[index];
                     return ActionChip(
                       label: Text(suggestion),
-                      onPressed:
-                          _isSending
-                              ? null
-                              : () {
-                                  if (suggestion == "เบิกสินค้า") {
-                                    _openWithdrawFlow();
-                                    return;
-                                  }
-                                  _sendMessage(suggestion);
-                                },
+                      onPressed: _isSending
+                          ? null
+                          : () {
+                              if (suggestion == "เบิกสินค้า") {
+                                _openWithdrawFlow();
+                                return;
+                              }
+                              _sendMessage(suggestion);
+                            },
                     );
                   },
                 ),
@@ -2351,7 +2412,8 @@ class _ProfilePageState extends State<ProfilePage> {
           return;
         }
         if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
-          _showSnack("ไม่สามารถอ่านไฟล์รูปจากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
+          _showSnack(
+              "ไม่สามารถอ่านไฟล์รูปจากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
           return;
         }
         bytes = platformFile.bytes!;
@@ -2590,20 +2652,21 @@ class _ProfilePageState extends State<ProfilePage> {
                                     border: Border.all(
                                         color: _profileTeal.withOpacity(0.08)),
                                   ),
-                                    child: _UserAvatar(
-                                      imageUrl: (() {
-                                        final base = widget.api.resolveAssetUrl(
-                                          _profileUser.profileImageUrl,
-                                        );
-                                        if (base.isEmpty) return base;
-                                        final nonce = _profileImageNonce;
-                                        if (nonce == 0) return base;
-                                        final sep = base.contains("?") ? "&" : "?";
-                                        return "$base${sep}v=$nonce";
-                                      })(),
-                                      name: _profileUser.userName,
-                                      radius: 58,
-                                    ),
+                                  child: _UserAvatar(
+                                    imageUrl: (() {
+                                      final base = widget.api.resolveAssetUrl(
+                                        _profileUser.profileImageUrl,
+                                      );
+                                      if (base.isEmpty) return base;
+                                      final nonce = _profileImageNonce;
+                                      if (nonce == 0) return base;
+                                      final sep =
+                                          base.contains("?") ? "&" : "?";
+                                      return "$base${sep}v=$nonce";
+                                    })(),
+                                    name: _profileUser.userName,
+                                    radius: 58,
+                                  ),
                                 ),
                               ),
                             ),
@@ -3628,14 +3691,14 @@ class _DashboardPageState extends State<DashboardPage> with RouteAware {
                       onPressed: () async {
                         Navigator.of(context).pop();
                         await Navigator.of(this.context).push(
-                              MaterialPageRoute(
-                                builder: (_) => OrderChatPage(
-                                  api: widget.api,
-                                  currentUser: widget.currentUser,
-                                  order: order,
-                                ),
-                              ),
-                            );
+                          MaterialPageRoute(
+                            builder: (_) => OrderChatPage(
+                              api: widget.api,
+                              currentUser: widget.currentUser,
+                              order: order,
+                            ),
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.chat_bubble_outline),
                       label: const Text("แชทติดตามงาน"),
@@ -3913,7 +3976,8 @@ class _DashboardPageState extends State<DashboardPage> with RouteAware {
                 ),
                 const SizedBox(height: 8),
                 if (data.todayUpdatedOrders.isEmpty)
-                  const _EmptyTile(message: "ยังไม่มีออเดอร์ที่อัปเดตใหม่วันนี้")
+                  const _EmptyTile(
+                      message: "ยังไม่มีออเดอร์ที่อัปเดตใหม่วันนี้")
                 else
                   ...data.todayUpdatedOrders.map(
                     (order) => Card(
@@ -4075,10 +4139,10 @@ class _DashboardPageState extends State<DashboardPage> with RouteAware {
                               ),
                             ),
                             const SizedBox(height: 8),
-	              Wrap(
-	                spacing: 8,
-	                runSpacing: 8,
-	                children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
                                 OutlinedButton.icon(
                                   onPressed: () => _showOrderPreview(order),
                                   icon: const Icon(Icons.visibility_outlined),
@@ -4289,8 +4353,8 @@ class _MobileDashboardHome extends StatelessWidget {
     final dueText = order.scheduledDeliveryAt != null
         ? "กำหนดส่ง: ${_formatDateTime(order.scheduledDeliveryAt!)}"
         : "อัปเดต: ${_formatDateTime(order.updatedAt)}";
-    final supportingText =
-        supporting ?? "${order.items.length} รายการ · ผู้ส่ง: ${order.createdByName}";
+    final supportingText = supporting ??
+        "${order.items.length} รายการ · ผู้ส่ง: ${order.createdByName}";
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -4313,11 +4377,12 @@ class _MobileDashboardHome extends StatelessWidget {
                     if (eyebrow != null) ...[
                       Text(
                         eyebrow.toUpperCase(),
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: accent,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
                       ),
                       const SizedBox(height: 10),
                     ],
@@ -4460,9 +4525,7 @@ class _MobileDashboardHome extends StatelessWidget {
         .where((order) => order.unreadCount > 0)
         .toList()
       ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
-    final outOfStock = data.products
-        .where((p) => p.currentStock <= 0)
-        .toList()
+    final outOfStock = data.products.where((p) => p.currentStock <= 0).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
     return ColoredBox(
@@ -4537,10 +4600,7 @@ class _MobileDashboardHome extends StatelessWidget {
             const SizedBox(height: 12),
             _ActionBanner(
               title: "สินค้าหมด: ${outOfStock.length} รายการ",
-              subtitle: outOfStock
-                  .take(3)
-                  .map((p) => p.name)
-                  .join(" · "),
+              subtitle: outOfStock.take(3).map((p) => p.name).join(" · "),
               icon: Icons.inventory_2_outlined,
               tone: Colors.redAccent,
               onTap: () => _showOutOfStockSheet(context, outOfStock),
@@ -4600,6 +4660,7 @@ class _MobileDashboardHome extends StatelessWidget {
     );
   }
 }
+
 class _WebDashboardHero extends StatelessWidget {
   const _WebDashboardHero();
 
@@ -4738,11 +4799,13 @@ class _WebDashboardHero extends StatelessWidget {
                           color: _brandPrimary,
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.show_chart_rounded, color: Colors.white),
+                        child: const Icon(Icons.show_chart_rounded,
+                            color: Colors.white),
                       ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(999),
@@ -4761,7 +4824,10 @@ class _WebDashboardHero extends StatelessWidget {
                             const SizedBox(width: 7),
                             Text(
                               "Live",
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
                                     color: _brandDeep,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -4780,15 +4846,17 @@ class _WebDashboardHero extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.rocket_launch_rounded, color: _brandPrimary, size: 18),
+                        const Icon(Icons.rocket_launch_rounded,
+                            color: _brandPrimary, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             "โหมดใช้งานเร็วสำหรับเปิดออเดอร์และสต็อกต่อเนื่อง",
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: _brandInk.withOpacity(0.76),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: _brandInk.withOpacity(0.76),
+                                      fontWeight: FontWeight.w600,
+                                    ),
                           ),
                         ),
                       ],
@@ -4812,7 +4880,8 @@ class _WebDashboardHero extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -4831,7 +4900,10 @@ class _WebDashboardHero extends StatelessWidget {
                         Expanded(
                           child: Text(
                             "Workspace online",
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
                                   color: _brandDeep,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -4839,9 +4911,10 @@ class _WebDashboardHero extends StatelessWidget {
                         ),
                         Text(
                           _webBuildTag,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: _brandInk.withOpacity(0.55),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: _brandInk.withOpacity(0.55),
+                                  ),
                         ),
                       ],
                     ),
@@ -4881,9 +4954,7 @@ class _WebDashboardHome extends StatelessWidget {
         .where((order) => order.unreadCount > 0)
         .toList()
       ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
-    final outOfStock = data.products
-        .where((p) => p.currentStock <= 0)
-        .toList()
+    final outOfStock = data.products.where((p) => p.currentStock <= 0).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
     return ListView(
@@ -4920,7 +4991,8 @@ class _WebDashboardHome extends StatelessWidget {
             delayMs: 80,
             child: _ActionBanner(
               title: "งานค้างส่ง ${data.activeOrders.length} ออเดอร์",
-              subtitle: "แตะเพื่อเปิดหน้าออเดอร์ หรือดูขั้นตอนปัจจุบันจากรายการด้านล่าง",
+              subtitle:
+                  "แตะเพื่อเปิดหน้าออเดอร์ หรือดูขั้นตอนปัจจุบันจากรายการด้านล่าง",
               icon: Icons.local_shipping_outlined,
               onTap: onOpenOrdersTab,
             ),
@@ -5572,8 +5644,8 @@ class _LowStockFocusCard extends StatelessWidget {
                   color: _brandPrimary.withOpacity(0.10),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child:
-                    const Icon(Icons.warning_amber_rounded, color: _brandPrimary),
+                child: const Icon(Icons.warning_amber_rounded,
+                    color: _brandPrimary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -7124,7 +7196,8 @@ class _OrdersPageState extends State<OrdersPage> {
                   const SizedBox(height: 8),
                   _receiptRow("สถานะ", statusLabel),
                   _receiptRow("ผู้รับออเดอร์", order.createdByName),
-                  _receiptRow("ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  _receiptRow(
+                      "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
                   if (order.customerPhone != null &&
                       order.customerPhone!.isNotEmpty)
                     _receiptRow("โทร", order.customerPhone!),
@@ -7132,7 +7205,8 @@ class _OrdersPageState extends State<OrdersPage> {
                       order.customerAddress!.isNotEmpty)
                     _receiptRow("ที่อยู่", order.customerAddress!),
                   if (order.scheduledDeliveryAt != null)
-                    _receiptRow("กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
+                    _receiptRow(
+                        "กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: () {
@@ -7703,8 +7777,8 @@ class _OrdersPageState extends State<OrdersPage> {
                           child: Row(
                             children: [
                               Expanded(
-                                  child:
-                                      Text("${item.productName} (ค้าง $remaining)")),
+                                  child: Text(
+                                      "${item.productName} (ค้าง $remaining)")),
                               const SizedBox(width: 8),
                               SizedBox(
                                 width: 72,
@@ -7822,7 +7896,8 @@ class _OrdersPageState extends State<OrdersPage> {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
-                              color: _brandSurfaceStrong.withValues(alpha: 0.35),
+                              color:
+                                  _brandSurfaceStrong.withValues(alpha: 0.35),
                               alignment: Alignment.center,
                               padding: const EdgeInsets.all(12),
                               child: const Text(
@@ -8950,7 +9025,8 @@ class _AdminPageState extends State<AdminPage> {
       filename = platformFile.name;
       if (kIsWeb) {
         if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
-          _showSnack("ไม่สามารถอ่านไฟล์ Excel จากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
+          _showSnack(
+              "ไม่สามารถอ่านไฟล์ Excel จากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
           return;
         }
         bytes = platformFile.bytes!;
@@ -9061,7 +9137,8 @@ class _AdminPageState extends State<AdminPage> {
     if (filtered.isEmpty) {
       return const [
         _EmptyTile(
-          message: "ไม่พบไฟล์ที่ค้นหา ลองพิมพ์คำว่า Excel, CSV, สินค้า หรือ ประวัติ",
+          message:
+              "ไม่พบไฟล์ที่ค้นหา ลองพิมพ์คำว่า Excel, CSV, สินค้า หรือ ประวัติ",
         ),
       ];
     }
@@ -9172,7 +9249,8 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                     const SizedBox(height: 8),
                     FilledButton.tonal(
-                      onPressed: _isRunning ? null : _pickAndImportProductsExcel,
+                      onPressed:
+                          _isRunning ? null : _pickAndImportProductsExcel,
                       child: const Text(
                           "\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32 Excel \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32"),
                     ),
@@ -9926,7 +10004,8 @@ class _DashboardIdentityCard extends StatelessWidget {
                         ),
                   ),
                 ),
-                if (positionLabel != null && positionLabel!.trim().isNotEmpty) ...[
+                if (positionLabel != null &&
+                    positionLabel!.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
                     "ตำแหน่ง: ${positionLabel!.trim()}",
@@ -10289,17 +10368,19 @@ class _OrderChatPageState extends State<OrderChatPage> {
                       children: [
                         Text(
                           item.userName,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: textColor.withOpacity(0.85),
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: textColor.withOpacity(0.85),
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           item.message,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: textColor,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: textColor,
+                                  ),
                         ),
                       ],
                     ),
@@ -10444,7 +10525,8 @@ class _OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
-    bool _hasThaiWord(String haystack, String needle) => haystack.contains(needle);
+    bool _hasThaiWord(String haystack, String needle) =>
+        haystack.contains(needle);
     String _nameNorm(String? value) =>
         (value ?? "").trim().toLowerCase().replaceAll(RegExp(r"\\s+"), " ");
 
@@ -10453,7 +10535,8 @@ class _OrderTile extends StatelessWidget {
     final role = _roleNorm(currentUser.role);
     final isProducerRole =
         role.contains("production") || _hasThaiWord(role, "ผลิต");
-    final isQcRole = role == "qc" || role.contains("quality") || role.contains("ตรวจ");
+    final isQcRole =
+        role == "qc" || role.contains("quality") || role.contains("ตรวจ");
     final isDeliveryRole =
         role.contains("delivery") || _hasThaiWord(role, "ส่ง");
 
@@ -10665,22 +10748,22 @@ class _OrderTile extends StatelessWidget {
                     icon: const Icon(Icons.print_outlined),
                     label: const Text("พิมพ์ใบออเดอร์"),
                   ),
-	                  OutlinedButton.icon(
-	                    onPressed: () => _openUrl(packingSlipUrl),
-	                    icon: const Icon(Icons.inventory_2_rounded),
-	                    label: const Text("ใบปะหน้าจัดของ"),
-	                  ),
-	                  OutlinedButton.icon(
-	                    onPressed: onOpenProofGallery,
-	                    icon: const Icon(Icons.photo_library_outlined),
-	                    label: Text("รูปหลักฐาน ($proofCount)"),
-	                  ),
-	                ],
-	              )
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(packingSlipUrl),
+                    icon: const Icon(Icons.inventory_2_rounded),
+                    label: const Text("ใบปะหน้าจัดของ"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onOpenProofGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text("รูปหลักฐาน ($proofCount)"),
+                  ),
+                ],
+              )
             else
-	              Wrap(
-	                spacing: 8,
-	                runSpacing: 8,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
                     onPressed: () => _openUrl(printUrl),
@@ -10777,8 +10860,8 @@ class _OrderTile extends StatelessWidget {
                       (order.status == "in_production" ||
                           ((!hasProduction) &&
                               (order.status == "new" ||
-                                   order.status == "assigned" ||
-                                   order.status == "rework_required"))))
+                                  order.status == "assigned" ||
+                                  order.status == "rework_required"))))
                     FilledButton.tonal(
                       onPressed: () => onStatusChanged("qc_pending"),
                       child: const Text("ส่ง QC"),
@@ -11188,7 +11271,8 @@ Future<void> _showCustomLabelSheet(BuildContext context, String label) {
   );
 }
 
-Future<void> _showOutOfStockSheet(BuildContext context, List<Product> products) {
+Future<void> _showOutOfStockSheet(
+    BuildContext context, List<Product> products) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

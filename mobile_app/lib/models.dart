@@ -64,6 +64,17 @@ class AppUser {
   final String? profileImageUrl;
 
   bool get isAdmin => role.trim().toLowerCase() == "admin";
+
+  Map<String, dynamic> toJson() {
+    return {
+      "user_id": userId,
+      "user_name": userName,
+      "role": role,
+      "position": position,
+      "active": active,
+      "profile_image_url": profileImageUrl,
+    };
+  }
 }
 
 class LoginSession {

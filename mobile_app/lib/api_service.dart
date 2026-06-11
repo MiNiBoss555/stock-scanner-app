@@ -1,4 +1,4 @@
-﻿import "dart:convert";
+import "dart:convert";
 import "dart:async";
 import "dart:io";
 
@@ -52,16 +52,6 @@ class StockApiService {
       path: path,
       queryParameters: queryParameters,
     );
-  }
-
-  Future<void> _warmUpServer() async {
-    try {
-      await http
-          .get(_uri("/health"), headers: _headers())
-          .timeout(const Duration(seconds: 10));
-    } catch (_) {
-      // Best effort only. The actual login call below will surface the real error.
-    }
   }
 
   Future<bool> isAssistantAvailable() async {
@@ -225,15 +215,7 @@ class StockApiService {
       "pin": pin,
     };
 
-    http.Response response;
-    try {
-      response = await _postLoginFriendly(payload);
-    } catch (_) {
-      await Future<void>.delayed(const Duration(milliseconds: 800));
-      await _warmUpServer();
-      response = await _postLoginFriendly(payload);
-    }
-
+    final response = await _postLoginFriendly(payload);
     final session =
         LoginSession.fromJson(_decode(response) as Map<String, dynamic>);
     setAccessToken(session.accessToken);
