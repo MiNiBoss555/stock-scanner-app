@@ -4249,7 +4249,7 @@ class _MobileDashboardHome extends StatelessWidget {
       case "qc_passed":
         return "ผ่าน QC";
       case "preparing":
-        return "กำลังจัด";
+        return "กำลังจัดสินค้า";
       case "out_for_delivery":
         return "กำลังส่ง";
       case "delivered":
@@ -5852,27 +5852,26 @@ class _DashboardUpdateCard extends StatelessWidget {
 
   String _statusLabel() {
     switch (order.status) {
-      case "new":
-        return "ใหม่";
       case "assigned":
-        return "มอบหมายแล้ว";
+        return "กำลังจัดคิว";
+      case "in_production":
+        return "กำลังผลิต";
+      case "qc_pending":
+        return "รอ QC";
+      case "rework_required":
+        return "ตีกลับแก้";
+      case "qc_passed":
+        return "QC ผ่าน";
       case "preparing":
-        return "กำลังจัด";
+        return "กำลังจัดสินค้า";
       case "out_for_delivery":
         return "กำลังส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      case "cancelled":
+        return "ยกเลิก";
       default:
-        return order.status;
-    }
-  }
-
-  Color _statusTone() {
-    switch (order.status) {
-      case "out_for_delivery":
-        return _brandPrimary;
-      case "preparing":
-        return _profileTeal;
-      default:
-        return _brandDeep;
+        return "รอดำเนินการ";
     }
   }
 
@@ -10500,15 +10499,15 @@ class _OrderTile extends StatelessWidget {
   String _statusLabel() {
     switch (order.status) {
       case "assigned":
-        return "มอบหมายแล้ว";
+        return "กำลังจัดคิว";
       case "in_production":
         return "กำลังผลิต";
       case "qc_pending":
-        return "รอตรวจคุณภาพ";
+        return "รอ QC";
       case "rework_required":
-        return "ต้องแก้ไขงาน";
+        return "ตีกลับแก้";
       case "qc_passed":
-        return "ตรวจผ่านแล้ว";
+        return "QC ผ่าน";
       case "preparing":
         return "กำลังจัดสินค้า";
       case "out_for_delivery":
@@ -10518,7 +10517,7 @@ class _OrderTile extends StatelessWidget {
       case "cancelled":
         return "ยกเลิก";
       default:
-        return "ออเดอร์ใหม่";
+        return "รอดำเนินการ";
     }
   }
 
@@ -10650,7 +10649,8 @@ class _OrderTile extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-                "สถานะการส่งสินค้า: ส่งแล้ว $deliveredCount/${order.items.length} รายการ"),
+              "สถานะการส่งสินค้า: ส่งแล้ว $deliveredCount/${order.items.length} รายการ",
+            ),
             const SizedBox(height: 6),
             ...order.items.map((item) {
               final isDone = item.deliveredQuantity >= item.quantity;
@@ -10693,13 +10693,13 @@ class _OrderTile extends StatelessWidget {
               Text("ที่อยู่: ${order.customerAddress}"),
             Text("ผู้รับออเดอร์: ${order.createdByName}"),
             Text(
-              "ผู้ส่ง (ผู้รับผิดชอบ): ${order.assignedToName ?? "ยังไม่มอบหมาย"}${(order.assignedToId ?? "").isNotEmpty ? " (${order.assignedToId})" : ""}",
+              "ผู้ส่ง (ผู้รับผิดชอบ): ${order.assignedToName ?? "ยังไม่ระบุ"}${(order.assignedToId ?? "").isNotEmpty ? " (${order.assignedToId})" : ""}",
             ),
             if (order.lastHandoffFrom != null &&
                 order.lastHandoffTo != null &&
                 order.lastHandoffAt != null)
               Text(
-                "ล่าสุด: ${order.lastHandoffFrom} → ${order.lastHandoffTo} · ${_fmtOrderDateTime(order.lastHandoffAt!)}",
+                "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} · ${_fmtOrderDateTime(order.lastHandoffAt!)}",
               ),
             Text(
               "ฝ่ายผลิต: ${(order.productionUserName ?? "-")}${(order.productionUserId ?? "").isNotEmpty ? " (${order.productionUserId})" : ""}",
@@ -10712,7 +10712,8 @@ class _OrderTile extends StatelessWidget {
             ),
             if (order.scheduledDeliveryAt != null)
               Text(
-                  "กำหนดส่ง: ${_fmtOrderDateTime(order.scheduledDeliveryAt!)}"),
+                "กำหนดส่ง: ${_fmtOrderDateTime(order.scheduledDeliveryAt!)}",
+              ),
             if (order.note != null && order.note!.isNotEmpty)
               Text("หมายเหตุ: ${order.note}"),
             const SizedBox(height: 10),
