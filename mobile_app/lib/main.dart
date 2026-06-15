@@ -7316,38 +7316,36 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                     ),
                   ),
                 Expanded(
-                  child: _query.isEmpty && _history.isNotEmpty
-                      ? ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            Text(
-                              "ประวัติการค้นหาล่าสุด",
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: _brandDeep,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._history.map((term) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.history, size: 20),
-                                  title: Text(term),
-                                  trailing: const Icon(Icons.north_west, size: 16, color: Colors.grey),
-                                  onTap: () {
-                                    _controller.text = term;
-                                    setState(() {
-                                      _query = term;
-                                    });
-                                  },
-                                )),
-                          ],
-                        )
-                      : results.isEmpty
-                          ? _EmptyTile(
-                              message: _query.isEmpty
-                                  ? "ไม่มีรายการสินค้า"
-                                  : "ไม่พบสินค้าที่ตรงกับคำค้นหา",
+                  child: _query.isEmpty
+                      ? (_history.isNotEmpty
+                          ? ListView(
+                              padding: const EdgeInsets.all(16),
+                              children: [
+                                Text(
+                                  "ประวัติการค้นหาล่าสุด",
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: _brandDeep,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                ..._history.map((term) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const Icon(Icons.history, size: 20),
+                                      title: Text(term),
+                                      trailing: const Icon(Icons.north_west, size: 16, color: Colors.grey),
+                                      onTap: () {
+                                        _controller.text = term;
+                                        setState(() {
+                                          _query = term;
+                                        });
+                                      },
+                                    )),
+                              ],
                             )
+                          : const _EmptyTile(message: "ไม่มีรายการสินค้า"))
+                      : results.isEmpty
+                          ? const _EmptyTile(message: "ไม่พบสินค้าที่ตรงกับคำค้นหา")
                           : ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: results.length,
