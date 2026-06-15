@@ -7118,6 +7118,77 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     super.dispose();
   }
 
+  Future<void> _scanBarcode() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_scanner, color: _brandPrimary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "สแกนบาร์โค้ดสินค้า",
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: SizedBox(
+                  height: 300,
+                  child: MobileScanner(
+                    controller: MobileScannerController(
+                      detectionSpeed: DetectionSpeed.noDuplicates,
+                      returnImage: false,
+                    ),
+                    onDetect: (capture) {
+                      final value = capture.barcodes.first.rawValue;
+                      if (value != null && value.isNotEmpty) {
+                        unawaited(HapticFeedback.lightImpact());
+                        Navigator.of(sheetContext).pop(value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      _controller.text = result;
+      setState(() {
+        _query = result;
+      });
+    }
+  }
+
   Future<void> _load() async {
     try {
       final products = await widget.api.getProducts();
@@ -7164,15 +7235,23 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
             decoration: InputDecoration(
               hintText: "ค้นหาชื่อสินค้า บาร์โค้ด หรือ SKU...",
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_query.isNotEmpty)
+                    IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () {
                         _controller.clear();
                         setState(() => _query = "");
                       },
                     ),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: _scanBarcode,
+                  ),
+                ],
+              ),
               border: InputBorder.none,
               filled: false,
             ),
