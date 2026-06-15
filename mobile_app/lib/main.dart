@@ -7105,17 +7105,46 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   String _query = "";
   List<Product> _allProducts = [];
   bool _isLoading = true;
+  List<String> _history = [];
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadHistory();
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _history = prefs.getStringList("recent_search_history") ?? [];
+    });
+  }
+
+  Future<void> _addToHistory(String term) async {
+    final t = term.trim();
+    if (t.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> current = prefs.getStringList("recent_search_history") ?? [];
+    
+    current.removeWhere((e) => e.toLowerCase() == t.toLowerCase());
+    current.insert(0, t);
+    
+    final updated = current.take(10).toList();
+    await prefs.setStringList("recent_search_history", updated);
+    
+    if (mounted) {
+      setState(() {
+        _history = updated;
+      });
+    }
   }
 
   Future<void> _scanBarcode() async {
@@ -7186,6 +7215,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       setState(() {
         _query = result;
       });
+      _addToHistory(result);
 
       // Exact Match Auto-Select for barcode scan
       final trimmedResult = result.trim().toLowerCase();
@@ -7286,24 +7316,53 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                     ),
                   ),
                 Expanded(
-                  child: results.isEmpty
-                      ? _EmptyTile(
-                          message: _query.isEmpty
-                              ? "ไม่มีรายการสินค้า"
-                              : "ไม่พบสินค้าที่ตรงกับคำค้นหา",
+                  child: _query.isEmpty && _history.isNotEmpty
+                      ? ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            Text(
+                              "ประวัติการค้นหาล่าสุด",
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: _brandDeep,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            ..._history.map((term) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.history, size: 20),
+                                  title: Text(term),
+                                  trailing: const Icon(Icons.north_west, size: 16, color: Colors.grey),
+                                  onTap: () {
+                                    _controller.text = term;
+                                    setState(() {
+                                      _query = term;
+                                    });
+                                  },
+                                )),
+                          ],
                         )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: results.length,
-                          itemBuilder: (context, index) {
-                            final product = results[index];
-                            return _ProductSearchTile(
-                              product: product,
-                              query: _query,
-                              onTap: () => _showProductCodeSheet(context, product),
-                            );
-                          },
-                        ),
+                      : results.isEmpty
+                          ? _EmptyTile(
+                              message: _query.isEmpty
+                                  ? "ไม่มีรายการสินค้า"
+                                  : "ไม่พบสินค้าที่ตรงกับคำค้นหา",
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: results.length,
+                              itemBuilder: (context, index) {
+                                final product = results[index];
+                                return _ProductSearchTile(
+                                  product: product,
+                                  query: _query,
+                                  onTap: () {
+                                    _addToHistory(_query);
+                                    _showProductCodeSheet(context, product);
+                                  },
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
