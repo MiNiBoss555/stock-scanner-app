@@ -26,6 +26,7 @@ import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
 import "models.dart";
+import "theme/app_theme.dart";
 
 class _UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -6919,6 +6920,15 @@ class MorePage extends StatelessWidget {
           ),
         ),
       ),
+      _MoreAction(
+        title: "ค้นหาสินค้า",
+        subtitle: "ค้นหารายการสินค้า เช็กสต็อก และพิมพ์ป้ายสินค้า",
+        icon: Icons.search_rounded,
+        onTap: () => _openPage(
+          context,
+          ProductSearchPage(api: api),
+        ),
+      ),
     ];
 
     if (currentUser.isAdmin) {
@@ -7072,6 +7082,184 @@ class _NotificationsPageState extends State<NotificationsPage> {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProductSearchPage extends StatefulWidget {
+  const ProductSearchPage({
+    super.key,
+    required this.api,
+  });
+
+  final StockApiService api;
+
+  @override
+  State<ProductSearchPage> createState() => _ProductSearchPageState();
+}
+
+class _ProductSearchPageState extends State<ProductSearchPage> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = "";
+  List<Product> _allProducts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final products = await widget.api.getProducts();
+      if (mounted) {
+        setState(() {
+          _allProducts = products;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _showAppSnack(context, e.toString(), isError: true);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<Product> _filteredProducts() {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _allProducts;
+    return _allProducts.where((p) {
+      return p.name.toLowerCase().contains(q) ||
+          p.barcode.toLowerCase().contains(q) ||
+          (p.sku?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final results = _filteredProducts();
+
+    return Scaffold(
+      backgroundColor: _brandSurface,
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: "ค้นหาชื่อสินค้า บาร์โค้ด หรือ SKU...",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _controller.clear();
+                        setState(() => _query = "");
+                      },
+                    ),
+              border: InputBorder.none,
+              filled: false,
+            ),
+          ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                if (_query.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          "พบ ${results.length} รายการ",
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: results.isEmpty
+                      ? _EmptyTile(
+                          message: _query.isEmpty
+                              ? "ไม่มีรายการสินค้า"
+                              : "ไม่พบสินค้าที่ตรงกับคำค้นหา",
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: results.length,
+                          itemBuilder: (context, index) {
+                            final product = results[index];
+                            return _ProductSearchTile(
+                              product: product,
+                              query: _query,
+                              onTap: () => _showProductCodeSheet(context, product),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _ProductSearchTile extends StatelessWidget {
+  const _ProductSearchTile({
+    required this.product,
+    required this.query,
+    required this.onTap,
+  });
+
+  final Product product;
+  final String query;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        onTap: onTap,
+        title: Text(
+          product.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text("${product.barcode} | ${product.category ?? 'ทั่วไป'}"),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              "${product.currentStock} ${product.unit}",
+              style: TextStyle(
+                color: product.isLowStock ? Colors.red : _brandDeep,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (product.isLowStock)
+              const Text(
+                "สต็อกต่ำ",
+                style: TextStyle(color: Colors.red, fontSize: 10),
+              ),
+          ],
         ),
       ),
     );
@@ -7854,6 +8042,108 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
+  Future<void> _fixDeliveryStatus(DeliveryOrder order) async {
+    final targetValues = <String, String>{
+      for (final item in order.items)
+        item.barcode: "${item.deliveredQuantity}",
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("แก้ไขจำนวนส่ง (แอดมิน)"),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...order.items.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "${item.productName} (ทั้งหมด ${item.quantity})",
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 72,
+                                child: TextFormField(
+                                  initialValue:
+                                      targetValues[item.barcode] ?? "0",
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: "ส่งแล้ว"),
+                                  onChanged: (value) =>
+                                      targetValues[item.barcode] = value,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็นระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text("ยกเลิก")),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text("บันทึกการแก้ไข")),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      final items = <Map<String, dynamic>>[];
+      for (final item in order.items) {
+        final target =
+            int.tryParse((targetValues[item.barcode] ?? "0").trim()) ?? 0;
+        final delta = target - item.deliveredQuantity;
+        if (delta != 0) {
+          items.add({"barcode": item.barcode, "quantity": delta});
+        }
+      }
+      if (items.isEmpty) {
+        _showAppSnack(context, "ไม่มีการเปลี่ยนแปลง");
+        return;
+      }
+      await widget.api.deliverOrderPartial(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        items: items,
+        note: "Admin fixed delivery status",
+      );
+      _showAppSnack(context, "แก้ไขจำนวนส่งเรียบร้อยแล้ว");
+      if (!mounted) return;
+      setState(() {
+        _future = _load();
+      });
+      await _future;
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
   void _openProofGallery(DeliveryOrder order) {
     final photos = _orderProofPhotos[order.id] ?? const <String>[];
     showModalBottomSheet<void>(
@@ -8039,7 +8329,11 @@ class _OrdersPageState extends State<OrdersPage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: _BackorderReportSheet(backorders: backorders),
+          child: _BackorderReportSheet(
+            backorders: backorders,
+            currentUser: widget.currentUser,
+            onFixStatus: _fixDeliveryStatus,
+          ),
         ),
       ),
     );
@@ -8648,6 +8942,8 @@ class _OrdersPageState extends State<OrdersPage> {
                                         .length,
                                     onDeliverPartial: () =>
                                         _deliverPartial(order),
+                                    onFixDeliveryStatus: () =>
+                                        _fixDeliveryStatus(order),
                                     onStatusChanged: (status) =>
                                         _updateStatus(order, status),
                                     onChatUpdated: _refresh,
@@ -8734,6 +9030,7 @@ class _CancelledOrdersPage extends StatelessWidget {
                 onResolveBackorder: () {},
                 proofCount: (proofPhotos[order.id] ?? const <String>[]).length,
                 onDeliverPartial: () {},
+                onFixDeliveryStatus: () {},
                 onStatusChanged: (_) {},
                 onChatUpdated: () {},
               ),
@@ -8745,9 +9042,15 @@ class _CancelledOrdersPage extends StatelessWidget {
 }
 
 class _BackorderReportSheet extends StatefulWidget {
-  const _BackorderReportSheet({required this.backorders});
+  const _BackorderReportSheet({
+    required this.backorders,
+    required this.currentUser,
+    required this.onFixStatus,
+  });
 
   final List<DeliveryOrder> backorders;
+  final AppUser currentUser;
+  final Function(DeliveryOrder) onFixStatus;
 
   @override
   State<_BackorderReportSheet> createState() => _BackorderReportSheetState();
@@ -8850,9 +9153,28 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(order.customerName,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    Text("ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(order.customerName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                  "ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
+                            ],
+                          ),
+                        ),
+                        if (widget.currentUser.isAdmin)
+                          IconButton.filledTonal(
+                            onPressed: () => widget.onFixStatus(order),
+                            icon: const Icon(Icons.edit_note_rounded, size: 20),
+                            tooltip: "แก้ไขจำนวนส่ง",
+                          ),
+                      ],
+                    ),
                     Text(pending, style: const TextStyle(color: Colors.red)),
                   ],
                 );
@@ -10440,6 +10762,7 @@ class _OrderTile extends StatelessWidget {
     required this.onResolveBackorder,
     required this.proofCount,
     required this.onDeliverPartial,
+    required this.onFixDeliveryStatus,
     required this.onStatusChanged,
     required this.onChatUpdated,
   });
@@ -10456,6 +10779,7 @@ class _OrderTile extends StatelessWidget {
   final VoidCallback onResolveBackorder;
   final int proofCount;
   final VoidCallback onDeliverPartial;
+  final VoidCallback onFixDeliveryStatus;
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onChatUpdated;
 
@@ -10811,6 +11135,11 @@ class _OrderTile extends StatelessWidget {
                   FilledButton.tonal(
                     onPressed: canOperate ? onDeliverPartial : null,
                     child: const Text("ส่งบางส่วน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: canOperate ? onFixDeliveryStatus : null,
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text("แก้ไขจำนวนส่ง"),
                   ),
                   if (canCancel)
                     OutlinedButton.icon(

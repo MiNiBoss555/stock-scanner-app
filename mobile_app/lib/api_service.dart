@@ -640,6 +640,51 @@ class StockApiService {
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
+  Future<DeliveryOrder> updateOrder({
+    required String requesterId,
+    required String orderId,
+    required String customerName,
+    String? customerPhone,
+    String? customerAddress,
+    String? note,
+    String? assignedToId,
+    String? productionUserId,
+    String? qcUserId,
+    String? deliveryUserId,
+    DateTime? scheduledDeliveryAt,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _patchJson(
+      "/orders/$orderId",
+      {
+        "customer_name": customerName,
+        "customer_phone": customerPhone,
+        "customer_address": customerAddress,
+        "note": note,
+        "assigned_to_id": assignedToId,
+        "production_user_id": productionUserId,
+        "qc_user_id": qcUserId,
+        "delivery_user_id": deliveryUserId,
+        "scheduled_delivery_at": scheduledDeliveryAt?.toUtc().toIso8601String(),
+        "items": items,
+      },
+      {"requester_id": requesterId},
+    );
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<void> deleteOrder({
+    required String requesterId,
+    required String orderId,
+  }) async {
+    final response = await _delete(
+      "/orders/$orderId",
+      {"requester_id": requesterId},
+      _headers(),
+    );
+    _decode(response);
+  }
+
   Future<List<OrderMessageModel>> getOrderMessages({
     required String requesterId,
     required String orderId,
