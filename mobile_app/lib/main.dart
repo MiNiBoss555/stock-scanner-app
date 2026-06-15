@@ -7186,6 +7186,17 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       setState(() {
         _query = result;
       });
+
+      // Exact Match Auto-Select for barcode scan
+      final trimmedResult = result.trim().toLowerCase();
+      final exactMatches = _allProducts.where((p) {
+        return p.barcode.toLowerCase() == trimmedResult ||
+            (p.sku?.toLowerCase() == trimmedResult);
+      }).toList();
+
+      if (exactMatches.length == 1) {
+        _showProductCodeSheet(context, exactMatches.first);
+      }
     }
   }
 
@@ -7313,6 +7324,22 @@ class _ProductSearchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color badgeColor;
+    String statusText;
+
+    if (product.currentStock <= 0) {
+      badgeColor = Colors.red;
+      statusText = "หมด";
+    } else if (product.currentStock <= product.minimumStock) {
+      badgeColor = Colors.orange;
+      statusText = "ใกล้หมด";
+    } else {
+      badgeColor = Colors.green;
+      statusText = "ปกติ";
+    }
+
+    final bool isLongUnit = product.unit.length > 4;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -7325,19 +7352,34 @@ class _ProductSearchTile extends StatelessWidget {
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                isLongUnit
+                    ? "${product.currentStock}"
+                    : "${product.currentStock} ${product.unit}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
             Text(
-              "${product.currentStock} ${product.unit}",
+              isLongUnit ? "$statusText (${product.unit})" : statusText,
               style: TextStyle(
-                color: product.isLowStock ? Colors.red : _brandDeep,
+                color: badgeColor,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (product.isLowStock)
-              const Text(
-                "สต็อกต่ำ",
-                style: TextStyle(color: Colors.red, fontSize: 10),
-              ),
           ],
         ),
       ),
