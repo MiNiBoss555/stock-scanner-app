@@ -7487,7 +7487,7 @@ class _OrdersPageState extends State<OrdersPage> {
                               .textTheme
                               .titleMedium
                               ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
+                      ),
                         const SizedBox(height: 2),
                         Text(
                           order.customerName,
@@ -8236,23 +8236,30 @@ class _OrdersPageState extends State<OrdersPage> {
     if (confirmed != true) return;
     try {
       final items = <Map<String, dynamic>>[];
+      final List<String> correctionLogs = [];
       for (final item in order.items) {
         final target =
             int.tryParse((targetValues[item.barcode] ?? "0").trim()) ?? 0;
         final delta = target - item.deliveredQuantity;
         if (delta != 0) {
           items.add({"barcode": item.barcode, "quantity": delta});
+          correctionLogs.add("${item.productName}: ${item.deliveredQuantity} -> $target");
         }
       }
+
       if (items.isEmpty) {
         _showAppSnack(context, "ไม่มีการเปลี่ยนแปลง");
         return;
       }
+
+      final auditNote =
+          "[Correction] Admin: ${widget.currentUser.userName} | ${correctionLogs.join(', ')}";
+
       await widget.api.deliverOrderPartial(
         requesterId: widget.currentUser.userId,
         orderId: order.id,
         items: items,
-        note: "Admin fixed delivery status",
+        note: auditNote,
       );
       _showAppSnack(context, "แก้ไขจำนวนส่งเรียบร้อยแล้ว");
       if (!mounted) return;

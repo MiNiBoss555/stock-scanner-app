@@ -482,8 +482,12 @@ class StockApiService {
     return StockSummary.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
-  Future<List<MovementRecord>> getMovements({int limit = 30}) async {
-    final response = await _get("/movements", {"limit": "$limit"});
+  Future<List<MovementRecord>> getMovements({int limit = 30, String? reference}) async {
+    final Map<String, String> params = {"limit": "$limit"};
+    if (reference != null) {
+      params["reference"] = reference;
+    }
+    final response = await _get("/movements", params);
     final body = _decode(response);
     return (body as List<dynamic>)
         .map((item) => MovementRecord.fromJson(item as Map<String, dynamic>))
