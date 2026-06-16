@@ -288,9 +288,9 @@ String _roleLabel(String role) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase options aren't configured for web in this project yet.
-  // Avoid crashing on Flutter Web; push notifications remain mobile-only.
-  if (!kIsWeb) {
+  // Firebase options aren't configured for web or windows in this project yet.
+  // Avoid crashing; push notifications remain mobile-only.
+  if (!kIsWeb && !Platform.isWindows) {
     await Firebase.initializeApp();
   }
   runApp(const StockScannerApp());
@@ -316,7 +316,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) {
+    if (!kIsWeb && !Platform.isWindows) {
       _messaging = FirebaseMessaging.instance;
     }
     _restoreSession();
@@ -467,7 +467,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   }
 
   Future<void> _registerPushForUser(String userId) async {
-    if (kIsWeb) return;
+    if (kIsWeb || Platform.isWindows) return;
     final messaging = _messaging;
     if (messaging == null) return;
     try {
@@ -4528,6 +4528,10 @@ class _MobileDashboardHome extends StatelessWidget {
       ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
     final outOfStock = data.products.where((p) => p.currentStock <= 0).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
+    final lowStock = data.products
+        .where((p) => p.currentStock > 0 && p.currentStock <= p.minimumStock)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     return ColoredBox(
       color: _brandSurface,
@@ -4540,6 +4544,55 @@ class _MobileDashboardHome extends StatelessWidget {
             subtitle: "ดูออเดอร์ งานค้าง และรายการอัปเดตล่าสุดจากมือถือ",
           ),
           const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _StockHealthCard(
+                  label: "สินค้าทั้งหมด",
+                  count: data.products.length,
+                  icon: Icons.inventory_2_outlined,
+                  color: _brandPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StockHealthCard(
+                  label: "หมดสต็อก",
+                  count: outOfStock.length,
+                  icon: Icons.error_outline,
+                  color: Colors.redAccent,
+                  onTap: outOfStock.isEmpty
+                      ? null
+                      : () => _showProductListSheet(
+                            context: context,
+                            products: outOfStock,
+                            title: "สินค้าหมด",
+                            icon: Icons.inventory_2_outlined,
+                            color: Colors.redAccent,
+                          ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StockHealthCard(
+                  label: "ใกล้หมด",
+                  count: lowStock.length,
+                  icon: Icons.warning_amber_rounded,
+                  color: Colors.orangeAccent,
+                  onTap: lowStock.isEmpty
+                      ? null
+                      : () => _showProductListSheet(
+                            context: context,
+                            products: lowStock,
+                            title: "สินค้าใกล้หมด",
+                            icon: Icons.warning_amber_rounded,
+                            color: Colors.orangeAccent,
+                          ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Container(
             decoration: _softPanelDecoration(
               tone: _brandPrimary,
@@ -4604,7 +4657,13 @@ class _MobileDashboardHome extends StatelessWidget {
               subtitle: outOfStock.take(3).map((p) => p.name).join(" · "),
               icon: Icons.inventory_2_outlined,
               tone: Colors.redAccent,
-              onTap: () => _showOutOfStockSheet(context, outOfStock),
+              onTap: () => _showProductListSheet(
+                context: context,
+                products: outOfStock,
+                title: "สินค้าหมด",
+                icon: Icons.inventory_2_outlined,
+                color: Colors.redAccent,
+              ),
             ),
           ],
           if (unreadOrders.isNotEmpty) ...[
@@ -5057,14 +5116,20 @@ class _WebDashboardHome extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.tonalIcon(
-              onPressed: () => _showOutOfStockSheet(context, outOfStock),
+              onPressed: () => _showProductListSheet(
+                context: context,
+                products: outOfStock,
+                title: "สินค้าหมด",
+                icon: Icons.inventory_2_outlined,
+                color: Colors.redAccent,
+              ),
               icon: const Icon(Icons.inventory_2_outlined),
               label: Text("สินค้าหมด: ${outOfStock.length} รายการ"),
             ),
           ),
           const SizedBox(height: 10),
         ],
-        ...data.summary.lowStockItems.take(3).map(
+...data.summary.lowStockItems.take(3).map(
               (item) => _LowStockFocusCard(
                 product: item,
                 onTap: () => _showProductCodeSheet(context, item),
@@ -5073,6 +5138,85 @@ class _WebDashboardHome extends StatelessWidget {
         const SizedBox(height: 18),
         // The homepage already shows active orders above; avoid duplicating the same feed.
       ],
+    );
+  }
+}
+
+class _StockHealthCard extends StatelessWidget {
+  const _StockHealthCard({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.color,
+    this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _HoverLift(
+      lift: onTap != null ? 4 : 0,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: color.withOpacity(onTap != null ? 0.24 : 0.12),
+                width: onTap != null ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "$count",
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: _brandDeep,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _brandInk.withOpacity(0.8),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -11786,8 +11930,13 @@ Future<void> _showCustomLabelSheet(BuildContext context, String label) {
   );
 }
 
-Future<void> _showOutOfStockSheet(
-    BuildContext context, List<Product> products) {
+Future<void> _showProductListSheet({
+  required BuildContext context,
+  required List<Product> products,
+  required String title,
+  required IconData icon,
+  required Color color,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -11808,11 +11957,11 @@ Future<void> _showOutOfStockSheet(
           children: [
             Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, color: Colors.redAccent),
+                Icon(icon, color: color),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    "สินค้าหมด: ${products.length} รายการ",
+                    "$title: ${products.length} รายการ",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: _brandDeep,
@@ -11844,9 +11993,13 @@ Future<void> _showOutOfStockSheet(
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
-                      backgroundColor: Colors.redAccent.withOpacity(0.10),
-                      child: const Icon(Icons.error_outline,
-                          color: Colors.redAccent),
+                      backgroundColor: color.withOpacity(0.10),
+                      child: Icon(
+                        product.currentStock <= 0
+                            ? Icons.error_outline
+                            : Icons.warning_amber_rounded,
+                        color: color,
+                      ),
                     ),
                     title: Text(
                       product.name,
