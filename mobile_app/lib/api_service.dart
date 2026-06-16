@@ -875,6 +875,14 @@ class StockApiService {
         .toString();
   }
 
+  Future<Uint8List> downloadBackup(String requesterId) async {
+    final response = await _get("/admin/backup", {"requester_id": requesterId});
+    if (response.statusCode != 200) {
+      throw Exception("Failed to download backup: ${response.statusCode}");
+    }
+    return response.bodyBytes;
+  }
+
   Object _decode(http.Response response) {
     final body = jsonDecode(response.body);
     if (response.statusCode >= 400) {

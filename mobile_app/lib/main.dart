@@ -6,6 +6,7 @@ import "dart:ui" as ui;
 
 import "dart:convert";
 import "package:barcode_widget/barcode_widget.dart";
+import "package:excel/excel.dart" hide Border;
 import "package:file_picker/file_picker.dart";
 import "package:firebase_core/firebase_core.dart";
 import "package:firebase_messaging/firebase_messaging.dart";
@@ -7403,6 +7404,85 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     }).toList();
   }
 
+  Future<void> _exportProductsExcel() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final products = await widget.api.getProducts();
+      final excel = Excel.createExcel();
+      final sheetName = "Products";
+      final sheet = excel[sheetName];
+      excel.setDefaultSheet(sheetName);
+
+      // Headers
+      final headers = [
+        "Barcode",
+        "SKU",
+        "Name",
+        "Category",
+        "Unit",
+        "Current Stock",
+        "Minimum Stock"
+      ];
+      for (var i = 0; i < headers.length; i++) {
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+            .value = TextCellValue(headers[i]);
+      }
+
+      // Data
+      for (var i = 0; i < products.length; i++) {
+        final p = products[i];
+        final row = i + 1;
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+            .value = TextCellValue(p.barcode);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
+            .value = TextCellValue(p.sku ?? "");
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
+            .value = TextCellValue(p.name);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
+            .value = TextCellValue(p.category ?? "");
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+            .value = TextCellValue(p.unit);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
+            .value = IntCellValue(p.currentStock);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row))
+            .value = IntCellValue(p.minimumStock);
+      }
+
+      final fileBytes = excel.save();
+      if (fileBytes == null) throw Exception("สร้างไฟล์ Excel ไม่สำเร็จ");
+
+      final directory = await getTemporaryDirectory();
+      final path = "${directory.path}/products.xlsx";
+      final file = File(path);
+      await file.writeAsBytes(fileBytes, flush: true);
+
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: "รายการสินค้าทั้งหมด (${products.length} รายการ)",
+      );
+    } catch (e) {
+      if (mounted) {
+        _showAppSnack(context, "ส่งออกไม่สำเร็จ: $e", isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = _filteredProducts();
@@ -7411,6 +7491,14 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       backgroundColor: _brandSurface,
       appBar: AppBar(
         titleSpacing: 0,
+        actions: [
+          if (!_isLoading)
+            IconButton(
+              icon: const Icon(Icons.table_view_outlined),
+              onPressed: _exportProductsExcel,
+              tooltip: "ส่งออก Excel",
+            ),
+        ],
         title: Padding(
           padding: const EdgeInsets.only(right: 16),
           child: TextField(
@@ -9648,6 +9736,38 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _downloadAndShareBackup() async {
+    if (!widget.currentUser.isAdmin) return;
+
+    setState(() {
+      _isRunning = true;
+    });
+    try {
+      final bytes = await widget.api.downloadBackup(widget.currentUser.userId);
+      final dir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().toIso8601String().replaceAll(":", "-");
+      final file = File("${dir.path}/backup_$timestamp.zip");
+      await file.writeAsBytes(bytes, flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: "Backup System Data",
+      );
+
+      setState(() {
+        _lastMessage = "Backup downloaded and ready to share.";
+      });
+    } catch (error) {
+      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRunning = false;
+        });
+      }
+    }
+  }
+
   Future<void> _pickAndImportProductsExcel() async {
     if (!widget.currentUser.isAdmin) {
       _showSnack(
@@ -9943,12 +10063,21 @@ class _AdminPageState extends State<AdminPage> {
                           ? null
                           : () => _runAction(() async {
                                 await _exportOrdersBackorderCsv();
-                                return "ส่งออกรายงานออเดอร์/ค้างจ่ายแล้ว";
+                                return "ส่งออกรายงานออเดอร์/งานค้างส่งแล้ว";
                               }),
-                      child: const Text("ส่งออกรายงานออเดอร์/ค้างจ่าย (CSV)"),
+                      child: const Text("ส่งออกรายงานออเดอร์/งานค้างส่ง (CSV)"),
                     ),
                     if (_lastMessage != null) ...[
                       const SizedBox(height: 12),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: _isRunning ? null : _downloadAndShareBackup,
+                        child: const Text("Download Backup (ZIP)"),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                           "\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: $_lastMessage"),
                     ],
@@ -10153,8 +10282,8 @@ class _PendingChatAction {
   String get summary {
     final verb = switch (type) {
       "in" => "เพิ่มสต็อก",
-      "issue" => "เบิกใช้",
-      _ => "ตัด/เบิกสต็อก",
+      "issue" => "เบิกออก",
+      _ => "ปรับ/แก้ไขสต็อก",
     };
     return "$verb จำนวน $quantity สำหรับ \"$productHint\"";
   }
