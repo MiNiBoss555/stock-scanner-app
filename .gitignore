@@ -13,6 +13,7 @@ __pycache__/
 stock_scanner.db
 *.db
 uploads/
+backups/
 
 # Python test/cache artifacts
 .pytest_cache/

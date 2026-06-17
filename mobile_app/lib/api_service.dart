@@ -1,6 +1,7 @@
 import "dart:convert";
 import "dart:async";
 import "dart:io";
+import "dart:typed_data";
 
 import "package:flutter/foundation.dart";
 import "package:http/http.dart" as http;
@@ -878,9 +879,54 @@ class StockApiService {
   Future<Uint8List> downloadBackup(String requesterId) async {
     final response = await _get("/admin/backup", {"requester_id": requesterId});
     if (response.statusCode != 200) {
-      throw Exception("Failed to download backup: ${response.statusCode}");
+      try {
+        final body = jsonDecode(response.body);
+        final detail = body is Map<String, dynamic> ? body["detail"] : null;
+        throw Exception(detail ?? "Failed to download backup: ${response.statusCode}");
+      } catch (_) {
+        throw Exception("Failed to download backup: ${response.statusCode}");
+      }
     }
     return response.bodyBytes;
+  }
+
+  Future<String> restoreBackup({
+    required String requesterId,
+    String? filePath,
+    List<int>? bytes,
+    String? filename,
+  }) async {
+    final request = http.MultipartRequest(
+      "POST",
+      _uri("/admin/restore"),
+    )..headers.addAll(_headers());
+
+    request.fields["requester_id"] = requesterId;
+
+    if (bytes != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          "file",
+          bytes,
+          filename: filename ?? "backup.zip",
+        ),
+      );
+    } else if (filePath != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          filePath,
+          filename: filename,
+        ),
+      );
+    } else {
+      throw Exception("Missing backup ZIP payload.");
+    }
+
+    final streamed = await request.send().timeout(const Duration(minutes: 3));
+    final response = await http.Response.fromStream(streamed);
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "Restore completed successfully.";
   }
 
   Object _decode(http.Response response) {

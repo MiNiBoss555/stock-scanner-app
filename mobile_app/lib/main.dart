@@ -9739,13 +9739,19 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _downloadAndShareBackup() async {
     if (!widget.currentUser.isAdmin) return;
 
+    _showSnack("\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25..."); // กำลังสำรองข้อมูล...
+
     setState(() {
       _isRunning = true;
     });
     try {
       final bytes = await widget.api.downloadBackup(widget.currentUser.userId);
       final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().toIso8601String().replaceAll(":", "-");
+      
+      final now = DateTime.now();
+      final timestamp = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_"
+          "${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
+      
       final file = File("${dir.path}/backup_$timestamp.zip");
       await file.writeAsBytes(bytes, flush: true);
 
@@ -9754,9 +9760,132 @@ class _AdminPageState extends State<AdminPage> {
         text: "Backup System Data",
       );
 
+      _showSnack("\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27"); // ดาวน์โหลดไฟล์สำรองแล้ว
+
       setState(() {
-        _lastMessage = "Backup downloaded and ready to share.";
+        _lastMessage = "\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27";
       });
+    } catch (error) {
+      _showSnack(error.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRunning = false;
+        });
+      }
+    }
+  }
+
+  Future<bool> _confirmRestoreBackup() async {
+    final controller = TextEditingController();
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Restore Backup"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "This will replace the current database and uploaded files. Type RESTORE to continue.",
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: "Confirmation",
+                    hintText: "RESTORE",
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text("Cancel"),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    controller.text.trim().toUpperCase() == "RESTORE",
+                  );
+                },
+                child: const Text("Restore"),
+              ),
+            ],
+          );
+        },
+      );
+      return confirmed == true;
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _pickAndRestoreBackup() async {
+    if (!widget.currentUser.isAdmin) return;
+
+    final confirmed = await _confirmRestoreBackup();
+    if (!confirmed) {
+      _showSnack("Restore cancelled.");
+      return;
+    }
+
+    try {
+      String? filePath;
+      List<int>? bytes;
+      String? filename;
+
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ["zip"],
+        withData: kIsWeb,
+      );
+      final platformFile =
+          picked?.files.isNotEmpty == true ? picked!.files.first : null;
+      if (platformFile == null) {
+        _showSnack("No backup ZIP selected.");
+        return;
+      }
+
+      filename = platformFile.name;
+      if (kIsWeb) {
+        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+          _showSnack("Unable to read the selected backup ZIP.");
+          return;
+        }
+        bytes = platformFile.bytes!;
+      } else {
+        filePath = platformFile.path;
+        if (filePath == null || filePath.isEmpty) {
+          _showSnack("Unable to read the selected backup ZIP path.");
+          return;
+        }
+      }
+
+      setState(() {
+        _isRunning = true;
+      });
+      final message = await widget.api.restoreBackup(
+        requesterId: widget.currentUser.userId,
+        filePath: filePath,
+        bytes: bytes,
+        filename: filename,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastMessage = message;
+      });
+      _showSnack(message);
     } catch (error) {
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
@@ -10063,23 +10192,34 @@ class _AdminPageState extends State<AdminPage> {
                           ? null
                           : () => _runAction(() async {
                                 await _exportOrdersBackorderCsv();
-                                return "ส่งออกรายงานออเดอร์/งานค้างส่งแล้ว";
+                                return "\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c/\u0e07\u0e32\u0e19\u0e04\u0e49\u0e32\u0e07\u0e2a\u0e48\u0e07\u0e41\u0e25\u0e49\u0e27";
                               }),
-                      child: const Text("ส่งออกรายงานออเดอร์/งานค้างส่ง (CSV)"),
+                      child: const Text(
+                          "\u0e2a\u0e48\u0e07\u0e2d\u0e2d\u0e01\u0e23\u0e32\u0e22\u0e07\u0e32\u0e19\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c/\u0e07\u0e32\u0e19\u0e04\u0e49\u0e32\u0e07\u0e2a\u0e48\u0e07 (CSV)"),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _isRunning ? null : _downloadAndShareBackup,
+                      child: const Text("Download Backup (ZIP)"),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _isRunning ? null : _pickAndRestoreBackup,
+                      child: const Text("Restore Backup (ZIP)"),
                     ),
                     if (_lastMessage != null) ...[
                       const SizedBox(height: 12),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: _isRunning ? null : _downloadAndShareBackup,
-                        child: const Text("Download Backup (ZIP)"),
-                      ),
-                      const SizedBox(height: 8),
                       Text(
-                          "\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: $_lastMessage"),
+                        "\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: $_lastMessage",
+                      ),
                     ],
                   ],
                 ),
@@ -10107,7 +10247,7 @@ class _AdminPageState extends State<AdminPage> {
                         });
                       },
                       decoration: InputDecoration(
-                        hintText: "ค้นหาไฟล์ เช่น Excel, CSV, สินค้า",
+                        hintText: "\u0e04\u0e49\u0e19\u0e2b\u0e32\u0e44\u0e1f\u0e25\u0e4c \u0e40\u0e0a\u0e48\u0e19 Excel, CSV, \u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
                         prefixIcon: const Icon(Icons.search),
                         suffixIcon: _downloadSearch.isEmpty
                             ? null
@@ -10127,7 +10267,7 @@ class _AdminPageState extends State<AdminPage> {
                       segments: const [
                         ButtonSegment<String>(
                           value: "all",
-                          label: Text("ทั้งหมด"),
+                          label: Text("\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14"),
                           icon: Icon(Icons.apps_rounded),
                         ),
                         ButtonSegment<String>(
