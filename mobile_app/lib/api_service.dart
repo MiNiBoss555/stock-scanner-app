@@ -877,17 +877,34 @@ class StockApiService {
   }
 
   Future<Uint8List> downloadBackup(String requesterId) async {
-    final response = await _get("/admin/backup", {"requester_id": requesterId});
-    if (response.statusCode != 200) {
-      try {
-        final body = jsonDecode(response.body);
-        final detail = body is Map<String, dynamic> ? body["detail"] : null;
-        throw Exception(detail ?? "Failed to download backup: ${response.statusCode}");
-      } catch (_) {
-        throw Exception("Failed to download backup: ${response.statusCode}");
+    final url = _uri("/admin/backup", {"requester_id": requesterId});
+    debugPrint("Backup URL: $url");
+
+    try {
+      final response = await http
+          .get(url, headers: _headers())
+          .timeout(const Duration(minutes: 5)); // Backups can be large
+
+      if (response.statusCode != 200) {
+        String detail = "Failed to download backup: ${response.statusCode}";
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map<String, dynamic> && body.containsKey("detail")) {
+            detail = "Failed to download backup: ${body["detail"]} (${response.statusCode})";
+          } else {
+            detail = "Failed to download backup: ${response.body} (${response.statusCode})";
+          }
+        } catch (_) {
+          if (response.body.isNotEmpty) {
+            detail = "Failed to download backup: ${response.body} (${response.statusCode})";
+          }
+        }
+        throw Exception(detail);
       }
+      return response.bodyBytes;
+    } on TimeoutException {
+      throw Exception("Backup download timed out. The file might be too large or the server is busy.");
     }
-    return response.bodyBytes;
   }
 
   Future<String> restoreBackup({

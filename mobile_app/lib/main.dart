@@ -9739,33 +9739,41 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _downloadAndShareBackup() async {
     if (!widget.currentUser.isAdmin) return;
 
-    _showSnack("\u0e01\u0e33\u0e25\u0e31\u0e07\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25..."); // กำลังสำรองข้อมูล...
+    _showSnack("กำลังสำรองข้อมูล...");
 
     setState(() {
       _isRunning = true;
     });
     try {
+      debugPrint("Starting downloadBackup for user: ${widget.currentUser.userId}");
       final bytes = await widget.api.downloadBackup(widget.currentUser.userId);
+      debugPrint("downloadBackup completed, received ${bytes.length} bytes");
+
       final dir = await getTemporaryDirectory();
-      
+
       final now = DateTime.now();
       final timestamp = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_"
           "${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
-      
+
       final file = File("${dir.path}/backup_$timestamp.zip");
       await file.writeAsBytes(bytes, flush: true);
+
+      debugPrint("Backup file written to: ${file.path}");
 
       await Share.shareXFiles(
         [XFile(file.path)],
         text: "Backup System Data",
       );
 
-      _showSnack("\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27"); // ดาวน์โหลดไฟล์สำรองแล้ว
+      _showSnack("ดาวน์โหลดไฟล์สำรองแล้ว");
 
-      setState(() {
-        _lastMessage = "\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e44\u0e1f\u0e25\u0e4c\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27";
-      });
+      if (mounted) {
+        setState(() {
+          _lastMessage = "ดาวน์โหลดไฟล์สำรองแล้ว";
+        });
+      }
     } catch (error) {
+      debugPrint("Backup failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {
@@ -9775,7 +9783,6 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
   }
-
   Future<bool> _confirmRestoreBackup() async {
     final controller = TextEditingController();
     try {
@@ -9783,21 +9790,37 @@ class _AdminPageState extends State<AdminPage> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: const Text("Restore Backup"),
+            title: const Text("Restore System Data"),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "This will replace the current database and uploaded files. Type RESTORE to continue.",
+                  "WARNING: DESTRUCTIVE ACTION!",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "This will completely REPLACE the current database and all uploaded files. This cannot be undone.",
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Type RESTORE in the field below to confirm this action.",
+                  style: TextStyle(fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
                   autofocus: true,
+                  inputFormatters: [_UpperCaseTextFormatter()],
                   decoration: const InputDecoration(
                     labelText: "Confirmation",
                     hintText: "RESTORE",
+                    border: OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -9805,19 +9828,23 @@ class _AdminPageState extends State<AdminPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text("Cancel"),
+                child: const Text("CANCEL"),
               ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop(
-                    controller.text.trim().toUpperCase() == "RESTORE",
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, child) {
+                  final isMatch = value.text.trim().toUpperCase() == "RESTORE";
+                  return FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isMatch ? Colors.red : Colors.grey,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: isMatch
+                        ? () => Navigator.of(context).pop(true)
+                        : null,
+                    child: const Text("CONFIRM RESTORE"),
                   );
                 },
-                child: const Text("Restore"),
               ),
             ],
           );
@@ -9870,23 +9897,29 @@ class _AdminPageState extends State<AdminPage> {
         }
       }
 
+      _showSnack("กำลังกู้คืนข้อมูล...");
       setState(() {
         _isRunning = true;
       });
+
+      debugPrint("Starting restoreBackup for user: ${widget.currentUser.userId}");
       final message = await widget.api.restoreBackup(
         requesterId: widget.currentUser.userId,
         filePath: filePath,
         bytes: bytes,
         filename: filename,
       );
-      if (!mounted) {
-        return;
-      }
+      debugPrint("restoreBackup completed: $message");
+
+      if (!mounted) return;
+
+      _showSnack("กู้คืนข้อมูลสำเร็จ");
+
       setState(() {
         _lastMessage = message;
       });
-      _showSnack(message);
     } catch (error) {
+      debugPrint("Restore failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {
