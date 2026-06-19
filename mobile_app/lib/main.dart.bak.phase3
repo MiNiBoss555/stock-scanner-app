@@ -28,7 +28,6 @@ import "package:url_launcher/url_launcher.dart";
 import "api_service.dart";
 import "orders_page.dart";
 import "product_search_page.dart";
-import "dashboard_components.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
@@ -3882,30 +3881,6 @@ class _DashboardPageState extends State<DashboardPage> with RouteAware {
                         });
                       },
                       matchedProducts: matchedProducts,
-                      onOpenAssistant: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChatAssistantPage(
-                              api: widget.api,
-                              refreshSignal: widget.refreshSignal,
-                            ),
-                          ),
-                        );
-                      },
-                      onOpenOrders: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => OrdersPage(
-                              api: widget.api,
-                              currentUser: widget.currentUser,
-                              refreshSignal: widget.refreshSignal,
-                            ),
-                          ),
-                        );
-                      },
-                      onOpenStock: () {
-                        _showAppSnack(context, "เลื่อนลงเพื่อค้นหาสินค้าและพิมพ์ป้าย");
-                      },
                     ),
                   ),
                 ),
@@ -3933,7 +3908,7 @@ class _DashboardPageState extends State<DashboardPage> with RouteAware {
                       "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e41\u0e25\u0e30\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e14\u0e39\u0e41\u0e25",
                 ),
                 const SizedBox(height: 16),
-                DashboardIdentityCard(
+                _DashboardIdentityCard(
                   imageUrl: widget.api
                       .resolveAssetUrl(widget.currentUser.profileImageUrl),
                   name: widget.currentUser.userName,
@@ -4739,6 +4714,274 @@ class _MobileDashboardHome extends StatelessWidget {
   }
 }
 
+class _WebDashboardHero extends StatelessWidget {
+  const _WebDashboardHero();
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final titleSize = width < 900 ? 38.0 : (width < 1200 ? 46.0 : 52.0);
+    final subtitleSize = width < 900 ? 14.0 : (width < 1200 ? 15.5 : 17.0);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(_brandSurface, _brandSurfaceStrong, 0.42)!,
+            Colors.white,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(_radiusLg),
+        border: Border.all(color: _brandPrimary.withOpacity(0.10)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1FB56A),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Dashboard workspace",
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: _brandDeep,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              "STOCK SCANNER",
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    color: _brandDeep,
+                    fontWeight: FontWeight.w900,
+                    fontSize: titleSize,
+                    height: 0.98,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "หน้าแรกสำหรับใช้งานบน Chrome\nคัดลอกข้อมูลลูกค้าแล้ววางสร้างออเดอร์ได้ทันที",
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: _brandInk.withOpacity(0.84),
+                    fontSize: subtitleSize,
+                    height: 1.5,
+                  ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: const [
+                _HeroInfoChip(
+                  icon: Icons.content_paste_go_rounded,
+                  label: "คัดลอกลูกค้าแล้วสร้างออเดอร์ต่อได้ทันที",
+                ),
+                _HeroInfoChip(
+                  icon: Icons.bolt_rounded,
+                  label: "เข้าถึงงานสต็อกและผู้ช่วยได้เร็ว",
+                ),
+                _HeroInfoChip(
+                  icon: Icons.auto_awesome_rounded,
+                  label: "พร้อมสำหรับ workflow บน Chrome",
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: const [
+                _HeroQuickTile(
+                  label: "Orders",
+                  icon: Icons.receipt_rounded,
+                  hint: "เปิดออเดอร์และจัดส่ง",
+                  tab: "orders",
+                ),
+                _HeroQuickTile(
+                  label: "Stock",
+                  icon: Icons.inventory_2_rounded,
+                  hint: "ค้นหาสินค้าและพิมพ์ป้าย",
+                  tab: "stock",
+                ),
+                _HeroQuickTile(
+                  label: "Assistant",
+                  icon: Icons.smart_toy_rounded,
+                  hint: "ถามสต็อกและขอไฟล์",
+                  tab: "assistant",
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.70),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _brandPrimary.withOpacity(0.10)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _brandPrimary,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.show_chart_rounded,
+                            color: Colors.white),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1FB56A),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              "Live",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
+                                    color: _brandDeep,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.rocket_launch_rounded,
+                            color: _brandPrimary, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            "โหมดใช้งานเร็วสำหรับเปิดออเดอร์และสต็อกต่อเนื่อง",
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: _brandInk.withOpacity(0.76),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "พร้อมสำหรับงานวันนี้",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: _brandDeep,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "เปิดออเดอร์ เช็กสต็อก หรือเข้า assistant ได้จากทางลัดด้านบนโดยไม่ต้องไล่หาหลายหน้า",
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: _brandInk.withOpacity(0.76),
+                          height: 1.5,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1FB56A),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Workspace online",
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: _brandDeep,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        Text(
+                          _webBuildTag,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: _brandInk.withOpacity(0.55),
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _WebDashboardHome extends StatelessWidget {
   const _WebDashboardHome({
     required this.data,
@@ -4748,9 +4991,6 @@ class _WebDashboardHome extends StatelessWidget {
     required this.onProductSearchChanged,
     required this.onClearProductSearch,
     required this.matchedProducts,
-    required this.onOpenAssistant,
-    required this.onOpenOrders,
-    required this.onOpenStock,
   });
 
   final DashboardData data;
@@ -4760,9 +5000,6 @@ class _WebDashboardHome extends StatelessWidget {
   final ValueChanged<String> onProductSearchChanged;
   final VoidCallback onClearProductSearch;
   final List<Product> matchedProducts;
-  final VoidCallback onOpenAssistant;
-  final VoidCallback onOpenOrders;
-  final VoidCallback onOpenStock;
 
   @override
   Widget build(BuildContext context) {
@@ -4776,11 +5013,7 @@ class _WebDashboardHome extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        WebDashboardHero(
-          onOpenAssistant: onOpenAssistant,
-          onOpenOrders: onOpenOrders,
-          onOpenStock: onOpenStock,
-        ),
+        const _WebDashboardHero(),
         const SizedBox(height: 22),
         const _DashboardSectionHeader(
           eyebrow: "Order focus",
@@ -4821,7 +5054,7 @@ class _WebDashboardHome extends StatelessWidget {
           ...data.activeOrders.toList().asMap().entries.map(
                 (entry) => _HeroReveal(
                   delayMs: 120 + (entry.key * 40),
-                  child: DashboardUpdateCard(
+                  child: _DashboardUpdateCard(
                     order: entry.value,
                     onTap: onOpenOrdersTab,
                   ),
@@ -4974,6 +5207,166 @@ class _StockHealthCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroQuickTile extends StatelessWidget {
+  const _HeroQuickTile({
+    required this.label,
+    required this.icon,
+    required this.hint,
+    required this.tab,
+  });
+
+  final String label;
+  final IconData icon;
+  final String hint;
+  final String tab;
+
+  void _open(BuildContext context) {
+    // Keep navigation web-friendly and decoupled from private tab state.
+    final state = context.findAncestorStateOfType<_StockHomePageState>();
+    if (state == null) return;
+
+    if (tab == "assistant") {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatAssistantPage(
+            api: state.widget.api,
+            refreshSignal: state._realtimeRevision,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (tab == "orders") {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OrdersPage(
+            api: state.widget.api,
+            currentUser: state.widget.currentUser,
+            refreshSignal: state._realtimeRevision,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // "stock" -> just scroll users down to the search field on this page.
+    _showAppSnack(context, "เลื่อนลงเพื่อค้นหาสินค้าและพิมพ์ป้าย");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = tab == "assistant"
+        ? _profileAccent
+        : tab == "stock"
+            ? _profileTeal
+            : _brandPrimary;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 1100;
+    return _HoverLift(
+      lift: 10,
+      scale: 1.012,
+      child: InkWell(
+        onTap: () => _open(context),
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          width: compact ? 222 : 248,
+          padding: EdgeInsets.all(compact ? 16 : 18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.94),
+                Color.lerp(Colors.white, accent, 0.08)!.withOpacity(0.92),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: accent.withOpacity(0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: compact ? 46 : 50,
+                height: compact ? 46 : 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      accent.withOpacity(0.18),
+                      Color.lerp(_brandSurfaceStrong, accent, 0.24)!
+                          .withOpacity(0.34),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _brandDeep,
+                            fontWeight: FontWeight.w800,
+                            fontSize: compact ? 16 : 17,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hint,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: _brandInk.withOpacity(0.72),
+                            fontSize: compact ? 12.4 : 13.2,
+                            height: 1.32,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        "Open now",
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: accent,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: accent.withOpacity(0.82),
+                size: 20,
+              ),
+            ],
           ),
         ),
       ),
@@ -5446,6 +5839,469 @@ class _LowStockFocusCard extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardUpdateCard extends StatelessWidget {
+  const _DashboardUpdateCard({
+    required this.order,
+    required this.onTap,
+  });
+
+  final DeliveryOrder order;
+  final VoidCallback onTap;
+
+  String _displayStatusLabel() {
+    switch (order.status) {
+      case "new":
+        return "ออเดอร์ใหม่";
+      case "assigned":
+        return "มอบหมายแล้ว";
+      case "in_production":
+        return "เริ่มผลิต";
+      case "qc_pending":
+        return "รอ QC";
+      case "rework_required":
+        return "ต้องแก้งาน";
+      case "qc_passed":
+        return "ผ่าน QC";
+      case "preparing":
+        return "กำลังจัดเตรียม";
+      case "out_for_delivery":
+        return "กำลังจัดส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      case "cancelled":
+        return "ยกเลิก";
+      default:
+        return order.status;
+    }
+  }
+
+  String _displayStageLabel() {
+    switch (order.status) {
+      case "new":
+        return "ขั้นตอนตอนนี้: รอเริ่มงาน";
+      case "assigned":
+        return "ขั้นตอนตอนนี้: มอบหมายผู้รับผิดชอบแล้ว";
+      case "in_production":
+        return "ขั้นตอนตอนนี้: อยู่ระหว่างผลิต";
+      case "qc_pending":
+        return "ขั้นตอนตอนนี้: รอตรวจคุณภาพ";
+      case "rework_required":
+        return "ขั้นตอนตอนนี้: ต้องแก้ไขก่อนส่งต่อ";
+      case "qc_passed":
+        return "ขั้นตอนตอนนี้: ผ่าน QC แล้ว";
+      case "preparing":
+        return "ขั้นตอนตอนนี้: กำลังจัดของ";
+      case "out_for_delivery":
+        return "ขั้นตอนตอนนี้: ออกจัดส่งแล้ว";
+      case "delivered":
+        return "ขั้นตอนตอนนี้: ส่งสำเร็จ";
+      case "cancelled":
+        return "ขั้นตอนตอนนี้: ยกเลิกออเดอร์";
+      default:
+        return "ขั้นตอนตอนนี้: ${order.status}";
+    }
+  }
+
+  int? _daysUntilDue() {
+    final dueAt = order.scheduledDeliveryAt;
+    if (dueAt == null) {
+      return null;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDay = DateTime(dueAt.year, dueAt.month, dueAt.day);
+    return dueDay.difference(today).inDays;
+  }
+
+  String _fmtDueAt(DateTime value) {
+    final dd = value.day.toString().padLeft(2, "0");
+    final mm = value.month.toString().padLeft(2, "0");
+    final yy = value.year;
+    final hh = value.hour.toString().padLeft(2, "0");
+    final min = value.minute.toString().padLeft(2, "0");
+    return "$dd/$mm/$yy $hh:$min";
+  }
+
+  bool _isDueSoon() {
+    final days = _daysUntilDue();
+    if (days == null) {
+      return false;
+    }
+    return days >= 0 && days <= 3;
+  }
+
+  String? _dueWarningLabel() {
+    final days = _daysUntilDue();
+    if (days == null) {
+      return null;
+    }
+    if (days < 0) {
+      return "เลยกำหนดส่งแล้ว";
+    }
+    if (days == 0) {
+      return "ครบกำหนดส่งวันนี้";
+    }
+    if (days == 1) {
+      return "ใกล้ถึงกำหนดส่งใน 1 วัน";
+    }
+    if (days <= 3) {
+      return "ใกล้ถึงกำหนดส่งใน $days วัน";
+    }
+    return null;
+  }
+
+  bool _isUrgentDue() {
+    final days = _daysUntilDue();
+    return days != null && days <= 1;
+  }
+
+  Color _displayStatusTone() {
+    final days = _daysUntilDue();
+    if (days != null && days <= 1) {
+      return const Color(0xFFD64545);
+    }
+    if (days == 2) {
+      return const Color(0xFFF28C28);
+    }
+    if (days == 3) {
+      return const Color(0xFFE0B21B);
+    }
+    switch (order.status) {
+      case "out_for_delivery":
+        return _brandPrimary;
+      case "in_production":
+      case "qc_pending":
+      case "qc_passed":
+      case "preparing":
+        return _profileTeal;
+      case "rework_required":
+        return Colors.orange;
+      default:
+        return _brandDeep;
+    }
+  }
+
+  String _statusLabel() {
+    switch (order.status) {
+      case "assigned":
+        return "กำลังจัดคิว";
+      case "in_production":
+        return "กำลังผลิต";
+      case "qc_pending":
+        return "รอ QC";
+      case "rework_required":
+        return "ตีกลับแก้";
+      case "qc_passed":
+        return "QC ผ่าน";
+      case "preparing":
+        return "กำลังจัดสินค้า";
+      case "out_for_delivery":
+        return "กำลังส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      case "cancelled":
+        return "ยกเลิก";
+      default:
+        return "รอดำเนินการ";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _displayStatusTone();
+    final dueWarning = _dueWarningLabel();
+    final dueDays = _daysUntilDue();
+    return _HoverLift(
+      lift: 6,
+      scale: 1.008,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              tone.withOpacity(0.03),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: tone.withOpacity(0.12)),
+          boxShadow: [
+            BoxShadow(
+              color: tone.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: tone.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(Icons.receipt_rounded, color: tone),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: tone,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Order update",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: tone,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                  ),
+                            ),
+                            if (_isUrgentDue()) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: tone.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border:
+                                      Border.all(color: tone.withOpacity(0.32)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.priority_high_rounded,
+                                      size: 14,
+                                      color: tone,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "ด่วน",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: tone,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                order.customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: _brandDeep,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _OrderStatusPill(
+                              label: _displayStatusLabel(),
+                              tone: tone,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "${order.items.length} รายการ · ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: _brandInk.withOpacity(0.74),
+                                    fontSize: 13.4,
+                                  ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          order.scheduledDeliveryAt != null
+                              ? "อัปเดต: ${_fmtDueAt(order.updatedAt)} · กำหนดส่ง: ${_fmtDueAt(order.scheduledDeliveryAt!)}"
+                              : "อัปเดต: ${_fmtDueAt(order.updatedAt)}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: _brandInk.withOpacity(0.68),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _displayStageLabel(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: tone.withOpacity(0.92),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        if (dueWarning != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: tone.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: tone.withOpacity(0.28)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.notification_important_outlined,
+                                  size: 16,
+                                  color: tone,
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        dueWarning,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: tone,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      if (order.scheduledDeliveryAt != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            "กำหนดส่ง: ${_fmtDueAt(order.scheduledDeliveryAt!)}",
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color: tone.withOpacity(0.92),
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                      if (dueDays != null && dueDays < 0)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 2),
+                                          child: Text(
+                                            "เลยกำหนดส่งมา ${-dueDays} วัน",
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color: tone.withOpacity(0.92),
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.78),
+                                borderRadius: BorderRadius.circular(999),
+                                border:
+                                    Border.all(color: tone.withOpacity(0.10)),
+                              ),
+                              child: Text(
+                                "แตะเพื่อเปิดออเดอร์",
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: _brandDeep,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: _brandInk.withOpacity(0.38),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -7547,6 +8403,230 @@ class _MetricCard extends StatelessWidget {
                 ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardIdentityCard extends StatelessWidget {
+  const _DashboardIdentityCard({
+    required this.imageUrl,
+    required this.name,
+    required this.roleLabel,
+    this.positionLabel,
+  });
+
+  final String? imageUrl;
+  final String name;
+  final String roleLabel;
+  final String? positionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final woodTone = Color.lerp(_brandPrimary, _brandSurfaceStrong, 0.34)!;
+    final woodDeep = Color.lerp(_brandDeep, _brandPrimary, 0.20)!;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _brandCard,
+        borderRadius: BorderRadius.circular(_radiusXl),
+        border: Border.all(color: _brandPrimary.withOpacity(0.14)),
+        boxShadow: [
+          BoxShadow(
+            color: _brandDeep.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: 132,
+                decoration: BoxDecoration(
+                  color: woodTone,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(_radiusXl),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                left: 18,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: _brandPrimary.withOpacity(0.55),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 18,
+                right: 18,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 58,
+                left: 0,
+                child: Container(
+                  width: 96,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _profileAccent.withOpacity(0.90),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(999),
+                      bottomRight: Radius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 58,
+                right: 0,
+                child: Container(
+                  width: 96,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _profileAccent.withOpacity(0.90),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(999),
+                      bottomLeft: Radius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -52,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandDeep.withOpacity(0.10),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: woodTone, width: 3),
+                      color: woodTone,
+                    ),
+                    child: _UserAvatar(
+                      imageUrl: imageUrl,
+                      name: name,
+                      radius: 44,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 64, 18, 18),
+            child: Column(
+              children: [
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontSize: 22,
+                        color: _brandDeep,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: woodDeep,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandDeep.withOpacity(0.10),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    roleLabel,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: _brandSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                if (positionLabel != null &&
+                    positionLabel!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    "ตำแหน่ง: ${positionLabel!.trim()}",
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _brandInk.withOpacity(0.78),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _profileAccent.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _brandSurfaceStrong.withOpacity(0.62),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: _profileAccent.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
