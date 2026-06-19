@@ -23,6 +23,7 @@ dependencies:
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.1
   excel: ^4.0.0
+  google_mlkit_text_recognition: ^0.13.0
   firebase_core: ^4.7.0
   firebase_messaging: ^16.2.0
 

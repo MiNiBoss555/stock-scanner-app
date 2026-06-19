@@ -1,0 +1,50 @@
+﻿
+def _fallback_postgres_export(dest_path: Path) -> None:
+    with dest_path.open("w", encoding="utf-8") as f:
+        f.write("-- PostgreSQL fallback dump (data only)\n")
+        with db_connection() as db:
+            # Get all tables in public schema
+            cur = db.execute(\"\"\"
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            \"\"\")
+            tables = [row["table_name"] for row in cur.fetchall()]
+            
+            for table in tables:
+                f.write(f"\n-- Data for table {table}\n")
+                # Use double quotes for table names to handle mixed case/reserved words
+                data_cur = db.execute(f'SELECT * FROM "{table}"')
+                rows = data_cur.fetchall()
+                if not rows:
+                    continue
+                
+                columns = rows[0].keys()
+                cols_str = ", ".join(f'"{c}"' for c in columns)
+                
+                for row in rows:
+                    vals = [row[c] for c in columns]
+                    placeholders = ", ".join(["%s"] * len(vals))
+                    insert_stmt = f'INSERT INTO "{table}" ({cols_str}) VALUES ({placeholders});'
+                    # mogrify returns bytes
+                    try:
+                        sql_line = data_cur.mogrify(insert_stmt, vals).decode("utf-8")
+                        f.write(sql_line + "\n")
+                    except Exception as e:
+                        logger.error("Failed to mogrify row in %s: %s", table, e)
+
+
+def _write_system_backup(zip_path: Path) -> None:
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            if _using_postgres():
+                db_dump_path = temp_dir / "database.sql"
+                _write_postgres_dump(db_dump_path)
+                zf.write(db_dump_path, arcname="database.sql")
+            else:
+                db_copy_path = temp_dir / "stock_scanner.db"
+                _copy_sqlite_database(db_copy_path)
+                zf.write(db_copy_path, arcname="stock_scanner.db")

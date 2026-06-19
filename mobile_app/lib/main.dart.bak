@@ -6,6 +6,7 @@ import "dart:ui" as ui;
 
 import "dart:convert";
 import "package:barcode_widget/barcode_widget.dart";
+import "package:excel/excel.dart" hide Border;
 import "package:file_picker/file_picker.dart";
 import "package:firebase_core/firebase_core.dart";
 import "package:firebase_messaging/firebase_messaging.dart";
@@ -26,8 +27,6 @@ import "package:shared_preferences/shared_preferences.dart";
 import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
-import "orders_page.dart";
-import "product_search_page.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
@@ -7063,10 +7062,7 @@ class MorePage extends StatelessWidget {
         icon: Icons.search_rounded,
         onTap: () => _openPage(
           context,
-          ProductSearchPage(
-            api: api,
-            onOpenProductDetails: (context, product) => _showProductCodeSheet(context, product),
-          ),
+          ProductSearchPage(api: api),
         ),
       ),
     ];
@@ -7228,6 +7224,449 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 }
 
+class ProductSearchPage extends StatefulWidget {
+  const ProductSearchPage({
+    super.key,
+    required this.api,
+  });
+
+  final StockApiService api;
+
+  @override
+  State<ProductSearchPage> createState() => _ProductSearchPageState();
+}
+
+class _ProductSearchPageState extends State<ProductSearchPage> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = "";
+  List<Product> _allProducts = [];
+  bool _isLoading = true;
+  List<String> _history = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _loadHistory();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _history = prefs.getStringList("recent_search_history") ?? [];
+    });
+  }
+
+  Future<void> _addToHistory(String term) async {
+    final t = term.trim();
+    if (t.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> current = prefs.getStringList("recent_search_history") ?? [];
+    
+    current.removeWhere((e) => e.toLowerCase() == t.toLowerCase());
+    current.insert(0, t);
+    
+    final updated = current.take(10).toList();
+    await prefs.setStringList("recent_search_history", updated);
+    
+    if (mounted) {
+      setState(() {
+        _history = updated;
+      });
+    }
+  }
+
+  Future<void> _scanBarcode() async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_scanner, color: _brandPrimary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "สแกนบาร์โค้ดสินค้า",
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: SizedBox(
+                  height: 300,
+                  child: MobileScanner(
+                    controller: MobileScannerController(
+                      detectionSpeed: DetectionSpeed.noDuplicates,
+                      returnImage: false,
+                    ),
+                    onDetect: (capture) {
+                      final value = capture.barcodes.first.rawValue;
+                      if (value != null && value.isNotEmpty) {
+                        unawaited(HapticFeedback.lightImpact());
+                        Navigator.of(sheetContext).pop(value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      _controller.text = result;
+      setState(() {
+        _query = result;
+      });
+      _addToHistory(result);
+
+      // Exact Match Auto-Select for barcode scan
+      final trimmedResult = result.trim().toLowerCase();
+      final exactMatches = _allProducts.where((p) {
+        return p.barcode.toLowerCase() == trimmedResult ||
+            (p.sku?.toLowerCase() == trimmedResult);
+      }).toList();
+
+      if (exactMatches.length == 1) {
+        _showProductCodeSheet(context, exactMatches.first);
+      }
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final products = await widget.api.getProducts();
+      if (mounted) {
+        setState(() {
+          _allProducts = products;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _showAppSnack(context, e.toString(), isError: true);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<Product> _filteredProducts() {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _allProducts;
+    return _allProducts.where((p) {
+      return p.name.toLowerCase().contains(q) ||
+          p.barcode.toLowerCase().contains(q) ||
+          (p.sku?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
+  Future<void> _exportProductsExcel() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final products = await widget.api.getProducts();
+      final excel = Excel.createExcel();
+      final sheetName = "Products";
+      final sheet = excel[sheetName];
+      excel.setDefaultSheet(sheetName);
+
+      // Headers
+      final headers = [
+        "Barcode",
+        "SKU",
+        "Name",
+        "Category",
+        "Unit",
+        "Current Stock",
+        "Minimum Stock"
+      ];
+      for (var i = 0; i < headers.length; i++) {
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+            .value = TextCellValue(headers[i]);
+      }
+
+      // Data
+      for (var i = 0; i < products.length; i++) {
+        final p = products[i];
+        final row = i + 1;
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+            .value = TextCellValue(p.barcode);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
+            .value = TextCellValue(p.sku ?? "");
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
+            .value = TextCellValue(p.name);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
+            .value = TextCellValue(p.category ?? "");
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+            .value = TextCellValue(p.unit);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
+            .value = IntCellValue(p.currentStock);
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row))
+            .value = IntCellValue(p.minimumStock);
+      }
+
+      final fileBytes = excel.save();
+      if (fileBytes == null) throw Exception("สร้างไฟล์ Excel ไม่สำเร็จ");
+
+      final directory = await getTemporaryDirectory();
+      final path = "${directory.path}/products.xlsx";
+      final file = File(path);
+      await file.writeAsBytes(fileBytes, flush: true);
+
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: "รายการสินค้าทั้งหมด (${products.length} รายการ)",
+      );
+    } catch (e) {
+      if (mounted) {
+        _showAppSnack(context, "ส่งออกไม่สำเร็จ: $e", isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final results = _filteredProducts();
+
+    return Scaffold(
+      backgroundColor: _brandSurface,
+      appBar: AppBar(
+        titleSpacing: 0,
+        actions: [
+          if (!_isLoading)
+            IconButton(
+              icon: const Icon(Icons.table_view_outlined),
+              onPressed: _exportProductsExcel,
+              tooltip: "ส่งออก Excel",
+            ),
+        ],
+        title: Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: "ค้นหาชื่อสินค้า บาร์โค้ด หรือ SKU...",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_query.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _controller.clear();
+                        setState(() => _query = "");
+                      },
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: _scanBarcode,
+                  ),
+                ],
+              ),
+              border: InputBorder.none,
+              filled: false,
+            ),
+          ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                if (_query.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          "พบ ${results.length} รายการ",
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: _query.isEmpty
+                      ? (_history.isNotEmpty
+                          ? ListView(
+                              padding: const EdgeInsets.all(16),
+                              children: [
+                                Text(
+                                  "ประวัติการค้นหาล่าสุด",
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: _brandDeep,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                ..._history.map((term) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const Icon(Icons.history, size: 20),
+                                      title: Text(term),
+                                      trailing: const Icon(Icons.north_west, size: 16, color: Colors.grey),
+                                      onTap: () {
+                                        _controller.text = term;
+                                        setState(() {
+                                          _query = term;
+                                        });
+                                      },
+                                    )),
+                              ],
+                            )
+                          : const _EmptyTile(message: "ไม่มีรายการสินค้า"))
+                      : results.isEmpty
+                          ? const _EmptyTile(message: "ไม่พบสินค้าที่ตรงกับคำค้นหา")
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: results.length,
+                              itemBuilder: (context, index) {
+                                final product = results[index];
+                                return _ProductSearchTile(
+                                  product: product,
+                                  query: _query,
+                                  onTap: () {
+                                    _addToHistory(_query);
+                                    _showProductCodeSheet(context, product);
+                                  },
+                                );
+                              },
+                            ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _ProductSearchTile extends StatelessWidget {
+  const _ProductSearchTile({
+    required this.product,
+    required this.query,
+    required this.onTap,
+  });
+
+  final Product product;
+  final String query;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    Color badgeColor;
+    String statusText;
+
+    if (product.currentStock <= 0) {
+      badgeColor = Colors.red;
+      statusText = "หมด";
+    } else if (product.currentStock <= product.minimumStock) {
+      badgeColor = Colors.orange;
+      statusText = "ใกล้หมด";
+    } else {
+      badgeColor = Colors.green;
+      statusText = "ปกติ";
+    }
+
+    final bool isLongUnit = product.unit.length > 4;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        onTap: onTap,
+        title: Text(
+          product.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text("${product.barcode} | ${product.category ?? 'ทั่วไป'}"),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                isLongUnit
+                    ? "${product.currentStock}"
+                    : "${product.currentStock} ${product.unit}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              isLongUnit ? "$statusText (${product.unit})" : statusText,
+              style: TextStyle(
+                color: badgeColor,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AdminPage extends StatefulWidget {
   const AdminPage({
     super.key,
@@ -7242,6 +7681,2086 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
+class OrdersPage extends StatefulWidget {
+  const OrdersPage({
+    super.key,
+    required this.api,
+    required this.currentUser,
+    this.refreshSignal,
+  });
+
+  final StockApiService api;
+  final AppUser currentUser;
+  final ValueListenable<int>? refreshSignal;
+
+  @override
+  State<OrdersPage> createState() => _OrdersPageState();
+}
+
+class _OrdersPageState extends State<OrdersPage> {
+  final ImagePicker _proofImagePicker = ImagePicker();
+  final Map<String, List<String>> _orderProofPhotos = {};
+  final GlobalKey<FormState> _createOrderFormKey = GlobalKey<FormState>();
+  final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _customerPhoneController =
+      TextEditingController();
+  final TextEditingController _customerAddressController =
+      TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+  String? _selectedAssigneeId;
+  String? _selectedProductionUserId;
+  String? _selectedQcUserId;
+  String? _selectedDeliveryUserId;
+  DateTime? _scheduledDeliveryAt;
+  bool _showAdvancedTeam = false;
+  AutovalidateMode _createOrderAutovalidate = AutovalidateMode.disabled;
+  bool _isSaving = false;
+  String? _orderPickerId;
+  late Future<_OrdersPageData> _future;
+  late List<_DraftOrderItem> _draftItems;
+
+  Future<void> _showOrderPreview(DeliveryOrder order) async {
+    final statusLabel = order.status == "new"
+        ? "ใหม่"
+        : order.status == "assigned"
+            ? "มอบหมายแล้ว"
+            : order.status == "in_production"
+                ? "กำลังผลิต"
+                : order.status == "qc_pending"
+                    ? "รอ QC"
+                    : order.status == "qc_passed"
+                        ? "ผ่าน QC"
+                        : order.status == "preparing"
+                            ? "กำลังจัดสินค้า"
+                            : order.status == "out_for_delivery"
+                                ? "กำลังส่ง"
+                                : order.status == "delivered"
+                                    ? "ส่งแล้ว"
+                                    : order.status == "cancelled"
+                                        ? "ยกเลิก"
+                                        : order.status;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.52,
+        child: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          "ใบสรุปออเดอร์",
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                        const SizedBox(height: 2),
+                        Text(
+                          order.customerName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const _ReceiptDivider(),
+                  const SizedBox(height: 8),
+                  _receiptRow("สถานะ", statusLabel),
+                  _receiptRow("ผู้รับออเดอร์", order.createdByName),
+                  _receiptRow(
+                      "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  if (order.customerPhone != null &&
+                      order.customerPhone!.isNotEmpty)
+                    _receiptRow("โทร", order.customerPhone!),
+                  if (order.customerAddress != null &&
+                      order.customerAddress!.isNotEmpty)
+                    _receiptRow("ที่อยู่", order.customerAddress!),
+                  if (order.scheduledDeliveryAt != null)
+                    _receiptRow(
+                        "กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _openOrder(order);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: const Text("เปิดออเดอร์นี้"),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.black.withOpacity(0.60),
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openOrder(DeliveryOrder order) {
+    // Keep this lightweight: the order is already visible in the list.
+    setState(() {
+      _orderPickerId = order.id;
+    });
+    _showAppSnack(context, "เลือกออเดอร์แล้ว เลื่อนลงเพื่อจัดการได้เลย");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _draftItems = [_DraftOrderItem()];
+    _future = _load();
+    widget.refreshSignal?.addListener(_handleRealtimeRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshSignal?.removeListener(_handleRealtimeRefresh);
+    _customerNameController.dispose();
+    _customerPhoneController.dispose();
+    _customerAddressController.dispose();
+    _noteController.dispose();
+    for (final item in _draftItems) {
+      item.dispose();
+    }
+    super.dispose();
+  }
+
+  void _handleRealtimeRefresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _future = _load();
+    });
+  }
+
+  Future<_OrdersPageData> _load() async {
+    final results = await Future.wait([
+      widget.api.getOrders(requesterId: widget.currentUser.userId, limit: 400),
+      widget.api.getUsers(activeOnly: true),
+      widget.api.getProducts(),
+    ]);
+    return _OrdersPageData(
+      orders: results[0] as List<DeliveryOrder>,
+      users: results[1] as List<AppUser>,
+      products: results[2] as List<Product>,
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _future = _load();
+    });
+    await _future;
+  }
+
+  Future<void> _loadProofPhotosForOrder(String orderId) async {
+    try {
+      final photos = await widget.api.getOrderProofPhotos(
+        requesterId: widget.currentUser.userId,
+        orderId: orderId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _orderProofPhotos[orderId] = photos;
+      });
+    } catch (_) {}
+  }
+
+  Product? _resolveDraftProduct(_DraftOrderItem item, List<Product> products) {
+    if (item.barcode != null) {
+      for (final product in products) {
+        if (product.barcode == item.barcode) {
+          return product;
+        }
+      }
+    }
+
+    final query = item.productController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return null;
+    }
+
+    for (final product in products) {
+      if (product.name.toLowerCase() == query ||
+          product.barcode.toLowerCase() == query ||
+          (product.sku?.toLowerCase() == query)) {
+        return product;
+      }
+    }
+
+    final partialMatches = products
+        .where((product) {
+          return product.name.toLowerCase().contains(query) ||
+              product.barcode.toLowerCase().contains(query) ||
+              (product.sku?.toLowerCase().contains(query) ?? false);
+        })
+        .take(2)
+        .toList();
+    if (partialMatches.length == 1) {
+      return partialMatches.first;
+    }
+    return null;
+  }
+
+  Future<void> _createOrder(_OrdersPageData data) async {
+    final formState = _createOrderFormKey.currentState;
+    if (formState != null) {
+      setState(() {
+        _createOrderAutovalidate = AutovalidateMode.onUserInteraction;
+      });
+      if (!formState.validate()) {
+        _showAppSnack(context, "กรุณากรอก ชื่อ/เบอร์โทร/ที่อยู่ ให้ครบ",
+            isError: true);
+        return;
+      }
+    }
+
+    final customerName = _customerNameController.text.trim();
+    final items = <Map<String, dynamic>>[];
+    for (final item in _draftItems) {
+      final resolvedProduct = _resolveDraftProduct(item, data.products);
+      final qty = int.tryParse(item.quantityController.text.trim());
+      if (resolvedProduct == null || qty == null || qty <= 0) {
+        _showAppSnack(context, "กรุณาเลือกสินค้าและจำนวนให้ครบทุกแถว");
+        return;
+      }
+      item.barcode = resolvedProduct.barcode;
+      item.productController.text = resolvedProduct.name;
+      items.add({
+        "barcode": resolvedProduct.barcode,
+        "quantity": qty,
+      });
+    }
+    if (customerName.isEmpty || items.isEmpty) {
+      _showAppSnack(context, "กรุณากรอกชื่อลูกค้าและรายการสินค้า");
+      return;
+    }
+    if (_customerPhoneController.text.trim().isEmpty ||
+        _customerAddressController.text.trim().isEmpty) {
+      _showAppSnack(context, "กรุณากรอก ชื่อ/เบอร์โทร/ที่อยู่ ให้ครบ",
+          isError: true);
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+    _showAppSnack(context, "กำลังสร้างออเดอร์...");
+    try {
+      await widget.api.createOrder(
+        requesterId: widget.currentUser.userId,
+        customerName: customerName,
+        customerPhone: _customerPhoneController.text.trim(),
+        customerAddress: _customerAddressController.text.trim(),
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+        assignedToId: _selectedAssigneeId,
+        productionUserId: _selectedProductionUserId,
+        qcUserId: _selectedQcUserId,
+        deliveryUserId: _selectedDeliveryUserId,
+        scheduledDeliveryAt: _scheduledDeliveryAt,
+        items: items,
+      );
+      setState(() {
+        _customerNameController.clear();
+        _customerPhoneController.clear();
+        _customerAddressController.clear();
+        _noteController.clear();
+        _createOrderFormKey.currentState?.reset();
+        _createOrderAutovalidate = AutovalidateMode.disabled;
+        _selectedAssigneeId = null;
+        _selectedProductionUserId = null;
+        _selectedQcUserId = null;
+        _selectedDeliveryUserId = null;
+        _scheduledDeliveryAt = null;
+        for (final item in _draftItems) {
+          item.dispose();
+        }
+        _draftItems = [_DraftOrderItem()];
+      });
+      if (mounted) {
+        _showAppSnack(context, "สร้างออเดอร์เรียบร้อย");
+      }
+      await _refresh();
+    } catch (error) {
+      final message = error.toString().replaceFirst("Exception: ", "");
+      if (mounted) {
+        _showAppSnack(context, message, isError: true);
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("สร้างออเดอร์ไม่สำเร็จ"),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text("ปิด"),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  void _addDraftItem() {
+    setState(() {
+      _draftItems = [..._draftItems, _DraftOrderItem()];
+    });
+  }
+
+  void _removeDraftItem(int index) {
+    if (_draftItems.length == 1) {
+      _showAppSnack(context, "ออเดอร์ต้องมีสินค้าอย่างน้อย 1 รายการ");
+      return;
+    }
+    setState(() {
+      final target = _draftItems[index];
+      target.dispose();
+      _draftItems = [
+        ..._draftItems.sublist(0, index),
+        ..._draftItems.sublist(index + 1),
+      ];
+    });
+  }
+
+  String _fmtDateTime(DateTime value) {
+    final d = value;
+    final dd = d.day.toString().padLeft(2, "0");
+    final mm = d.month.toString().padLeft(2, "0");
+    final yy = d.year;
+    final hh = d.hour.toString().padLeft(2, "0");
+    final mi = d.minute.toString().padLeft(2, "0");
+    return "$dd/$mm/$yy $hh:$mi";
+  }
+
+  Map<String, String> _parseCustomerFromText(String raw) {
+    final cleaned = raw.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim();
+    if (cleaned.isEmpty) {
+      return {"name": "", "phone": "", "address": "", "note": ""};
+    }
+
+    final lines = cleaned
+        .split("\n")
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    String name = "";
+    String phone = "";
+    String address = "";
+    String note = "";
+
+    int? sendIndex;
+    int? phoneIndex;
+
+    String stripPrefix(String line, List<String> prefixes) {
+      var out = line.trim();
+      for (final prefix in prefixes) {
+        if (out.toLowerCase().startsWith(prefix.toLowerCase())) {
+          out = out.substring(prefix.length).trim();
+        }
+      }
+      return out;
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i] == "ส่ง") {
+        sendIndex = i;
+        break;
+      }
+    }
+
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      final digits = line.replaceAll(RegExp(r"\\D"), "");
+
+      if (phone.isEmpty &&
+          (lower.startsWith("โทร") ||
+              lower.startsWith("tel") ||
+              lower.startsWith("phone") ||
+              digits.length >= 9)) {
+        final candidate = stripPrefix(
+            line, ["โทร:", "โทร", "tel:", "tel", "phone:", "phone"]);
+        final phoneDigits = candidate.replaceAll(RegExp(r"\\D"), "");
+        if (phoneDigits.length >= 9) {
+          phone = phoneDigits;
+          phoneIndex = lines.indexOf(line);
+          continue;
+        }
+      }
+
+      if (address.isEmpty &&
+          (lower.startsWith("ที่อยู่") ||
+              lower.startsWith("addr") ||
+              lower.startsWith("address"))) {
+        address = stripPrefix(line,
+            ["ที่อยู่:", "ที่อยู่", "addr:", "addr", "address:", "address"]);
+        continue;
+      }
+
+      if (note.isEmpty &&
+          (lower.startsWith("หมายเหตุ") || lower.startsWith("note"))) {
+        note = stripPrefix(line, ["หมายเหตุ:", "หมายเหตุ", "note:", "note"]);
+        continue;
+      }
+    }
+
+    // Pattern: "ส่ง" then name, then multi-line address, then phone.
+    if (sendIndex != null) {
+      if (sendIndex! + 1 < lines.length && name.isEmpty) {
+        name = lines[sendIndex! + 1];
+      }
+      final startAddr = (sendIndex! + 2).clamp(0, lines.length);
+      final endAddr = phoneIndex == null
+          ? lines.length
+          : phoneIndex!.clamp(0, lines.length);
+      if (startAddr < endAddr) {
+        final addrLines =
+            lines.sublist(startAddr, endAddr).where((l) => l != "ส่ง").toList();
+        if (addrLines.isNotEmpty && address.isEmpty) {
+          address = addrLines.join(" ");
+        }
+      }
+      // Everything before "ส่ง" is usually items; keep in note if note not provided.
+      if (note.isEmpty && sendIndex! > 0) {
+        note = lines.sublist(0, sendIndex!).join(" | ");
+      }
+    }
+
+    if (name.isEmpty) {
+      for (final line in lines) {
+        final lower = line.toLowerCase();
+        if (lower.startsWith("โทร") ||
+            lower.startsWith("tel") ||
+            lower.startsWith("phone") ||
+            lower.startsWith("ที่อยู่") ||
+            lower.startsWith("addr") ||
+            lower.startsWith("address") ||
+            lower.startsWith("หมายเหตุ") ||
+            lower.startsWith("note")) {
+          continue;
+        }
+        final digits = line.replaceAll(RegExp(r"\\D"), "");
+        if (digits.length >= 9 && digits.length >= (line.length * 0.7)) {
+          continue;
+        }
+        if (line == "ส่ง") {
+          continue;
+        }
+        name = line;
+        break;
+      }
+    }
+
+    if (address.isEmpty && lines.length >= 2) {
+      final ignored = <String>{};
+      if (name.isNotEmpty) ignored.add(name);
+      if (note.isNotEmpty) ignored.add(note);
+      final phoneDigits = phone;
+      final candidates = lines.where((l) {
+        if (ignored.contains(l)) return false;
+        final digits = l.replaceAll(RegExp(r"\\D"), "");
+        if (phoneDigits.isNotEmpty && digits == phoneDigits) return false;
+        final lower = l.toLowerCase();
+        if (lower.startsWith("โทร") ||
+            lower.startsWith("tel") ||
+            lower.startsWith("phone") ||
+            lower.startsWith("หมายเหตุ") ||
+            lower.startsWith("note")) return false;
+        return true;
+      }).toList();
+      if (candidates.isNotEmpty) {
+        address = candidates.join(" ");
+      }
+    }
+
+    return {"name": name, "phone": phone, "address": address, "note": note};
+  }
+
+  Future<void> _pasteCustomerFromClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text ?? "";
+      final parsed = _parseCustomerFromText(text);
+      if (!mounted) return;
+      setState(() {
+        if (parsed["name"]!.trim().isNotEmpty)
+          _customerNameController.text = parsed["name"]!.trim();
+        if (parsed["phone"]!.trim().isNotEmpty)
+          _customerPhoneController.text = parsed["phone"]!.trim();
+        if (parsed["address"]!.trim().isNotEmpty)
+          _customerAddressController.text = parsed["address"]!.trim();
+        if (parsed["note"]!.trim().isNotEmpty)
+          _noteController.text = parsed["note"]!.trim();
+      });
+      if (mounted) _showAppSnack(context, "วางข้อมูลลูกค้าแล้ว");
+    } catch (e) {
+      if (mounted) {
+        _showAppSnack(context, "วางจากคลิปบอร์ดไม่สำเร็จ", isError: true);
+      }
+    }
+  }
+
+  Future<void> _scanCustomerInfo() async {
+    try {
+      final XFile? image = await showModalBottomSheet<XFile?>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text("ถ่ายรูป"),
+                onTap: () async {
+                  final file = await _proofImagePicker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 80,
+                  );
+                  if (context.mounted) Navigator.pop(context, file);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text("เลือกจากคลังภาพ"),
+                onTap: () async {
+                  final file = await _proofImagePicker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 80,
+                  );
+                  if (context.mounted) Navigator.pop(context, file);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (image == null) return;
+
+      setState(() {
+        _isSaving = true;
+      });
+
+      final inputImage = InputImage.fromFilePath(image.path);
+      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final RecognizedText recognizedText =
+          await textRecognizer.processImage(inputImage);
+      await textRecognizer.close();
+
+      final rawText = recognizedText.text;
+      if (rawText.trim().isEmpty) {
+        if (mounted) _showAppSnack(context, "ไม่พบข้อความในรูปภาพ", isError: true);
+        return;
+      }
+
+      final lines = rawText
+          .split("\n")
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      String? phone;
+      String? name;
+      final phoneRegex = RegExp(r"(0\d{1,2}-?\d{3}-?\d{3,4})");
+
+      // Find phone
+      for (final line in lines) {
+        final match = phoneRegex.firstMatch(line.replaceAll(" ", ""));
+        if (match != null) {
+          phone = match.group(0);
+          break;
+        }
+      }
+
+      // Find name (first line not a phone)
+      for (final line in lines) {
+        final cleanLine = line.replaceAll(" ", "");
+        if (phone != null && cleanLine.contains(phone.replaceAll("-", "")))
+          continue;
+        if (phoneRegex.hasMatch(cleanLine)) continue;
+        name = line;
+        break;
+      }
+
+      // Remaining as address
+      final addressLines = lines.where((line) {
+        if (line == name) return false;
+        final cleanLine = line.replaceAll(" ", "");
+        if (phone != null && cleanLine.contains(phone.replaceAll("-", "")))
+          return false;
+        return true;
+      }).toList();
+      final address = addressLines.join(" ");
+
+      if (!mounted) return;
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("ยืนยันข้อมูลที่สแกนได้"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("ชื่อ: ${name ?? "-"}"),
+              Text("เบอร์โทร: ${phone ?? "-"}"),
+              Text("ที่อยู่: ${address.isEmpty ? "-" : address}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("ยกเลิก"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("ใช้ข้อมูลนี้"),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true && mounted) {
+        setState(() {
+          if (name != null) _customerNameController.text = name;
+          if (phone != null)
+            _customerPhoneController.text = phone.replaceAll("-", "");
+          if (address.isNotEmpty) _customerAddressController.text = address;
+        });
+        _showAppSnack(context, "เติมข้อมูลลูกค้าเรียบร้อย");
+      }
+    } catch (e) {
+      if (mounted) _showAppSnack(context, "สแกนไม่สำเร็จ: $e", isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openCancelledOrders(
+    List<DeliveryOrder> cancelled,
+    List<AppUser> activeStaff,
+    _OrdersPageData data,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _CancelledOrdersPage(
+          orders: cancelled,
+          currentUser: widget.currentUser,
+          api: widget.api,
+          proofPhotos: _orderProofPhotos,
+          onLoadProofPhotos: _loadProofPhotosForOrder,
+          staff: activeStaff,
+          onAssign: _assignOrder,
+          onOpenProofGallery: _openProofGallery,
+        ),
+      ),
+    );
+  }
+
+  String _userLabelById(List<AppUser> users, String? id, String fallback) {
+    if (id == null) return fallback;
+    for (final user in users) {
+      if (user.userId == id) return "${user.userName} (${user.userId})";
+    }
+    return fallback;
+  }
+
+  Future<void> _updateStatus(DeliveryOrder order, String status) async {
+    try {
+      await widget.api.updateOrderStatus(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        status: status,
+      );
+      if (status == "delivered" && mounted) {
+        await _showDeliveredCatAnimation();
+      }
+      _showAppSnack(context, "อัปเดตสถานะแล้ว");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(
+        context,
+        error.toString().replaceFirst("Exception: ", ""),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _showDeliveredCatAnimation() {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "delivery_success",
+      barrierColor: Colors.black45,
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) => const _DeliverySuccessOverlay(),
+    );
+  }
+
+  Future<void> _uploadProofPhoto(DeliveryOrder order) async {
+    try {
+      final file = await _proofImagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1800,
+      );
+      if (file == null) return;
+      await widget.api.uploadOrderProofPhoto(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        filePath: file.path,
+      );
+      await _loadProofPhotosForOrder(order.id);
+      _showAppSnack(context, "อัปโหลดรูปหลักฐานแล้ว");
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _deliverPartial(DeliveryOrder order) async {
+    final qtyValues = <String, String>{
+      for (final item in order.items)
+        item.barcode:
+            "${(item.quantity - item.deliveredQuantity).clamp(0, item.quantity)}",
+    };
+    String note = "";
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("ส่งสินค้า (บางส่วน)"),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...order.items.map((item) {
+                        final remaining =
+                            item.quantity - item.deliveredQuantity;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  child: Text(
+                                      "${item.productName} (ค้าง $remaining)")),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 72,
+                                child: TextFormField(
+                                  initialValue: qtyValues[item.barcode] ?? "0",
+                                  keyboardType: TextInputType.number,
+                                  decoration:
+                                      const InputDecoration(labelText: "ส่ง"),
+                                  onChanged: (value) =>
+                                      qtyValues[item.barcode] = value,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      TextField(
+                        onChanged: (value) => note = value,
+                        decoration:
+                            const InputDecoration(labelText: "หมายเหตุ"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text("ยกเลิก")),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text("บันทึก")),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      final items = <Map<String, dynamic>>[];
+      for (final item in order.items) {
+        final qty = int.tryParse((qtyValues[item.barcode] ?? "0").trim()) ?? 0;
+        if (qty > 0) {
+          items.add({"barcode": item.barcode, "quantity": qty});
+        }
+      }
+      if (items.isEmpty) {
+        _showAppSnack(context, "กรุณาใส่จำนวนที่ส่งอย่างน้อย 1 รายการ");
+        return;
+      }
+      final updated = await widget.api.deliverOrderPartial(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        items: items,
+        note: note.isEmpty ? null : note,
+      );
+      if (updated.status == "delivered") {
+        await widget.api.updateOrderStatus(
+          requesterId: widget.currentUser.userId,
+          orderId: order.id,
+          status: "out_for_delivery",
+        );
+      }
+      _showAppSnack(context, "บันทึกการส่งบางส่วนแล้ว");
+      await _loadProofPhotosForOrder(order.id);
+      if (!mounted) return;
+      setState(() {
+        _future = _load();
+      });
+      await _future;
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _fixDeliveryStatus(DeliveryOrder order) async {
+    final targetValues = <String, String>{
+      for (final item in order.items)
+        item.barcode: "${item.deliveredQuantity}",
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("แก้ไขจำนวนส่ง (แอดมิน)"),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...order.items.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "${item.productName} (ทั้งหมด ${item.quantity})",
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 72,
+                                child: TextFormField(
+                                  initialValue:
+                                      targetValues[item.barcode] ?? "0",
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: "ส่งแล้ว"),
+                                  onChanged: (value) =>
+                                      targetValues[item.barcode] = value,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็นระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text("ยกเลิก")),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text("บันทึกการแก้ไข")),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      final items = <Map<String, dynamic>>[];
+      final List<String> correctionLogs = [];
+      for (final item in order.items) {
+        final target =
+            int.tryParse((targetValues[item.barcode] ?? "0").trim()) ?? 0;
+        final delta = target - item.deliveredQuantity;
+        if (delta != 0) {
+          items.add({"barcode": item.barcode, "quantity": delta});
+          correctionLogs.add("${item.productName}: ${item.deliveredQuantity} -> $target");
+        }
+      }
+
+      if (items.isEmpty) {
+        _showAppSnack(context, "ไม่มีการเปลี่ยนแปลง");
+        return;
+      }
+
+      final auditNote =
+          "[Correction] Admin: ${widget.currentUser.userName} | ${correctionLogs.join(', ')}";
+
+      await widget.api.deliverOrderPartial(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        items: items,
+        note: auditNote,
+      );
+      _showAppSnack(context, "แก้ไขจำนวนส่งเรียบร้อยแล้ว");
+      if (!mounted) return;
+      setState(() {
+        _future = _load();
+      });
+      await _future;
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  void _openProofGallery(DeliveryOrder order) {
+    final photos = _orderProofPhotos[order.id] ?? const <String>[];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.7,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("รูปหลักฐานการส่ง",
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (photos.isEmpty)
+                const Expanded(child: Center(child: Text("ยังไม่มีรูปหลักฐาน")))
+              else
+                Expanded(
+                  child: GridView.builder(
+                    itemCount: photos.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          photos[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color:
+                                  _brandSurfaceStrong.withValues(alpha: 0.35),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(12),
+                              child: const Text(
+                                "ดูรูปไม่ได้",
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _assignOrder(DeliveryOrder order, List<AppUser> users) async {
+    String? production = order.productionUserId;
+    String? qc = order.qcUserId;
+    String? delivery = order.deliveryUserId ?? order.assignedToId;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("มอบหมายทีมงาน"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String?>(
+                      value: production,
+                      decoration: const InputDecoration(labelText: "ฝ่ายผลิต"),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                            value: null, child: Text("ยังไม่กำหนด")),
+                        ...users.map((u) => DropdownMenuItem<String?>(
+                            value: u.userId,
+                            child: Text("${u.userName} (${u.userId})"))),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => production = value),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String?>(
+                      value: qc,
+                      decoration: const InputDecoration(labelText: "QC"),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                            value: null, child: Text("ยังไม่กำหนด")),
+                        ...users.map((u) => DropdownMenuItem<String?>(
+                            value: u.userId,
+                            child: Text("${u.userName} (${u.userId})"))),
+                      ],
+                      onChanged: (value) => setDialogState(() => qc = value),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String?>(
+                      value: delivery,
+                      decoration: const InputDecoration(labelText: "จัดส่ง"),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                            value: null, child: Text("ยังไม่กำหนด")),
+                        ...users.map((u) => DropdownMenuItem<String?>(
+                            value: u.userId,
+                            child: Text("${u.userName} (${u.userId})"))),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => delivery = value),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text("ยกเลิก"),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text("บันทึก"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await widget.api.assignOrderTeam(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+        productionUserId: production,
+        qcUserId: qc,
+        deliveryUserId: delivery,
+      );
+      _showAppSnack(context, "บันทึกทีมงานเรียบร้อย");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
+    }
+  }
+
+  Future<void> _resolveBackorder(DeliveryOrder order) async {
+    try {
+      await widget.api.resolveBackorder(
+        requesterId: widget.currentUser.userId,
+        orderId: order.id,
+      );
+      _showAppSnack(context, "ปิดค้างจ่ายแล้ว");
+      await _refresh();
+    } catch (error) {
+      _showAppSnack(context, error.toString().replaceFirst("Exception: ", ""),
+          isError: true);
+    }
+  }
+
+  void _openBackorderReport(List<DeliveryOrder> orders) {
+    final backorders = orders.where((order) {
+      return order.items.any((item) => item.deliveredQuantity < item.quantity);
+    }).toList();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.82,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: _BackorderReportSheet(
+            backorders: backorders,
+            currentUser: widget.currentUser,
+            onFixStatus: _fixDeliveryStatus,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ColoredBox(
+        color: _brandSurface,
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<_OrdersPageData>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return _ErrorState(message: snapshot.error.toString());
+              }
+              final data = snapshot.data!;
+              for (final order in data.orders) {
+                if (!_orderProofPhotos.containsKey(order.id)) {
+                  unawaited(_loadProofPhotosForOrder(order.id));
+                }
+              }
+              final backorderOrders = data.orders.where((order) {
+                if (order.status == "cancelled") {
+                  return false;
+                }
+                return order.items
+                    .any((item) => item.deliveredQuantity < item.quantity);
+              }).toList();
+              final activeStaff =
+                  data.users.where((item) => item.active).toList();
+
+              final listPadding = kIsWeb
+                  ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
+                  : const EdgeInsets.all(16);
+              return ListView(
+                padding: listPadding,
+                children: [
+                  const _PageHeader(
+                    title: "ออเดอร์และจัดส่ง",
+                    subtitle:
+                        "รับออเดอร์จากลูกค้า มอบหมายคนส่ง และติดตามสถานะงาน",
+                    showBackButton: true,
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 820),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Card(
+                            color: Colors.red.withOpacity(0.05),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "รายงานค้างจ่าย (${backorderOrders.length} ออเดอร์)",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: Colors.red.shade700,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _openBackorderReport(data.orders),
+                                      icon: const Icon(Icons.list_alt_outlined),
+                                      label: const Text("เปิดรายงานแบบเต็ม"),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (backorderOrders.isEmpty)
+                                    const Text("ไม่มีออเดอร์ค้างจ่ายตอนนี้")
+                                  else
+                                    ...backorderOrders.take(6).map((order) {
+                                      final pendingItems = order.items.where(
+                                        (item) =>
+                                            item.deliveredQuantity <
+                                            item.quantity,
+                                      );
+                                      final summary = pendingItems
+                                          .map(
+                                            (item) =>
+                                                "${item.productName} ค้าง ${item.quantity - item.deliveredQuantity}",
+                                          )
+                                          .join(", ");
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 6),
+                                        child: Text(
+                                            "โดย ${order.customerName}: $summary"),
+                                      );
+                                    }),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "สร้างออเดอร์ใหม่",
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Wrap(
+                                      spacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: _pasteCustomerFromClipboard,
+                                          icon: const Icon(
+                                              Icons.content_paste_go_outlined),
+                                          label:
+                                              const Text("วางข้อมูลลูกค้าจากแชท"),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: _scanCustomerInfo,
+                                          icon: const Icon(
+                                              Icons.document_scanner_outlined),
+                                          label: const Text("สแกนข้อมูลลูกค้า"),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Form(
+                                    key: _createOrderFormKey,
+                                    autovalidateMode: _createOrderAutovalidate,
+                                    child: Column(
+                                      children: [
+                                        TextFormField(
+                                          controller: _customerNameController,
+                                          decoration: const InputDecoration(
+                                            labelText: "ชื่อลูกค้า",
+                                            helperText: "จำเป็น",
+                                          ),
+                                          validator: (value) {
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
+                                              return "กรุณากรอกชื่อลูกค้า";
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        TextFormField(
+                                          controller: _customerPhoneController,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
+                                          decoration: const InputDecoration(
+                                            labelText: "เบอร์โทร",
+                                            helperText: "จำเป็น",
+                                          ),
+                                          validator: (value) {
+                                            final v = value?.trim() ?? "";
+                                            if (v.isEmpty)
+                                              return "กรุณากรอกเบอร์โทร";
+                                            if (v.length < 9)
+                                              return "เบอร์โทรสั้นเกินไป";
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        TextFormField(
+                                          controller:
+                                              _customerAddressController,
+                                          maxLines: 2,
+                                          decoration: const InputDecoration(
+                                            labelText: "ที่อยู่",
+                                            helperText: "จำเป็น",
+                                          ),
+                                          validator: (value) {
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
+                                              return "กรุณากรอกที่อยู่";
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    "รายการสินค้า",
+                                    style:
+                                        Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ...List.generate(_draftItems.length, (index) {
+                                    final draftItem = _draftItems[index];
+                                    Product? selectedProduct;
+                                    if (draftItem.barcode != null) {
+                                      for (final product in data.products) {
+                                        if (product.barcode ==
+                                            draftItem.barcode) {
+                                          selectedProduct = product;
+                                          break;
+                                        }
+                                      }
+                                    }
+                                    final query = draftItem
+                                        .productController.text
+                                        .trim()
+                                        .toLowerCase();
+                                    final showSuggestions = query.isNotEmpty &&
+                                        selectedProduct == null;
+                                    final matchedProducts = showSuggestions
+                                        ? data.products
+                                            .where((product) {
+                                              return product.name
+                                                      .toLowerCase()
+                                                      .contains(query) ||
+                                                  product.barcode
+                                                      .toLowerCase()
+                                                      .contains(query) ||
+                                                  (product.sku
+                                                          ?.toLowerCase()
+                                                          .contains(query) ??
+                                                      false);
+                                            })
+                                            .take(6)
+                                            .toList()
+                                        : const <Product>[];
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          TextField(
+                                            controller:
+                                                draftItem.productController,
+                                            decoration: InputDecoration(
+                                              labelText: "สินค้า ${index + 1}",
+                                              hintText:
+                                                  "พิมพ์ชื่อสินค้า บาร์โค้ด หรือ SKU",
+                                              prefixIcon:
+                                                  const Icon(Icons.search),
+                                            ),
+                                            onChanged: (_) {
+                                              setState(() {
+                                                draftItem.barcode = null;
+                                              });
+                                            },
+                                          ),
+                                          if (matchedProducts.isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                border: Border.all(
+                                                    color: _brandPrimary
+                                                        .withOpacity(0.16)),
+                                              ),
+                                              child: Column(
+                                                children: matchedProducts
+                                                    .map((product) {
+                                                  return ListTile(
+                                                    dense: true,
+                                                    title: Text(
+                                                      product.name,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    subtitle: Text(
+                                                      "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    onTap: () {
+                                                      setState(() {
+                                                        draftItem.barcode =
+                                                            product.barcode;
+                                                        draftItem
+                                                            .productController
+                                                            .text = product.name;
+                                                      });
+                                                    },
+                                                    trailing: const Icon(
+                                                        Icons
+                                                            .north_west_rounded,
+                                                        size: 18),
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ),
+                                          ],
+                                          if (selectedProduct != null) ...[
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              "บาร์โค้ด: ${selectedProduct.barcode} · คงเหลือ ${selectedProduct.currentStock} ${selectedProduct.unit}",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: _brandInk
+                                                        .withOpacity(0.72),
+                                                  ),
+                                            ),
+                                          ],
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: TextField(
+                                                  controller: draftItem
+                                                      .quantityController,
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          labelText: "จำนวน"),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              IconButton.filledTonal(
+                                                onPressed: () =>
+                                                    _removeDraftItem(index),
+                                                icon: const Icon(
+                                                    Icons.delete_outline),
+                                                tooltip: "ลบรายการ",
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _addDraftItem,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text("เพิ่มสินค้าอีกตัว"),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: const Text("ทีมงานออเดอร์"),
+                                    subtitle: Text(
+                                      "ผลิต: ${_userLabelById(activeStaff, _selectedProductionUserId, "-")} · "
+                                      "QC: ${_userLabelById(activeStaff, _selectedQcUserId, "-")} · "
+                                      "ส่ง: ${_userLabelById(activeStaff, _selectedDeliveryUserId ?? _selectedAssigneeId, "-")}",
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: TextButton(
+                                      onPressed: () => setState(
+                                        () => _showAdvancedTeam =
+                                            !_showAdvancedTeam,
+                                      ),
+                                      child: Text(
+                                          _showAdvancedTeam ? "ย่อ" : "กำหนด"),
+                                    ),
+                                  ),
+                                  if (_showAdvancedTeam) ...[
+                                    DropdownButtonFormField<String?>(
+                                      value: _selectedProductionUserId,
+                                      decoration: const InputDecoration(
+                                          labelText: "ฝ่ายผลิต"),
+                                      items: [
+                                        const DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text("-"),
+                                        ),
+                                        ...activeStaff.map(
+                                          (user) => DropdownMenuItem<String?>(
+                                            value: user.userId,
+                                            child: Text(
+                                                "${user.userName} (${user.userId})"),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(
+                                        () => _selectedProductionUserId = value,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    DropdownButtonFormField<String?>(
+                                      value: _selectedQcUserId,
+                                      decoration: const InputDecoration(
+                                          labelText: "QC"),
+                                      items: [
+                                        const DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text("-"),
+                                        ),
+                                        ...activeStaff.map(
+                                          (user) => DropdownMenuItem<String?>(
+                                            value: user.userId,
+                                            child: Text(
+                                                "${user.userName} (${user.userId})"),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(
+                                          () => _selectedQcUserId = value),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    DropdownButtonFormField<String?>(
+                                      value: _selectedDeliveryUserId ??
+                                          _selectedAssigneeId,
+                                      decoration: const InputDecoration(
+                                          labelText: "จัดส่ง"),
+                                      items: [
+                                        const DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text("-"),
+                                        ),
+                                        ...activeStaff.map(
+                                          (user) => DropdownMenuItem<String?>(
+                                            value: user.userId,
+                                            child: Text(
+                                                "${user.userName} (${user.userId})"),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(() {
+                                        _selectedDeliveryUserId = value;
+                                        _selectedAssigneeId = value;
+                                      }),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 10),
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final now = DateTime.now();
+                                      final pickedDate = await showDatePicker(
+                                        context: context,
+                                        initialDate:
+                                            _scheduledDeliveryAt ?? now,
+                                        firstDate: now
+                                            .subtract(const Duration(days: 1)),
+                                        lastDate:
+                                            now.add(const Duration(days: 365)),
+                                      );
+                                      if (pickedDate == null || !mounted)
+                                        return;
+                                      final pickedTime = await showTimePicker(
+                                        context: context,
+                                        initialTime: TimeOfDay.fromDateTime(
+                                          _scheduledDeliveryAt ?? now,
+                                        ),
+                                      );
+                                      if (pickedTime == null || !mounted)
+                                        return;
+                                      setState(() {
+                                        _scheduledDeliveryAt = DateTime(
+                                          pickedDate.year,
+                                          pickedDate.month,
+                                          pickedDate.day,
+                                          pickedTime.hour,
+                                          pickedTime.minute,
+                                        );
+                                      });
+                                    },
+                                    icon: const Icon(Icons.schedule_outlined),
+                                    label: Text(
+                                      _scheduledDeliveryAt == null
+                                          ? "กำหนดเวลาจัดส่ง"
+                                          : "เวลาจัดส่ง: ${_fmtDateTime(_scheduledDeliveryAt!)}",
+                                    ),
+                                  ),
+                                  TextField(
+                                    controller: _noteController,
+                                    maxLines: 2,
+                                    decoration: const InputDecoration(
+                                        labelText: "หมายเหตุ"),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: _isSaving
+                                          ? null
+                                          : () => _createOrder(data),
+                                      icon: _isSaving
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                  strokeWidth: 2),
+                                            )
+                                          : const Icon(Icons.add_task_outlined),
+                                      label: const Text("สร้างออเดอร์"),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "รายการออเดอร์",
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          if (data.orders.isEmpty)
+                            const _EmptyTile(message: "ยังไม่มีออเดอร์ในระบบ")
+                          else
+                            ...(() {
+                              final cancelled = data.orders
+                                  .where((o) => o.status == "cancelled")
+                                  .toList();
+                              final active = data.orders
+                                  .where((o) => o.status != "cancelled")
+                                  .toList();
+                              return <Widget>[
+                                if (active.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Material(
+                                      type: MaterialType.transparency,
+                                      child: DropdownMenu<String>(
+                                        initialSelection: _orderPickerId,
+                                        expandedInsets: EdgeInsets.zero,
+                                        enableFilter: true,
+                                        enableSearch: true,
+                                        leadingIcon:
+                                            const Icon(Icons.search_rounded),
+                                        label: const Text("เลือกออเดอร์"),
+                                        hintText:
+                                            "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
+                                        dropdownMenuEntries: active
+                                            .map(
+                                              (order) =>
+                                                  DropdownMenuEntry<String>(
+                                                value: order.id,
+                                                label:
+                                                    "${order.customerName} • ${order.id.substring(0, 8)} • ${order.status}",
+                                              ),
+                                            )
+                                            .toList(),
+                                        onSelected: (value) async {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _orderPickerId = value;
+                                          });
+                                          final target = active.firstWhere(
+                                            (o) => o.id == value,
+                                            orElse: () => active.first,
+                                          );
+                                          await _showOrderPreview(target);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                if (cancelled.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _openCancelledOrders(
+                                          cancelled, activeStaff, data),
+                                      icon: const Icon(Icons.archive_outlined),
+                                      label: Text(
+                                          "ดูออเดอร์ที่ยกเลิก (${cancelled.length})"),
+                                    ),
+                                  ),
+                                ...active.map(
+                                  (order) => _OrderTile(
+                                    order: order,
+                                    api: widget.api,
+                                    currentUser: widget.currentUser,
+                                    printUrl: widget.api.orderPrintUrl(
+                                      orderId: order.id,
+                                      requesterId: widget.currentUser.userId,
+                                    ),
+                                    packingSlipUrl:
+                                        widget.api.orderPackingSlipUrl(
+                                      orderId: order.id,
+                                      requesterId: widget.currentUser.userId,
+                                    ),
+                                    pdfUrl: widget.api.orderPdfUrl(
+                                      orderId: order.id,
+                                      requesterId: widget.currentUser.userId,
+                                    ),
+                                    onAssign: () =>
+                                        _assignOrder(order, activeStaff),
+                                    onUploadProof: () =>
+                                        _uploadProofPhoto(order),
+                                    onOpenProofGallery: () =>
+                                        _openProofGallery(order),
+                                    onResolveBackorder: () =>
+                                        _resolveBackorder(order),
+                                    proofCount: (_orderProofPhotos[order.id] ??
+                                            const <String>[])
+                                        .length,
+                                    onDeliverPartial: () =>
+                                        _deliverPartial(order),
+                                    onFixDeliveryStatus: () =>
+                                        _fixDeliveryStatus(order),
+                                    onStatusChanged: (status) =>
+                                        _updateStatus(order, status),
+                                    onChatUpdated: _refresh,
+                                  ),
+                                ),
+                              ];
+                            })(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersPageData {
+  _OrdersPageData({
+    required this.orders,
+    required this.users,
+    required this.products,
+  });
+
+  final List<DeliveryOrder> orders;
+  final List<AppUser> users;
+  final List<Product> products;
+}
+
+class _CancelledOrdersPage extends StatelessWidget {
+  const _CancelledOrdersPage({
+    required this.orders,
+    required this.currentUser,
+    required this.api,
+    required this.proofPhotos,
+    required this.onLoadProofPhotos,
+    required this.staff,
+    required this.onAssign,
+    required this.onOpenProofGallery,
+  });
+
+  final List<DeliveryOrder> orders;
+  final AppUser currentUser;
+  final StockApiService api;
+  final Map<String, List<String>> proofPhotos;
+  final Future<void> Function(String orderId) onLoadProofPhotos;
+  final List<AppUser> staff;
+  final Future<void> Function(DeliveryOrder order, List<AppUser> users)
+      onAssign;
+  final void Function(DeliveryOrder order) onOpenProofGallery;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...orders]
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("ออเดอร์ที่ยกเลิก"),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (sorted.isEmpty)
+            const Center(child: Text("ยังไม่มีออเดอร์ที่ยกเลิก"))
+          else
+            ...sorted.map(
+              (order) => _OrderTile(
+                order: order,
+                api: api,
+                currentUser: currentUser,
+                printUrl: api.orderPrintUrl(
+                    orderId: order.id, requesterId: currentUser.userId),
+                packingSlipUrl: api.orderPackingSlipUrl(
+                    orderId: order.id, requesterId: currentUser.userId),
+                pdfUrl: api.orderPdfUrl(
+                    orderId: order.id, requesterId: currentUser.userId),
+                onAssign: () => onAssign(order, staff),
+                onUploadProof: () {},
+                onOpenProofGallery: () => onOpenProofGallery(order),
+                onResolveBackorder: () {},
+                proofCount: (proofPhotos[order.id] ?? const <String>[]).length,
+                onDeliverPartial: () {},
+                onFixDeliveryStatus: () {},
+                onStatusChanged: (_) {},
+                onChatUpdated: () {},
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackorderReportSheet extends StatefulWidget {
+  const _BackorderReportSheet({
+    required this.backorders,
+    required this.currentUser,
+    required this.onFixStatus,
+  });
+
+  final List<DeliveryOrder> backorders;
+  final AppUser currentUser;
+  final Function(DeliveryOrder) onFixStatus;
+
+  @override
+  State<_BackorderReportSheet> createState() => _BackorderReportSheetState();
+}
+
+class _BackorderReportSheetState extends State<_BackorderReportSheet> {
+  String _assigneeFilter = "all";
+  String _dateFilter = "all";
+
+  List<DeliveryOrder> _filteredOrders() {
+    final now = DateTime.now();
+    DateTime? from;
+    if (_dateFilter == "today") {
+      from = DateTime(now.year, now.month, now.day);
+    } else if (_dateFilter == "7d") {
+      from = now.subtract(const Duration(days: 7));
+    } else if (_dateFilter == "30d") {
+      from = now.subtract(const Duration(days: 30));
+    }
+
+    return widget.backorders.where((order) {
+      final byAssignee = _assigneeFilter == "all" ||
+          (_assigneeFilter == "unassigned" &&
+              (order.assignedToId == null || order.assignedToId!.isEmpty)) ||
+          order.assignedToId == _assigneeFilter;
+      if (!byAssignee) return false;
+      if (from == null) return true;
+      return order.createdAt.isAfter(from) ||
+          order.createdAt.isAtSameMomentAs(from);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assignees = <String, String>{};
+    for (final o in widget.backorders) {
+      if (o.assignedToId != null && o.assignedToId!.isNotEmpty) {
+        assignees[o.assignedToId!] = o.assignedToName ?? o.assignedToId!;
+      }
+    }
+    final filtered = _filteredOrders();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("รายงานค้างจ่าย", style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 6),
+        Text("ทั้งหมด ${filtered.length} ออเดอร์"),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: _assigneeFilter,
+                decoration: const InputDecoration(labelText: "พนักงานส่ง"),
+                items: [
+                  const DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
+                  const DropdownMenuItem(
+                      value: "unassigned", child: Text("ยังไม่มอบหมาย")),
+                  ...assignees.entries.map(
+                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _assigneeFilter = v ?? "all"),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: _dateFilter,
+                decoration: const InputDecoration(labelText: "ช่วงวันที่"),
+                items: const [
+                  DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
+                  DropdownMenuItem(value: "today", child: Text("วันนี้")),
+                  DropdownMenuItem(value: "7d", child: Text("7 วัน")),
+                  DropdownMenuItem(value: "30d", child: Text("30 วัน")),
+                ],
+                onChanged: (v) => setState(() => _dateFilter = v ?? "all"),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (filtered.isEmpty)
+          const Expanded(
+              child: Center(child: Text("ไม่มีออเดอร์ค้างจ่ายตามตัวกรอง")))
+        else
+          Expanded(
+            child: ListView.separated(
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const Divider(height: 18),
+              itemBuilder: (context, index) {
+                final order = filtered[index];
+                final pending = order.items
+                    .where((item) => item.deliveredQuantity < item.quantity)
+                    .map((item) =>
+                        "${item.productName} ค้าง ${item.quantity - item.deliveredQuantity}")
+                    .join(", ");
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(order.customerName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                  "ผู้ส่ง: ${order.assignedToName ?? "ยังไม่มอบหมาย"}"),
+                            ],
+                          ),
+                        ),
+                        if (widget.currentUser.isAdmin)
+                          IconButton.filledTonal(
+                            onPressed: () => widget.onFixStatus(order),
+                            icon: const Icon(Icons.edit_note_rounded, size: 20),
+                            tooltip: "แก้ไขจำนวนส่ง",
+                          ),
+                      ],
+                    ),
+                    Text(pending, style: const TextStyle(color: Colors.red)),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DraftOrderItem {
+  _DraftOrderItem({
+    this.barcode,
+    String productQuery = "",
+    String quantity = "1",
+  })  : productController = TextEditingController(text: productQuery),
+        quantityController = TextEditingController(text: quantity);
+
+  String? barcode;
+  final TextEditingController productController;
+  final TextEditingController quantityController;
+
+  void dispose() {
+    productController.dispose();
+    quantityController.dispose();
+  }
+}
 
 class _AdminPageState extends State<AdminPage> {
   bool _isRunning = false;
@@ -9001,6 +11520,626 @@ class _OrderChatPageState extends State<OrderChatPage> {
   }
 }
 
+class _OrderTile extends StatelessWidget {
+  const _OrderTile({
+    required this.order,
+    required this.api,
+    required this.currentUser,
+    required this.printUrl,
+    required this.packingSlipUrl,
+    required this.pdfUrl,
+    required this.onAssign,
+    required this.onUploadProof,
+    required this.onOpenProofGallery,
+    required this.onResolveBackorder,
+    required this.proofCount,
+    required this.onDeliverPartial,
+    required this.onFixDeliveryStatus,
+    required this.onStatusChanged,
+    required this.onChatUpdated,
+  });
+
+  final DeliveryOrder order;
+  final StockApiService api;
+  final AppUser currentUser;
+  final String printUrl;
+  final String packingSlipUrl;
+  final String pdfUrl;
+  final VoidCallback onAssign;
+  final VoidCallback onUploadProof;
+  final VoidCallback onOpenProofGallery;
+  final VoidCallback onResolveBackorder;
+  final int proofCount;
+  final VoidCallback onDeliverPartial;
+  final VoidCallback onFixDeliveryStatus;
+  final ValueChanged<String> onStatusChanged;
+  final VoidCallback onChatUpdated;
+
+  String _fmtOrderDateTime(DateTime value) {
+    final dd = value.day.toString().padLeft(2, "0");
+    final mm = value.month.toString().padLeft(2, "0");
+    final yy = value.year;
+    final hh = value.hour.toString().padLeft(2, "0");
+    final mi = value.minute.toString().padLeft(2, "0");
+    return "$dd/$mm/$yy $hh:$mi";
+  }
+
+  Future<void> _openUrl(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  Color _statusTone() {
+    switch (order.status) {
+      case "assigned":
+        return _profileTeal;
+      case "preparing":
+        return _profileAccent;
+      case "out_for_delivery":
+        return _brandPrimary;
+      case "delivered":
+        return _brandDeep;
+      case "cancelled":
+        return Colors.redAccent;
+      default:
+        return _brandInk;
+    }
+  }
+
+  String _statusLabel() {
+    switch (order.status) {
+      case "assigned":
+        return "กำลังจัดคิว";
+      case "in_production":
+        return "กำลังผลิต";
+      case "qc_pending":
+        return "รอ QC";
+      case "rework_required":
+        return "ตีกลับแก้";
+      case "qc_passed":
+        return "QC ผ่าน";
+      case "preparing":
+        return "กำลังจัดสินค้า";
+      case "out_for_delivery":
+        return "กำลังส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      case "cancelled":
+        return "ยกเลิก";
+      default:
+        return "รอดำเนินการ";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
+    bool _hasThaiWord(String haystack, String needle) =>
+        haystack.contains(needle);
+    String _nameNorm(String? value) =>
+        (value ?? "").trim().toLowerCase().replaceAll(RegExp(r"\\s+"), " ");
+
+    final canAssign =
+        currentUser.isAdmin || currentUser.userId == order.createdById;
+    final role = _roleNorm(currentUser.role);
+    final isProducerRole =
+        role.contains("production") || _hasThaiWord(role, "ผลิต");
+    final isQcRole =
+        role == "qc" || role.contains("quality") || role.contains("ตรวจ");
+    final isDeliveryRole =
+        role.contains("delivery") || _hasThaiWord(role, "ส่ง");
+
+    final isProducerNameMatch =
+        _nameNorm(currentUser.userName) == _nameNorm(order.productionUserName);
+    final isQcNameMatch =
+        _nameNorm(currentUser.userName) == _nameNorm(order.qcUserName);
+    final isDeliveryNameMatch =
+        _nameNorm(currentUser.userName) == _nameNorm(order.deliveryUserName);
+
+    final isProducer = currentUser.userId == (order.productionUserId ?? "") ||
+        isProducerNameMatch ||
+        isProducerRole;
+    final isQc = currentUser.userId == (order.qcUserId ?? "") ||
+        isQcNameMatch ||
+        isQcRole;
+    final isDelivery = currentUser.userId == (order.deliveryUserId ?? "") ||
+        currentUser.userId == (order.assignedToId ?? "") ||
+        isDeliveryNameMatch ||
+        isDeliveryRole;
+    final canOperate = currentUser.isAdmin ||
+        currentUser.userId == order.createdById ||
+        isProducer ||
+        isQc ||
+        isDelivery;
+    final hasProduction = (order.productionUserId ?? "").isNotEmpty ||
+        (order.productionUserName ?? "").trim().isNotEmpty;
+    final qcAssigned = (order.qcUserId ?? "").isNotEmpty ||
+        (order.qcUserName ?? "").trim().isNotEmpty;
+    // If the team didn't explicitly assign QC, still allow QC-role staff/admin
+    // to see and claim QC steps.
+    final qcEnabled = qcAssigned || currentUser.isAdmin || isQcRole;
+    final canMarkDelivered = proofCount > 0;
+    final deliveredCount = order.items
+        .where((item) => item.deliveredQuantity >= item.quantity)
+        .length;
+    final hasBackorder = (order.note ?? "").contains("ค้างจ่าย");
+    final canCancel =
+        (currentUser.isAdmin || currentUser.userId == order.createdById) &&
+            order.status != "delivered" &&
+            order.status != "cancelled";
+    final isCancelled = order.status == "cancelled";
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.customerName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (order.unreadCount > 0)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      "${order.unreadCount}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                if (hasBackorder)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.red.withOpacity(0.35)),
+                    ),
+                    child: const Text(
+                      "ค้างจ่าย",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _statusTone().withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _statusLabel(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _statusTone(),
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "สถานะการส่งสินค้า: ส่งแล้ว $deliveredCount/${order.items.length} รายการ",
+            ),
+            const SizedBox(height: 6),
+            ...order.items.map((item) {
+              final isDone = item.deliveredQuantity >= item.quantity;
+              final remaining = (item.quantity - item.deliveredQuantity)
+                  .clamp(0, item.quantity);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isDone
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 16,
+                      color:
+                          isDone ? Colors.green : _brandInk.withOpacity(0.55),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        isDone
+                            ? "${item.productName} x${item.quantity} (ส่งแล้ว)"
+                            : "${item.productName} x${item.quantity} (ค้าง $remaining)",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isDone ? Colors.green.shade700 : _brandInk,
+                              fontWeight:
+                                  isDone ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (order.customerPhone != null && order.customerPhone!.isNotEmpty)
+              Text("โทร: ${order.customerPhone}"),
+            if (order.customerAddress != null &&
+                order.customerAddress!.isNotEmpty)
+              Text("ที่อยู่: ${order.customerAddress}"),
+            Text("ผู้รับออเดอร์: ${order.createdByName}"),
+            Text(
+              "ผู้ส่ง (ผู้รับผิดชอบ): ${order.assignedToName ?? "ยังไม่ระบุ"}${(order.assignedToId ?? "").isNotEmpty ? " (${order.assignedToId})" : ""}",
+            ),
+            if (order.lastHandoffFrom != null &&
+                order.lastHandoffTo != null &&
+                order.lastHandoffAt != null)
+              Text(
+                "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} · ${_fmtOrderDateTime(order.lastHandoffAt!)}",
+              ),
+            Text(
+              "ฝ่ายผลิต: ${(order.productionUserName ?? "-")}${(order.productionUserId ?? "").isNotEmpty ? " (${order.productionUserId})" : ""}",
+            ),
+            Text(
+              "QC: ${(order.qcUserName ?? "-")}${(order.qcUserId ?? "").isNotEmpty ? " (${order.qcUserId})" : ""}",
+            ),
+            Text(
+              "จัดส่ง: ${(order.deliveryUserName ?? "-")}${(order.deliveryUserId ?? "").isNotEmpty ? " (${order.deliveryUserId})" : ""}",
+            ),
+            if (order.scheduledDeliveryAt != null)
+              Text(
+                "กำหนดส่ง: ${_fmtOrderDateTime(order.scheduledDeliveryAt!)}",
+              ),
+            if (order.note != null && order.note!.isNotEmpty)
+              Text("หมายเหตุ: ${order.note}"),
+            const SizedBox(height: 10),
+            if (order.status == "delivered")
+              OutlinedButton.icon(
+                onPressed: onOpenProofGallery,
+                icon: const Icon(Icons.photo_library_outlined),
+                label: Text("รูปหลักฐาน ($proofCount)"),
+              )
+            else if (isCancelled)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => OrderChatPage(
+                            api: api,
+                            currentUser: currentUser,
+                            order: order,
+                          ),
+                        ),
+                      );
+                      onChatUpdated();
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text("แชทติดตามงาน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(printUrl),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text("พิมพ์ใบออเดอร์"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(packingSlipUrl),
+                    icon: const Icon(Icons.inventory_2_rounded),
+                    label: const Text("ใบปะหน้าจัดของ"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onOpenProofGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text("รูปหลักฐาน ($proofCount)"),
+                  ),
+                ],
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(printUrl),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text("พิมพ์ใบออเดอร์"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openUrl(packingSlipUrl),
+                    icon: const Icon(Icons.inventory_2_rounded),
+                    label: const Text("ใบปะหน้าจัดของ"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => OrderChatPage(
+                            api: api,
+                            currentUser: currentUser,
+                            order: order,
+                          ),
+                        ),
+                      );
+                      onChatUpdated();
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text("แชทติดตามงาน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: canOperate ? onUploadProof : null,
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Text("ถ่ายรูปหลักฐาน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onOpenProofGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text("รูปหลักฐาน ($proofCount)"),
+                  ),
+                  if (hasBackorder)
+                    OutlinedButton.icon(
+                      onPressed: onResolveBackorder,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text("ปิดค้างจ่าย"),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: canOperate ? onDeliverPartial : null,
+                    child: const Text("ส่งบางส่วน"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: canOperate ? onFixDeliveryStatus : null,
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text("แก้ไขจำนวนส่ง"),
+                  ),
+                  if (canCancel)
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text("ยกเลิกออเดอร์"),
+                            content:
+                                const Text("ต้องการยกเลิกออเดอร์นี้ใช่ไหม"),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(false),
+                                child: const Text("ไม่ยกเลิก"),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(true),
+                                child: const Text("ยกเลิกออเดอร์"),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) {
+                          onStatusChanged("cancelled");
+                        }
+                      },
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text("ยกเลิกออเดอร์"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                      ),
+                    ),
+                  // If production/QC aren't configured, skip those steps and move to delivery flow.
+                  if (hasProduction &&
+                      (currentUser.isAdmin || isProducer) &&
+                      (order.status == "new" ||
+                          order.status == "assigned" ||
+                          order.status == "rework_required"))
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("in_production"),
+                      child: const Text("เริ่มผลิต"),
+                    ),
+                  // Allow sending to QC even if production wasn't assigned (some teams skip the production step).
+                  if (qcEnabled &&
+                      (currentUser.isAdmin || isProducer) &&
+                      (order.status == "in_production" ||
+                          ((!hasProduction) &&
+                              (order.status == "new" ||
+                                  order.status == "assigned" ||
+                                  order.status == "rework_required"))))
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("qc_pending"),
+                      child: const Text("ส่ง QC"),
+                    ),
+                  if (qcEnabled &&
+                      (currentUser.isAdmin || isQc) &&
+                      order.status == "qc_pending")
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("rework_required"),
+                      child: const Text("ตีกลับแก้"),
+                    ),
+                  if (qcEnabled &&
+                      (currentUser.isAdmin || isQc) &&
+                      order.status == "qc_pending")
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("qc_passed"),
+                      child: const Text("QC ผ่าน"),
+                    ),
+                  if ((currentUser.isAdmin || isDelivery) &&
+                      ((hasProduction &&
+                              qcAssigned &&
+                              order.status == "qc_passed") ||
+                          (hasProduction &&
+                              !qcAssigned &&
+                              order.status == "in_production") ||
+                          (!hasProduction &&
+                              !qcAssigned &&
+                              (order.status == "new" ||
+                                  order.status == "assigned"))))
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("preparing"),
+                      child: const Text("กำลังจัด"),
+                    ),
+                  if ((currentUser.isAdmin || isDelivery) &&
+                      order.status == "preparing")
+                    FilledButton.tonal(
+                      onPressed: () => onStatusChanged("out_for_delivery"),
+                      child: const Text("กำลังส่ง"),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: (canOperate && canMarkDelivered)
+                        ? () => onStatusChanged("delivered")
+                        : null,
+                    child: const Text("ส่งแล้ว"),
+                  ),
+                  if (!canMarkDelivered)
+                    Text(
+                      "ต้องมีรูปหลักฐานก่อนกดส่งแล้ว",
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: _brandPrimary),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliverySuccessOverlay extends StatefulWidget {
+  const _DeliverySuccessOverlay();
+
+  @override
+  State<_DeliverySuccessOverlay> createState() =>
+      _DeliverySuccessOverlayState();
+}
+
+class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Container(
+          width: 330,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 170,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: _brandPrimary.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: const Alignment(0, 0.65),
+                      child: Container(
+                        width: 220,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _brandPrimary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.2, end: 1.2),
+                      duration: const Duration(milliseconds: 1800),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, 0.25),
+                        child: child,
+                      ),
+                      child: Icon(
+                        Icons.local_shipping_rounded,
+                        size: 34,
+                        color: _brandPrimary.withOpacity(0.85),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.35, end: 1.0),
+                      duration: const Duration(milliseconds: 1600),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, -0.1),
+                        child: child,
+                      ),
+                      child: Icon(
+                        Icons.inventory_2_rounded,
+                        size: 46,
+                        color: _brandDeep.withOpacity(0.88),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: -1.55, end: 0.8),
+                      duration: const Duration(milliseconds: 1700),
+                      curve: Curves.easeInOutCubic,
+                      builder: (context, value, child) => Align(
+                        alignment: Alignment(value, 0.15),
+                        child: child,
+                      ),
+                      child: Icon(
+                        Icons.all_inbox_rounded,
+                        size: 42,
+                        color: _profileAccent.withOpacity(0.92),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "ส่งสินค้าเรียบร้อย!",
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    color: _brandDeep),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ProductTile extends StatelessWidget {
   const _ProductTile({
