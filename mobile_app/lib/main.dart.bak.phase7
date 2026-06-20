@@ -32,11 +32,23 @@ import "chat_assistant_page.dart";
 import "profile_page.dart";
 import "dashboard_components.dart";
 import "dashboard_home.dart";
-import "login_page.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
 
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+      composing: newValue.composing,
+    );
+  }
+}
 
 const _sessionUserIdKey = "session_user_id";
 const _sessionPinKey = "session_pin";
@@ -993,6 +1005,333 @@ class _LandingTile extends StatelessWidget {
   }
 }
 
+class LoginPage extends StatefulWidget {
+  const LoginPage({
+    super.key,
+    required this.api,
+    required this.onLogin,
+  });
+
+  final StockApiService api;
+  final Future<void> Function(LoginSession session) onLogin;
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final TextEditingController _userIdController = TextEditingController();
+  final TextEditingController _pinController = TextEditingController();
+  bool _isLoading = false;
+  bool _obscurePin = true;
+  String? _userIdError;
+  String? _pinError;
+
+  void _handleUserIdChanged(String value) {
+    final normalized = value.toUpperCase().replaceAll(" ", "");
+    if (normalized != value) {
+      _userIdController.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+    }
+    if (_userIdError != null) {
+      setState(() {
+        _userIdError = null;
+      });
+    }
+  }
+
+  void _handlePinChanged(String value) {
+    if (_pinError != null) {
+      setState(() {
+        _pinError = null;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _userIdController.dispose();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final userId = _userIdController.text.trim().toUpperCase();
+    final pin = _pinController.text.trim();
+
+    setState(() {
+      _userIdError = null;
+      _pinError = null;
+    });
+
+    if (userId.isEmpty) {
+      setState(() {
+        _userIdError =
+            "\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 User ID";
+      });
+      return;
+    }
+    if (pin.isEmpty) {
+      setState(() {
+        _pinError =
+            "\u0e01\u0e23\u0e38\u0e13\u0e32\u0e01\u0e23\u0e2d\u0e01 PIN";
+      });
+      return;
+    }
+    if (pin.length < 4) {
+      setState(() {
+        _pinError =
+            "PIN \u0e15\u0e49\u0e2d\u0e07\u0e21\u0e35\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 4 \u0e2b\u0e25\u0e31\u0e01";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+    _showAppSnack(context, "กำลังเข้าสู่ระบบ...");
+
+    try {
+      final session = await widget.api
+          .login(userId: userId, pin: pin)
+          .timeout(const Duration(seconds: 20));
+      await widget.onLogin(session);
+    } catch (error) {
+      final message = error.toString().replaceFirst("Exception: ", "");
+      if (message.contains("Invalid user id or PIN")) {
+        setState(() {
+          _userIdError =
+              "\u0e44\u0e21\u0e48\u0e1e\u0e1a User ID \u0e19\u0e35\u0e49 \u0e2b\u0e23\u0e37\u0e2d PIN \u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e15\u0e49\u0e2d\u0e07";
+          _pinError =
+              "\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a PIN \u0e41\u0e25\u0e49\u0e27\u0e25\u0e2d\u0e07\u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07";
+        });
+      } else if (message.contains("inactive")) {
+        setState(() {
+          _userIdError =
+              "\u0e1a\u0e31\u0e0d\u0e0a\u0e35\u0e19\u0e35\u0e49\u0e16\u0e39\u0e01\u0e1b\u0e34\u0e14\u0e01\u0e32\u0e23\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19";
+        });
+      } else if (error is TimeoutException ||
+          message.contains("TimeoutException")) {
+        _showSnack("เชื่อมต่อช้าเกินไป (timeout) ลองใหม่อีกครั้ง");
+      } else {
+        _showSnack(message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showSnack(String message) {
+    _showAppSnack(context, message, isError: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    final keyboardBottom = viewInsets.bottom;
+
+    if (false)
+      return Scaffold(
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                    20, 24, 20, 24 + safeBottom + keyboardBottom),
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(minHeight: constraints.maxHeight - 24),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("เข้าสู่ระบบ",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "กรอก User ID และ PIN เพื่อเข้าใช้งานระบบ",
+                              ),
+                              const SizedBox(height: 20),
+                              TextField(
+                                controller: _userIdController,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r"[A-Za-z0-9_-]"),
+                                  ),
+                                  _UpperCaseTextFormatter(),
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: "User ID",
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _pinController,
+                                obscureText: _obscurePin,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: "PIN",
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePin = !_obscurePin;
+                                      });
+                                    },
+                                    icon: Icon(_obscurePin
+                                        ? Icons.visibility
+                                        : Icons.visibility_off),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _isLoading ? null : _login,
+                                icon: _isLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.login),
+                                label: const Text("เข้าสู่ระบบ"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + safeBottom),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + safeBottom),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                              "\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a",
+                              style: Theme.of(context).textTheme.headlineSmall),
+                          const SizedBox(height: 8),
+                          const Text(
+                              "\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a\u0e14\u0e49\u0e27\u0e22\u0e23\u0e2b\u0e31\u0e2a\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e41\u0e25\u0e30 PIN"),
+                          const SizedBox(height: 20),
+                          TextField(
+                            controller: _userIdController,
+                            textCapitalization: TextCapitalization.characters,
+                            onChanged: _handleUserIdChanged,
+                            decoration: InputDecoration(
+                              labelText: "User ID",
+                              hintText: "รหัสพนักงาน",
+                              helperText: _userIdError == null
+                                  ? "ใช้อักษรและตัวเลขของรหัสพนักงาน"
+                                  : null,
+                              errorText: _userIdError,
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _pinController,
+                            obscureText: _obscurePin,
+                            keyboardType: TextInputType.number,
+                            onChanged: _handlePinChanged,
+                            decoration: InputDecoration(
+                              labelText: "PIN",
+                              errorText: _pinError,
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePin = !_obscurePin;
+                                  });
+                                },
+                                icon: Icon(_obscurePin
+                                    ? Icons.visibility
+                                    : Icons.visibility_off),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: _isLoading ? null : _login,
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.login),
+                            label: Text(
+                              _isLoading
+                                  ? "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a..."
+                                  : "\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a",
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "\u0e16\u0e49\u0e32\u0e40\u0e0a\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e15\u0e37\u0e48\u0e19 \u0e04\u0e23\u0e31\u0e49\u0e07\u0e41\u0e23\u0e01\u0e2d\u0e32\u0e08\u0e43\u0e0a\u0e49\u0e40\u0e27\u0e25\u0e32 10-20 \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35",
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class StockHomePage extends StatefulWidget {
   const StockHomePage({
@@ -3013,7 +3352,7 @@ class _AdminPageState extends State<AdminPage> {
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  inputFormatters: [UpperCaseTextFormatter()],
+                  inputFormatters: [_UpperCaseTextFormatter()],
                   decoration: const InputDecoration(
                     labelText: "Confirmation",
                     hintText: "RESTORE",
