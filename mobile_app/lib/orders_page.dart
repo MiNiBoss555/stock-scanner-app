@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:convert";
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
@@ -632,44 +633,10 @@ class _OrdersPageState extends State<OrdersPage> {
         return;
       }
 
-      final lines = rawText
-          .split("\n")
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
-      String? phone;
-      String? name;
-      final phoneRegex = RegExp(r"(0\d{1,2}-?\d{3}-?\d{3,4})");
-
-      // Find phone
-      for (final line in lines) {
-        final match = phoneRegex.firstMatch(line.replaceAll(" ", ""));
-        if (match != null) {
-          phone = match.group(0);
-          break;
-        }
-      }
-
-      // Find name (first line not a phone)
-      for (final line in lines) {
-        final cleanLine = line.replaceAll(" ", "");
-        if (phone != null && cleanLine.contains(phone.replaceAll("-", "")))
-          continue;
-        if (phoneRegex.hasMatch(cleanLine)) continue;
-        name = line;
-        break;
-      }
-
-      // Remaining as address
-      final addressLines = lines.where((line) {
-        if (line == name) return false;
-        final cleanLine = line.replaceAll(" ", "");
-        if (phone != null && cleanLine.contains(phone.replaceAll("-", "")))
-          return false;
-        return true;
-      }).toList();
-      final address = addressLines.join(" ");
+      final parsed = parseCustomerOcr(rawText);
+      final name = parsed["name"];
+      final phone = parsed["phone"];
+      final address = parsed["address"] ?? "";
 
       if (!mounted) return;
 
@@ -684,6 +651,14 @@ class _OrdersPageState extends State<OrdersPage> {
               Text("ชื่อ: ${name ?? "-"}"),
               Text("เบอร์โทร: ${phone ?? "-"}"),
               Text("ที่อยู่: ${address.isEmpty ? "-" : address}"),
+              const Divider(height: 24),
+              Text(
+                "* เคล็ดลับ: ครอบตัดรูปภาพให้เหลือเฉพาะบริเวณใบปะหน้า/เอกสารก่อนสแกน เพื่อความแม่นยำสูงสุด",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
             ],
           ),
           actions: [
@@ -2910,4 +2885,283 @@ class _ReceiptDivider extends StatelessWidget {
       },
     );
   }
+}
+
+// --- OCR Parsing Helpers ---
+
+Map<String, String?> parseCustomerOcr(String rawText) {
+  if (rawText.trim().isEmpty) {
+    return {"name": null, "phone": null, "address": null};
+  }
+
+  final initialLines = rawText
+      .split("\n")
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .map((e) => repairThaiMojibakeSafe(e))
+      .toList();
+
+  String? phone;
+  String? name;
+  final processedLines = <String>[];
+
+  // First pass: extract phone and remove phone text from lines
+  for (final line in initialLines) {
+    if (phone == null) {
+      final detectedPhone = extractThaiPhone(line);
+      if (detectedPhone != null) {
+        phone = detectedPhone;
+        
+        // Strip the phone number pattern from the line
+        final phoneRegex = RegExp(r"(?:0|\+?66)[-() \d]{8,15}");
+        var cleanedLine = line.replaceAll(phoneRegex, "").trim();
+        
+        // Also strip common phone prefixes from the remaining line (starts and ends)
+        final phonePrefixes = ["เบอร์โทรศัพท์", "เบอร์โทร", "เบอร์", "โทรศัพท์", "โทร", "tel:", "tel", "phone:", "phone", "mobile:"];
+        final lowerCleaned = cleanedLine.toLowerCase();
+        for (final prefix in phonePrefixes) {
+          if (lowerCleaned.startsWith(prefix)) {
+            cleanedLine = cleanedLine.substring(prefix.length).trim();
+            if (cleanedLine.startsWith(":") || cleanedLine.startsWith("-")) {
+              cleanedLine = cleanedLine.substring(1).trim();
+            }
+            break;
+          }
+        }
+        
+        // Strip trailing phone label/connective words and punctuation
+        cleanedLine = cleanedLine.replaceAll(RegExp(r'(?:เบอร์โทรศัพท์|เบอร์โทร|เบอร์|โทรศัพท์|โทร\.?|tel\.?|phone|mobile)\s*[:\-]?\s*$', caseSensitive: false), '').trim();
+        // Strip trailing punctuation
+        cleanedLine = cleanedLine.replaceAll(RegExp(r'[\s\-:.,#]+$'), '').trim();
+
+        if (cleanedLine.isNotEmpty && !isNoiseLine(cleanedLine)) {
+          processedLines.add(stripLabelPrefixes(cleanedLine));
+        }
+        continue;
+      }
+    }
+    processedLines.add(stripLabelPrefixes(line));
+  }
+
+  // Second pass: filter noise lines
+  final cleanLines = processedLines.where((l) => !isNoiseLine(l)).toList();
+
+  // Third pass: find Name
+  final addressKeywords = ["ต.", "ตำบล", "อ.", "อำเภอ", "จ.", "จังหวัด", "ถนน", "ซอย", "หมู่", "ม.", "เลขที่"];
+  for (final line in cleanLines) {
+    final hasAddressKeyword = addressKeywords.any((kw) => line.contains(kw));
+    final startsWithDigit = RegExp(r"^\d").hasMatch(line);
+    final hasPostalCode = RegExp(r"\b\d{5}\b").hasMatch(line);
+
+    if (!hasAddressKeyword && !startsWithDigit && !hasPostalCode && line.length < 50) {
+      name = line;
+      break;
+    }
+  }
+
+  // Remaining lines as address
+  final addressLines = cleanLines.where((line) => line != name).toList();
+  final address = addressLines.join(" ");
+
+  return {
+    "name": name,
+    "phone": phone,
+    "address": address.isEmpty ? "" : address,
+  };
+}
+
+String repairThaiMojibakeSafe(String value) {
+  var repaired = value;
+  bool looksMojibake(String s) {
+    return RegExp(r"(à¸|à¹|Ã)").hasMatch(s);
+  }
+
+  int cp1252Map(int code) {
+    if (code <= 255) return code;
+    switch (code) {
+      case 0x20ac: return 0x80; // €
+      case 0x201a: return 0x82; // ‚
+      case 0x0192: return 0x83; // ƒ
+      case 0x201e: return 0x84; // „
+      case 0x2026: return 0x85; // …
+      case 0x2020: return 0x86; // †
+      case 0x2021: return 0x87; // ‡
+      case 0x02c6: return 0x88; // ˆ
+      case 0x2030: return 0x89; // ‰
+      case 0x0160: return 0x8a; // Š
+      case 0x2039: return 0x8b; // ‹
+      case 0x0152: return 0x8c; // Œ
+      case 0x017d: return 0x8e; // Ž
+      case 0x2018: return 0x91; // ‘
+      case 0x2019: return 0x92; // ’
+      case 0x201c: return 0x93; // “
+      case 0x201d: return 0x94; // ”
+      case 0x2022: return 0x95; // •
+      case 0x2013: return 0x96; // –
+      case 0x2014: return 0x97; // —
+      case 0x02dc: return 0x98; // ˜
+      case 0x2122: return 0x99; // ™
+      case 0x0161: return 0x9a; // š
+      case 0x203a: return 0x9b; // ›
+      case 0x0153: return 0x9c; // œ
+      case 0x017e: return 0x9e; // ž
+      case 0x0178: return 0x9f; // Ÿ
+      default: return 0x3f; // ?
+    }
+  }
+
+  List<int> safeLatin1Encode(String s) {
+    final bytes = <int>[];
+    for (var i = 0; i < s.length; i++) {
+      bytes.add(cp1252Map(s.codeUnitAt(i)));
+    }
+    return bytes;
+  }
+
+  for (var i = 0; i < 2; i++) {
+    if (!looksMojibake(repaired)) {
+      break;
+    }
+    try {
+      repaired = utf8.decode(safeLatin1Encode(repaired), allowMalformed: true);
+    } catch (_) {
+      break;
+    }
+  }
+  return repaired;
+}
+
+String? extractThaiPhone(String line) {
+  final cleaned = line.replaceAll(RegExp(r'[\s\-()]+'), '');
+  final match = RegExp(r'(?:(?:\+?66|0)[2-9]\d{7,8})').firstMatch(cleaned);
+  if (match != null) {
+    var num = match.group(0)!;
+    if (num.startsWith('+66')) {
+      num = '0${num.substring(3)}';
+    } else if (num.startsWith('66')) {
+      num = '0${num.substring(2)}';
+    }
+    return num;
+  }
+  return null;
+}
+
+bool isNoiseLine(String line) {
+  final clean = line.trim();
+  if (clean.isEmpty) return true;
+
+  final lower = clean.toLowerCase();
+
+  // 1. URLs, emails and domains
+  if (lower.contains("http://") ||
+      lower.contains("https://") ||
+      lower.contains("www.") ||
+      RegExp(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b").hasMatch(lower) ||
+      RegExp(r"\b[a-z0-9.-]+\.(com|co|net|org|th|info|biz|edu|gov)\b").hasMatch(lower)) {
+    return true;
+  }
+
+  // 2. App Stores
+  if (lower.contains("play.google.com") ||
+      lower.contains("apps.apple.com") ||
+      lower.contains("app store") ||
+      lower.contains("google play") ||
+      lower.contains("กูเกิล เพลย์") ||
+      lower.contains("แอปสโตร์")) {
+    return true;
+  }
+
+  // 3. OpenAI & Adobe
+  if (lower.contains("openai") ||
+      lower.contains("chatgpt") ||
+      lower.contains("gpt-") ||
+      lower.contains("adobe") ||
+      lower.contains("photoshop") ||
+      lower.contains("acrobat") ||
+      lower.contains("creative cloud")) {
+    return true;
+  }
+
+  // 4. Browser UI & local addresses
+  if (lower.contains("localhost") ||
+      lower.contains("127.0.0.1") ||
+      lower.contains("chrome://") ||
+      lower.contains("file://") ||
+      lower.contains("bookmark") ||
+      lower.contains("history") ||
+      lower.contains("extensions")) {
+    return true;
+  }
+
+  // 5. Windows Activation
+  if (lower.contains("activate windows") ||
+      lower.contains("settings to activate") ||
+      lower.contains("เปิดใช้งาน windows") ||
+      lower.contains("การตั้งค่าเพื่อเปิดใช้งาน")) {
+    return true;
+  }
+
+  // Document Headers & Common noise titles (Starts-with and exact matches)
+  if (lower.startsWith("ใบสั่ง") ||
+      lower.startsWith("ใบเสร็จ") ||
+      lower.startsWith("ใบส่ง") ||
+      lower.startsWith("ใบกำกับ") ||
+      lower.startsWith("ใบปะหน้า") ||
+      lower.startsWith("ใบนำส่ง") ||
+      lower.startsWith("สำเนา") ||
+      lower.startsWith("ต้นฉบับ") ||
+      lower.contains("เลขที่ใบ") ||
+      lower.startsWith("วันที่")) {
+    return true;
+  }
+
+  // 6. Navigation and generic UI Labels
+  final uiLabels = {
+    "ยกเลิก", "ใช้ข้อมูลนี้", "เสร็จสิ้น", "แก้ไข", "ลบ", "ย้อนกลับ", "ตกลง", "บันทึก", 
+    "ถัดไป", "ยืนยัน", "ปิด", "เปิด", "หน้าแรก", "เมนู", "ตั้งค่า", "ค้นหา", "พิมพ์", 
+    "แชร์", "ดาวน์โหลด", "ยกเลิกการสั่งซื้อ", "สร้างออเดอร์", "สแกน",
+    "cancel", "confirm", "ok", "close", "edit", "delete", "settings", "profile", 
+    "search", "print", "share", "download", "save", "next", "previous", "done", 
+    "menu", "home", "back", "forward", "refresh", "reload", "status", "loading", 
+    "error", "success", "info", "warning", "help", "about", "contact",
+    "customer", "order", "receipt", "invoice", "recipient", "sender"
+  };
+  if (uiLabels.contains(lower)) {
+    return true;
+  }
+
+  // 7. System status line (e.g. clock, battery, network strength)
+  if (RegExp(r"^\d{1,2}[:.]\d{2}\s*(?:am|pm)?$", caseSensitive: false).hasMatch(clean) ||
+      RegExp(r"^\d{1,3}\s*%$").hasMatch(clean) ||
+      RegExp(r"^(?:lte|5g|4g|3g|gprs|wifi|volte)$", caseSensitive: false).hasMatch(clean)) {
+    return true;
+  }
+
+  // 8. Lines that are purely punctuation or symbols (contains no alphanumeric characters)
+  if (!RegExp(r"[a-zA-Z0-9\u0e00-\u0e7f]").hasMatch(clean)) {
+    return true;
+  }
+
+  return false;
+}
+
+String stripLabelPrefixes(String line) {
+  final lower = line.toLowerCase();
+  final prefixes = [
+    "ชื่อลูกค้า:", "ชื่อลูกค้า", "ชื่อผู้รับ:", "ชื่อผู้รับ", "ชื่อ:", "ชื่อ",
+    "ที่อยู่ลูกค้า:", "ที่อยู่ลูกค้า", "ที่อยู่ผู้รับ:", "ที่อยู่ผู้รับ", "ที่อยู่:", "ที่อยู่",
+    "เบอร์โทรศัพท์:", "เบอร์โทรศัพท์", "เบอร์โทร:", "เบอร์โทร", "เบอร์:", "เบอร์",
+    "โทรศัพท์:", "โทรศัพท์", "โทร:", "โทร", "tel:", "tel", "phone:", "phone", "contact:", "contact",
+    "name:", "address:", "mobile:"
+  ];
+  for (final prefix in prefixes) {
+    if (lower.startsWith(prefix)) {
+      var rest = line.substring(prefix.length).trim();
+      if (rest.startsWith(":") || rest.startsWith("-")) {
+        rest = rest.substring(1).trim();
+      }
+      return rest;
+    }
+  }
+  return line;
 }
