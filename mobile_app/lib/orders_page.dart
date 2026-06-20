@@ -9,8 +9,8 @@ import "package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 
 import "api_service.dart";
 import "models.dart";
+import "order_chat_page.dart";
 import "theme/app_theme.dart";
-import "main.dart";
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
