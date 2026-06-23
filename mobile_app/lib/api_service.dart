@@ -342,6 +342,37 @@ class StockApiService {
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
+  Future<Map<String, String>> ocrShippingLabel({
+    required String requesterId,
+    String? filePath,
+  }) async {
+    final request = http.MultipartRequest("POST", _uri("/ocr/shipping-label"))
+      ..headers.addAll(_headers())
+      ..fields["requester_id"] = requesterId;
+
+    if (filePath != null) {
+      request.files.add(await http.MultipartFile.fromPath("image", filePath));
+    } else {
+      throw ArgumentError("filePath must be provided");
+    }
+
+    final streamed = await request.send().timeout(_requestTimeout);
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode != 200) {
+      throw Exception("OCR API server returned status ${response.statusCode}");
+    }
+    final decoded = _decode(response);
+    if (decoded is Map) {
+      return {
+        "name": decoded["name"]?.toString() ?? "",
+        "phone": decoded["phone"]?.toString() ?? "",
+        "address": decoded["address"]?.toString() ?? "",
+      };
+    }
+    throw Exception("Invalid OCR response format.");
+  }
+
   String resolveAssetUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) {
       return "";
@@ -888,15 +919,17 @@ class StockApiService {
       if (response.statusCode != 200) {
         String detail = "Failed to download backup: ${response.statusCode}";
         try {
-          final body = jsonDecode(response.body);
+          final decodedText = utf8.decode(response.bodyBytes);
+          final body = jsonDecode(decodedText);
           if (body is Map<String, dynamic> && body.containsKey("detail")) {
             detail = "Failed to download backup: ${body["detail"]} (${response.statusCode})";
           } else {
-            detail = "Failed to download backup: ${response.body} (${response.statusCode})";
+            detail = "Failed to download backup: $decodedText (${response.statusCode})";
           }
         } catch (_) {
-          if (response.body.isNotEmpty) {
-            detail = "Failed to download backup: ${response.body} (${response.statusCode})";
+          final decodedText = utf8.decode(response.bodyBytes);
+          if (decodedText.isNotEmpty) {
+            detail = "Failed to download backup: $decodedText (${response.statusCode})";
           }
         }
         throw Exception(detail);
@@ -947,7 +980,8 @@ class StockApiService {
   }
 
   Object _decode(http.Response response) {
-    final body = jsonDecode(response.body);
+    final decodedText = utf8.decode(response.bodyBytes);
+    final body = jsonDecode(decodedText);
     if (response.statusCode >= 400) {
       final detail = body is Map<String, dynamic> ? body["detail"] : null;
       throw Exception(detail ?? "Request failed with ${response.statusCode}");
