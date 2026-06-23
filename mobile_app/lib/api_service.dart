@@ -346,9 +346,13 @@ class StockApiService {
     required String requesterId,
     String? filePath,
   }) async {
-    final request = http.MultipartRequest("POST", _uri("/ocr/shipping-label"))
+    final uri = _uri("/ocr/shipping-label");
+    final request = http.MultipartRequest("POST", uri)
       ..headers.addAll(_headers())
       ..fields["requester_id"] = requesterId;
+
+    debugPrint("OCR HEADERS HAVE AUTH: ${request.headers.containsKey('Authorization')}");
+    debugPrint("OCR REQUESTER ID PRESENT: ${request.fields.containsKey('requester_id')}");
 
     if (filePath != null) {
       request.files.add(await http.MultipartFile.fromPath("image", filePath));
@@ -359,9 +363,7 @@ class StockApiService {
     final streamed = await request.send().timeout(_requestTimeout);
     final response = await http.Response.fromStream(streamed);
 
-    if (response.statusCode != 200) {
-      throw Exception("OCR API server returned status ${response.statusCode}");
-    }
+    // Let _decode handle non-200 status codes (it throws Exception with the detail)
     final decoded = _decode(response);
     if (decoded is Map) {
       return {
