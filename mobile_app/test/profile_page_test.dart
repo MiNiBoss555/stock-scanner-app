@@ -246,4 +246,37 @@ void main() {
     final TextField textFieldWidget = tester.widget(userIdField);
     expect(textFieldWidget.controller?.text, equals("STAFF-02_XYZ"));
   });
+
+  testWidgets("UserAvatar fallback logic tests", (WidgetTester tester) async {
+    // 1. Empty/null imageUrl shows initials
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: UserAvatar(
+            imageUrl: null,
+            name: "John Doe",
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text("J"), findsOneWidget);
+
+    // 2. Failed imageUrl falls back to initials
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: UserAvatar(
+            imageUrl: "https://example.com/invalid_avatar.jpg",
+            name: "Alice Smith",
+          ),
+        ),
+      ),
+    );
+    // Let image loading fail in widget test environment, triggering error boundary
+    await tester.pump();
+    await tester.pumpAndSettle();
+    
+    expect(find.text("A"), findsOneWidget);
+  });
 }

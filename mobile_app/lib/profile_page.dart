@@ -627,7 +627,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     border: Border.all(
                                         color: profileTeal.withOpacity(0.08)),
                                   ),
-                                  child: _UserAvatar(
+                                  child: UserAvatar(
                                     imageUrl: (() {
                                       final base = widget.api.resolveAssetUrl(
                                         _profileUser.profileImageUrl,
@@ -1343,7 +1343,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   const EdgeInsets.fromLTRB(16, 14, 12, 14),
                               child: Row(
                                 children: [
-                                  _UserAvatar(
+                                  UserAvatar(
                                     imageUrl: widget.api
                                         .resolveAssetUrl(user.profileImageUrl),
                                     name: user.userName,
@@ -1596,16 +1596,8 @@ class _PageHeader extends StatelessWidget {
 }
 
 
-ImageProvider<Object>? _networkImageProvider(String? imageUrl) {
-  if (imageUrl == null || imageUrl.trim().isEmpty) {
-    return null;
-  }
-  return NetworkImage(imageUrl);
-}
-
-
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({
+class UserAvatar extends StatefulWidget {
+  const UserAvatar({
     required this.imageUrl,
     required this.name,
     this.radius = 22,
@@ -1616,15 +1608,45 @@ class _UserAvatar extends StatelessWidget {
   final double radius;
 
   @override
+  State<UserAvatar> createState() => _UserAvatarState();
+}
+
+class _UserAvatarState extends State<UserAvatar> {
+  bool _hasError = false;
+
+  @override
+  void didUpdateWidget(covariant UserAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      setState(() {
+        _hasError = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final imageProvider = _networkImageProvider(imageUrl);
+    final showFallback = widget.imageUrl == null ||
+        widget.imageUrl!.trim().isEmpty ||
+        _hasError;
+    
+    final imageProvider = showFallback ? null : NetworkImage(widget.imageUrl!);
+    final initials = widget.name.trim().isNotEmpty ? widget.name.trim()[0] : "?";
+
     return CircleAvatar(
       // Force a fresh image resolution when the URL changes (helps on web + in-app caches).
-      key: ValueKey(imageUrl),
-      radius: radius,
+      key: ValueKey(widget.imageUrl),
+      radius: widget.radius,
       backgroundColor: brandSurfaceStrong,
       backgroundImage: imageProvider,
-      child: imageProvider == null ? Text(name.isEmpty ? "?" : name[0]) : null,
+      onBackgroundImageError: showFallback
+          ? null
+          : (exception, stackTrace) {
+              setState(() {
+                _hasError = true;
+              });
+            },
+      child: showFallback ? Text(initials) : null,
     );
   }
 }

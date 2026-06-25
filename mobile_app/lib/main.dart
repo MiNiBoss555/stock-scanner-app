@@ -19,6 +19,8 @@ import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
 import "admin_page.dart";
+import "product_recycle_bin_page.dart";
+import "product_activity_log_page.dart";
 import "orders_page.dart";
 import "order_chat_page.dart";
 import "product_label_sheets.dart";
@@ -30,6 +32,7 @@ import "dashboard_home.dart";
 import "login_page.dart";
 import "scan_page.dart";
 import "dashboard_page.dart";
+import "help_center_page.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
@@ -1386,13 +1389,45 @@ class MorePage extends StatelessWidget {
           context,
           ProductSearchPage(
             api: api,
+            currentUser: currentUser,
             onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
           ),
+        ),
+      ),
+      _MoreAction(
+        title: "วิธีใช้งาน",
+        subtitle: "เรียนรู้การใช้งานแบบสั้น ๆ",
+        icon: Icons.help_outline,
+        onTap: () => _openPage(
+          context,
+          const HelpCenterPage(),
         ),
       ),
     ];
 
     if (currentUser.isAdmin) {
+      items.add(
+        _MoreAction(
+          title: "ถังขยะสินค้า",
+          subtitle: "ดูและกู้คืนสินค้าที่ถูกซ่อนหรือปิดใช้งาน",
+          icon: Icons.restore_from_trash_outlined,
+          onTap: () => _openPage(
+            context,
+            ProductRecycleBinPage(api: api, currentUser: currentUser),
+          ),
+        ),
+      );
+      items.add(
+        _MoreAction(
+          title: "ประวัติกิจกรรมสินค้า",
+          subtitle: "ดูประวัติการปิดใช้งาน กู้คืน และลบสินค้า",
+          icon: Icons.history_outlined,
+          onTap: () => _openPage(
+            context,
+            ProductActivityLogPage(api: api, currentUser: currentUser),
+          ),
+        ),
+      );
       items.add(
         _MoreAction(
           title:

@@ -34,7 +34,7 @@ class FakeStockApiService extends StockApiService {
   }
 
   @override
-  Future<List<Product>> getProducts({bool lowStockOnly = false}) async {
+  Future<List<Product>> getProducts({bool lowStockOnly = false, bool includeInactive = false}) async {
     return productsList;
   }
 

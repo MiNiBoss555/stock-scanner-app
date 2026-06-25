@@ -11,16 +11,19 @@ import "package:shared_preferences/shared_preferences.dart";
 
 import "api_service.dart";
 import "models.dart";
+import "product_timeline_page.dart";
 import "theme/app_theme.dart";
 
 class ProductSearchPage extends StatefulWidget {
   const ProductSearchPage({
     super.key,
     required this.api,
+    required this.currentUser,
     this.onOpenProductDetails,
   });
 
   final StockApiService api;
+  final AppUser currentUser;
   final void Function(BuildContext context, Product product)? onOpenProductDetails;
 
   @override
@@ -33,12 +36,34 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   List<Product> _allProducts = [];
   bool _isLoading = true;
   List<String> _history = [];
+  bool _showSearchTip = false;
 
   @override
   void initState() {
     super.initState();
     _load();
     _loadHistory();
+    _checkSearchTip();
+  }
+
+  Future<void> _checkSearchTip() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool("product_search_tip_seen") ?? false;
+    if (!seen && mounted) {
+      setState(() {
+        _showSearchTip = true;
+      });
+    }
+  }
+
+  Future<void> _dismissSearchTip() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("product_search_tip_seen", true);
+    if (mounted) {
+      setState(() {
+        _showSearchTip = false;
+      });
+    }
   }
 
   @override
@@ -178,6 +203,135 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     }
   }
 
+  Future<void> _adjustStock(Product product, String action) async {
+    final title = action == "in" ? "เพิ่มสต็อก (${product.name})" : "ลดสต็อก (${product.name})";
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final qty = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "จำนวนที่ต้องการปรับ",
+                hintText: "กรอกจำนวนเต็มบวก",
+              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (val) {
+                if (val == null || val.trim().isEmpty) {
+                  return "กรุณากรอกจำนวน";
+                }
+                final parsed = int.tryParse(val);
+                if (parsed == null || parsed <= 0) {
+                  return "จำนวนต้องมากกว่า 0";
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("ยกเลิก"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.of(context).pop(int.parse(controller.text));
+                }
+              },
+              child: const Text("ตกลง"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (qty == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await widget.api.submitScan(
+        barcode: product.barcode,
+        action: action,
+        quantity: qty,
+        actorId: widget.currentUser.userId,
+        actorName: widget.currentUser.userName,
+        note: "ปรับจากหน้าค้นหาสินค้า",
+        reference: "ปรับจากหน้าค้นหาสินค้า",
+      );
+
+      if (mounted) {
+        showAppSnack(context, "ปรับสต็อกสำเร็จ");
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnack(context, "เกิดข้อผิดพลาด: ${e.toString().replaceAll('Exception: ', '')}", isError: true);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("ต้องการซ่อนสินค้านี้ใช่หรือไม่?"),
+          content: const Text("สินค้าจะไม่แสดงในหน้าค้นหาและรายการสินค้าปกติ แต่ประวัติเดิมจะยังคงอยู่"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("ยกเลิก"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text("ซ่อนสินค้า", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final msg = await widget.api.deleteProduct(
+        requesterId: widget.currentUser.userId,
+        barcode: product.barcode,
+      );
+
+      if (mounted) {
+        showAppSnack(context, msg);
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnack(context, "เกิดข้อผิดพลาด: ${e.toString().replaceAll('Exception: ', '')}", isError: true);
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   List<Product> _filteredProducts() {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return _allProducts;
@@ -267,6 +421,62 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     }
   }
 
+  Widget _buildSearchTipCard() {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "เริ่มต้นที่นี่",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "ค้นหาสินค้า แล้วใช้ + เพื่อรับเข้า หรือ - เพื่อเบิกออก",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const Key("dismiss_search_tip"),
+                onPressed: _dismissSearchTip,
+                child: const Text("เข้าใจแล้ว"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = _filteredProducts();
@@ -319,6 +529,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (_showSearchTip) _buildSearchTipCard(),
                 if (_query.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -370,6 +581,52 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
                                 return _ProductSearchTile(
                                   product: product,
                                   query: _query,
+                                  currentUser: widget.currentUser,
+                                  isAdmin: widget.currentUser.role.toLowerCase() == "admin",
+                                  onStockIn: () => _adjustStock(product, "in"),
+                                  onStockOut: () => _adjustStock(product, "out"),
+                                  onDelete: () => _deleteProduct(product),
+                                  onTimeline: () async {
+                                    final prefs = await SharedPreferences.getInstance();
+                                    final seen = prefs.getBool("timeline_tip_seen") ?? false;
+                                    if (!seen) {
+                                      if (context.mounted) {
+                                        await showDialog<void>(
+                                          context: context,
+                                          builder: (dialogContext) {
+                                            return AlertDialog(
+                                              title: const Text("ไทม์ไลน์สินค้า"),
+                                              content: const Text("ใช้ดูประวัติของสินค้านี้ เช่น รับเข้า เบิกออก ซ่อน และกู้คืน"),
+                                              actions: [
+                                                TextButton(
+                                                  key: const Key("dismiss_timeline_tip"),
+                                                  onPressed: () async {
+                                                    await prefs.setBool("timeline_tip_seen", true);
+                                                    if (dialogContext.mounted) {
+                                                      Navigator.of(dialogContext).pop();
+                                                    }
+                                                  },
+                                                  child: const Text("เข้าใจแล้ว"),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      }
+                                    }
+                                    if (context.mounted) {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => ProductTimelinePage(
+                                            api: widget.api,
+                                            currentUser: widget.currentUser,
+                                            barcode: product.barcode,
+                                            productName: product.name,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
                                   onTap: () {
                                     _addToHistory(_query);
                                     if (widget.onOpenProductDetails != null) {
@@ -391,11 +648,23 @@ class _ProductSearchTile extends StatelessWidget {
     required this.product,
     required this.query,
     required this.onTap,
+    required this.onStockIn,
+    required this.onStockOut,
+    required this.onDelete,
+    required this.onTimeline,
+    required this.isAdmin,
+    required this.currentUser,
   });
 
   final Product product;
   final String query;
   final VoidCallback onTap;
+  final VoidCallback onStockIn;
+  final VoidCallback onStockOut;
+  final VoidCallback onDelete;
+  final VoidCallback onTimeline;
+  final bool isAdmin;
+  final AppUser currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -417,46 +686,94 @@ class _ProductSearchTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        onTap: onTap,
-        title: Text(
-          product.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text("${product.barcode} | ${product.category ?? 'ทั่วไป'}"),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: badgeColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                isLongUnit
-                    ? "${product.currentStock}"
-                    : "${product.currentStock} ${product.unit}",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            onTap: onTap,
+            title: Text(
+              product.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text("${product.barcode} | ${product.category ?? 'ทั่วไป'}"),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isLongUnit
+                        ? "${product.currentStock}"
+                        : "${product.currentStock} ${product.unit}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  isLongUnit ? "$statusText (${product.unit})" : statusText,
+                  style: TextStyle(
+                    color: badgeColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              isLongUnit ? "$statusText (${product.unit})" : statusText,
-              style: TextStyle(
-                color: badgeColor,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                const Spacer(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      key: Key("stock_in_${product.barcode}"),
+                      icon: const Icon(Icons.add, size: 16, color: Colors.green),
+                      label: const Text("+ เพิ่ม", style: TextStyle(color: Colors.green, fontSize: 13)),
+                      onPressed: onStockIn,
+                    ),
+                    const SizedBox(width: 4),
+                    TextButton.icon(
+                      key: Key("stock_out_${product.barcode}"),
+                      icon: const Icon(Icons.remove, size: 16, color: Colors.orange),
+                      label: const Text("- ลด", style: TextStyle(color: Colors.orange, fontSize: 13)),
+                      onPressed: onStockOut,
+                    ),
+                    const SizedBox(width: 4),
+                    TextButton.icon(
+                      key: Key("timeline_${product.barcode}"),
+                      icon: const Icon(Icons.history, size: 16, color: Colors.blue),
+                      label: const Text("ไทม์ไลน์", style: TextStyle(color: Colors.blue, fontSize: 13)),
+                      onPressed: onTimeline,
+                    ),
+                    if (isAdmin) ...[
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        key: Key("delete_${product.barcode}"),
+                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                        label: const Text("ซ่อน", style: TextStyle(color: Colors.red, fontSize: 13)),
+                        onPressed: onDelete,
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

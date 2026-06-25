@@ -1,7 +1,7 @@
 name: stock_scanner_mobile
 description: Cross-platform stock scanner app for iOS and Android.
 publish_to: "none"
-version: 0.1.1+2
+version: 0.1.2+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

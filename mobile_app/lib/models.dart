@@ -8,6 +8,7 @@ class Product {
     this.sku,
     this.category,
     this.location,
+    this.active = true,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -20,6 +21,7 @@ class Product {
       sku: json["sku"] as String?,
       category: json["category"] as String?,
       location: json["location"] as String?,
+      active: json["active"] as bool? ?? true,
     );
   }
 
@@ -31,6 +33,7 @@ class Product {
   final String? sku;
   final String? category;
   final String? location;
+  final bool active;
 
   bool get isLowStock => currentStock <= minimumStock;
 }
@@ -463,3 +466,89 @@ class DeliveryOrder {
   final DateTime createdAt;
   final DateTime updatedAt;
 }
+
+class ProductActivityLog {
+  ProductActivityLog({
+    required this.id,
+    required this.barcode,
+    required this.productName,
+    required this.action,
+    required this.actorId,
+    required this.actorName,
+    this.note,
+    required this.createdAt,
+  });
+
+  factory ProductActivityLog.fromJson(Map<String, dynamic> json) {
+    return ProductActivityLog(
+      id: json["id"] as String,
+      barcode: json["barcode"] as String,
+      productName: json["product_name"] as String,
+      action: json["action"] as String,
+      actorId: json["actor_id"] as String,
+      actorName: json["actor_name"] as String,
+      note: json["note"] as String?,
+      createdAt: DateTime.parse(json["created_at"] as String).toLocal(),
+    );
+  }
+
+  final String id;
+  final String barcode;
+  final String productName;
+  final String action;
+  final String actorId;
+  final String actorName;
+  final String? note;
+  final DateTime createdAt;
+}
+
+class ProductTimelineItem {
+  ProductTimelineItem({
+    required this.id,
+    required this.type,
+    required this.barcode,
+    required this.productName,
+    required this.title,
+    this.description,
+    required this.actorId,
+    required this.actorName,
+    this.quantity,
+    this.beforeStock,
+    this.afterStock,
+    required this.action,
+    required this.createdAt,
+  });
+
+  factory ProductTimelineItem.fromJson(Map<String, dynamic> json) {
+    return ProductTimelineItem(
+      id: json["id"] as String,
+      type: json["type"] as String,
+      barcode: json["barcode"] as String,
+      productName: json["product_name"] as String,
+      title: json["title"] as String,
+      description: json["description"] as String?,
+      actorId: json["actor_id"] as String,
+      actorName: json["actor_name"] as String,
+      quantity: (json["quantity"] as num?)?.toInt(),
+      beforeStock: (json["before_stock"] as num?)?.toInt(),
+      afterStock: (json["after_stock"] as num?)?.toInt(),
+      action: json["action"] as String,
+      createdAt: DateTime.parse(json["created_at"] as String).toLocal(),
+    );
+  }
+
+  final String id;
+  final String type;
+  final String barcode;
+  final String productName;
+  final String title;
+  final String? description;
+  final String actorId;
+  final String actorName;
+  final int? quantity;
+  final int? beforeStock;
+  final int? afterStock;
+  final String action;
+  final DateTime createdAt;
+}
+

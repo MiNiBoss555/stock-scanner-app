@@ -133,9 +133,12 @@ class StockApiService {
     }
   }
 
-  Future<List<Product>> getProducts({bool lowStockOnly = false}) async {
+  Future<List<Product>> getProducts({bool lowStockOnly = false, bool includeInactive = false}) async {
     final response =
-        await _get("/products", {"low_stock_only": lowStockOnly.toString()});
+        await _get("/products", {
+          "low_stock_only": lowStockOnly.toString(),
+          "include_inactive": includeInactive.toString(),
+        });
     final body = _decode(response);
     return (body as List<dynamic>)
         .map((item) => Product.fromJson(item as Map<String, dynamic>))
@@ -308,6 +311,37 @@ class StockApiService {
     return body["message"] as String? ?? "Deleted user";
   }
 
+  Future<String> deleteProduct({
+    required String requesterId,
+    required String barcode,
+  }) async {
+    final response = await _delete(
+      "/products/${Uri.encodeComponent(barcode)}",
+      {
+        "requester_id": requesterId,
+      },
+      _headers(),
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "Product deleted successfully.";
+  }
+
+  Future<String> restoreProduct({
+    required String requesterId,
+    required String barcode,
+  }) async {
+    final response = await _postJson(
+      "/products/${Uri.encodeComponent(barcode)}/restore",
+      {},
+      {
+        "requester_id": requesterId,
+      },
+      _headers(),
+    );
+    final body = _decode(response) as Map<String, dynamic>;
+    return body["message"] as String? ?? "กู้คืนสินค้าเรียบร้อยแล้ว";
+  }
+
   Future<AppUser> uploadProfileImage({
     required String requesterId,
     required String targetUserId,
@@ -360,7 +394,7 @@ class StockApiService {
       throw ArgumentError("filePath must be provided");
     }
 
-    final streamed = await request.send().timeout(_requestTimeout);
+    final streamed = await request.send().timeout(const Duration(seconds: 60));
     final response = await http.Response.fromStream(streamed);
 
     // Let _decode handle non-200 status codes (it throws Exception with the detail)
@@ -979,6 +1013,41 @@ class StockApiService {
     final response = await http.Response.fromStream(streamed);
     final body = _decode(response) as Map<String, dynamic>;
     return body["message"] as String? ?? "Restore completed successfully.";
+  }
+
+  Future<List<ProductActivityLog>> getProductActivityLogs({
+    String? barcode,
+    String? action,
+    int? limit,
+    String? requesterId,
+  }) async {
+    final Map<String, String> queryParams = {};
+    if (barcode != null) queryParams["barcode"] = barcode;
+    if (action != null) queryParams["action"] = action;
+    if (limit != null) queryParams["limit"] = limit.toString();
+    if (requesterId != null) queryParams["requester_id"] = requesterId;
+
+    final response = await _get("/products/activity", queryParams);
+    final body = _decode(response);
+    return (body as List<dynamic>)
+        .map((item) => ProductActivityLog.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<ProductTimelineItem>> getProductTimeline({
+    required String barcode,
+    required String requesterId,
+    int limit = 100,
+  }) async {
+    final Map<String, String> queryParams = {
+      "requester_id": requesterId,
+      "limit": limit.toString(),
+    };
+    final response = await _get("/products/$barcode/timeline", queryParams);
+    final body = _decode(response);
+    return (body as List<dynamic>)
+        .map((item) => ProductTimelineItem.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Object _decode(http.Response response) {

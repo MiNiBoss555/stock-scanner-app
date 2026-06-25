@@ -779,6 +779,7 @@ class _OrdersPageState extends State<OrdersPage> {
       if (selection == null) return;
 
       String? targetPath;
+      String? selectedImagePath;
 
       if (selection == "camera") {
         try {
@@ -793,6 +794,7 @@ class _OrdersPageState extends State<OrdersPage> {
           await docScanner.close();
 
           if (result.images != null && result.images!.isNotEmpty) {
+            selectedImagePath = result.images!.first;
             targetPath = result.images!.first;
           } else {
             // Cancelled scanning activity
@@ -805,6 +807,7 @@ class _OrdersPageState extends State<OrdersPage> {
             imageQuality: 80,
           );
           if (file == null) return;
+          selectedImagePath = file.path;
           targetPath = await _runManualCrop(file.path);
           if (targetPath == null) return;
         }
@@ -814,6 +817,7 @@ class _OrdersPageState extends State<OrdersPage> {
           imageQuality: 80,
         );
         if (file == null) return;
+        selectedImagePath = file.path;
 
         setState(() {
           _isSaving = true;
@@ -846,18 +850,26 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (targetPath == null) return;
 
+      debugPrint("SELECTED IMAGE PATH: $selectedImagePath");
+      debugPrint("CROPPED/FINAL OCR IMAGE PATH: $targetPath");
+
       setState(() {
         _isSaving = true;
       });
 
       Map<String, String?> parsed = {};
       bool isComplete = false;
+      bool isQuotaExceeded = false;
+      String ocrSource = "Unknown";
 
       try {
+        debugPrint("CALLING AI OCR");
         final geminiParsed = await widget.api.ocrShippingLabel(
           requesterId: widget.currentUser.userId,
           filePath: targetPath,
         );
+        debugPrint("AI OCR RESPONSE MAP: $geminiParsed");
+        
         final name = geminiParsed["name"]?.trim() ?? "";
         final phone = geminiParsed["phone"]?.trim() ?? "";
         final address = geminiParsed["address"]?.trim() ?? "";
@@ -869,18 +881,41 @@ class _OrdersPageState extends State<OrdersPage> {
             "address": address,
           };
           isComplete = true;
+          ocrSource = "Gemini";
+          debugPrint("USING AI OCR");
         } else {
           parsed = {
             "name": name.isEmpty ? null : name,
             "phone": phone.isEmpty ? null : phone,
             "address": address.isEmpty ? null : address,
           };
+          ocrSource = "Gemini rejected low quality";
         }
       } catch (e) {
-        debugPrint("Gemini OCR failed or timed out: $e");
+        final errStr = e.toString().toLowerCase();
+        isQuotaExceeded = errStr.contains("429") || errStr.contains("quota") || errStr.contains("resource exceeded");
+        debugPrint("Gemini OCR failed or timed out: $e (quota exceeded: $isQuotaExceeded)");
+        ocrSource = isQuotaExceeded ? "Gemini Quota Exceeded" : "MLKit fallback";
+        if (mounted) {
+          showAppSnack(
+            context,
+            isQuotaExceeded
+                ? "ระบบสแกนใบปะหน้าด้วย AI ใช้งานเกินโควตาชั่วคราว กรุณาลองใหม่อีกครั้ง"
+                : "สแกนด้วย Gemini ไม่สำเร็จ: ${e.toString().replaceAll('Exception: ', '')}",
+            isError: true,
+          );
+        }
+        if (isQuotaExceeded) {
+          return;
+        }
+      }
+
+      if (isQuotaExceeded) {
+        return;
       }
 
       if (!isComplete) {
+        debugPrint("USING MLKIT FALLBACK");
         try {
           final inputImage = InputImage.fromFilePath(targetPath);
           final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -891,9 +926,18 @@ class _OrdersPageState extends State<OrdersPage> {
           final rawText = recognizedText.text;
           if (rawText.trim().isNotEmpty) {
             final mlKitParsed = parseCustomerOcr(rawText);
-            parsed["name"] ??= mlKitParsed["name"];
+            
+            final nameVal = mlKitParsed["name"];
+            if (nameVal != null && !_isPseudoLatinSoup(nameVal)) {
+              parsed["name"] ??= nameVal;
+            }
+            
             parsed["phone"] ??= mlKitParsed["phone"];
-            parsed["address"] ??= mlKitParsed["address"];
+            
+            final addressVal = mlKitParsed["address"];
+            if (addressVal != null && !_isPseudoLatinSoup(addressVal)) {
+              parsed["address"] ??= addressVal;
+            }
           }
         } catch (e) {
           debugPrint("Local ML Kit OCR failed: $e");
@@ -903,6 +947,10 @@ class _OrdersPageState extends State<OrdersPage> {
       final finalName = parsed["name"]?.trim() ?? "";
       final finalPhone = parsed["phone"]?.trim() ?? "";
       final finalAddress = parsed["address"]?.trim() ?? "";
+
+      debugPrint("FINAL NAME: $finalName");
+      debugPrint("FINAL PHONE: $finalPhone");
+      debugPrint("FINAL ADDRESS: $finalAddress");
 
       if (finalName.isEmpty && finalPhone.isEmpty && finalAddress.isEmpty) {
         if (mounted) {
@@ -923,6 +971,7 @@ class _OrdersPageState extends State<OrdersPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               Text("ชื่อ: ${finalName.isEmpty ? "-" : finalName}"),
               Text("เบอร์โทร: ${normalizedPhone.isEmpty ? "-" : normalizedPhone}"),
               Text("ที่อยู่: ${finalAddress.isEmpty ? "-" : finalAddress}"),
@@ -3166,6 +3215,25 @@ class _ReceiptDivider extends StatelessWidget {
 }
 
 // --- OCR Parsing Helpers ---
+
+bool _isPseudoLatinSoup(String? text) {
+  if (text == null || text.isEmpty) return false;
+  // 1. Detect characters from Latin-1 Supplement/Extended (like accented letters)
+  // output by Latin OCR when scanning Thai text.
+  final soupPattern = RegExp(r'[àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿāăąćĉ¢ĉċčďđēĕėęěĝğġģĥħĩīĭįıĵķĺļľŀłńņňŉŋōŏőœŕŗřśŝşšţťŧũūŭůűųŵŷźżžſƀƁƂƃƄƅƆƇƈƉƊɖɗƎǝǏǐǑǒǓǔǕǖǗǘǙǚǛǜ]');
+  if (soupPattern.hasMatch(text)) return true;
+
+  // 2. Since local ML Kit only recognizes Latin, any name/address it detects
+  // on a Thai label will consist of English letters/gibberish (like 'Lai 509/20').
+  // If the text contains Latin letters but absolutely no Thai characters, it is soup.
+  final hasLatinLetters = RegExp(r'[a-zA-Z]').hasMatch(text);
+  final hasThaiCharacters = RegExp(r'[\u0e00-\u0e7f]').hasMatch(text);
+  if (hasLatinLetters && !hasThaiCharacters) {
+    return true;
+  }
+
+  return false;
+}
 
 Map<String, String?> parseCustomerOcr(String rawText) {
   if (rawText.trim().isEmpty) {
