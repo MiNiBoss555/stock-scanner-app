@@ -1171,9 +1171,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             TextField(
                               controller: _positionController,
                               decoration: const InputDecoration(
-                                labelText: "ตำแหน่ง",
-                                hintText: "เช่น ฝ่ายผลิต / QC / จัดส่ง",
-                                border: OutlineInputBorder(),
+                                 labelText: "ตำแหน่ง",
+                                 hintText: "เช่น ฝ่ายผลิตบอร์ด / ฝ่ายผลิตหุ่นยนต์ / QC / จัดส่ง",
+                                 border: OutlineInputBorder(),
                               ),
                             ),
                             const SizedBox(height: 12),

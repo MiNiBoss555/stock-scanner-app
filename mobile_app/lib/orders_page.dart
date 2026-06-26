@@ -2496,8 +2496,10 @@ class _OrderTile extends StatelessWidget {
     final canAssign =
         currentUser.isAdmin || currentUser.userId == order.createdById;
     final role = _roleNorm(currentUser.role);
+    final position = _roleNorm(currentUser.position);
     final isProducerRole =
-        role.contains("production") || _hasThaiWord(role, "ผลิต");
+        role.contains("production") || _hasThaiWord(role, "ผลิต") ||
+        position.contains("production") || _hasThaiWord(position, "ผลิต");
     final isQcRole =
         role == "qc" || role.contains("quality") || role.contains("ตรวจ");
     final isDeliveryRole =
