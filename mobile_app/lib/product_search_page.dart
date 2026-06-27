@@ -14,17 +14,25 @@ import "models.dart";
 import "product_timeline_page.dart";
 import "theme/app_theme.dart";
 
+enum ProductSearchGuidanceMode {
+  stockIn,
+  stockOut,
+  timeline,
+}
+
 class ProductSearchPage extends StatefulWidget {
   const ProductSearchPage({
     super.key,
     required this.api,
     required this.currentUser,
     this.onOpenProductDetails,
+    this.guidanceMode,
   });
 
   final StockApiService api;
   final AppUser currentUser;
   final void Function(BuildContext context, Product product)? onOpenProductDetails;
+  final ProductSearchGuidanceMode? guidanceMode;
 
   @override
   State<ProductSearchPage> createState() => _ProductSearchPageState();
@@ -37,6 +45,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
   bool _isLoading = true;
   List<String> _history = [];
   bool _showSearchTip = false;
+  ProductSearchGuidanceMode? _activeGuidanceMode;
 
   @override
   void initState() {
@@ -44,6 +53,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     _load();
     _loadHistory();
     _checkSearchTip();
+    _activeGuidanceMode = widget.guidanceMode;
   }
 
   Future<void> _checkSearchTip() async {
@@ -477,6 +487,75 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     );
   }
 
+  Widget _buildGuidanceTipCard() {
+    final theme = Theme.of(context);
+    String tipText = "";
+    if (_activeGuidanceMode == ProductSearchGuidanceMode.stockIn) {
+      tipText = "ค้นหาสินค้า แล้วกด + รับเข้า เพื่อเพิ่มจำนวนสินค้า";
+    } else if (_activeGuidanceMode == ProductSearchGuidanceMode.stockOut) {
+      tipText = "ค้นหาสินค้า แล้วกด - เบิกออก เพื่อลดจำนวนสินค้า";
+    } else if (_activeGuidanceMode == ProductSearchGuidanceMode.timeline) {
+      tipText = "ค้นหาสินค้า แล้วกด ไทม์ไลน์ เพื่อดูประวัติสินค้า";
+    }
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      color: theme.colorScheme.secondaryContainer.withOpacity(0.4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.colorScheme.secondary.withOpacity(0.2),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.help_outline,
+                  color: theme.colorScheme.secondary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "คำแนะนำการใช้งาน",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              tipText,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const Key("dismiss_guidance_tip"),
+                onPressed: () {
+                  setState(() {
+                    _activeGuidanceMode = null;
+                  });
+                },
+                child: const Text("เข้าใจแล้ว"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = _filteredProducts();
@@ -529,6 +608,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (_activeGuidanceMode != null) _buildGuidanceTipCard(),
                 if (_showSearchTip) _buildSearchTipCard(),
                 if (_query.isNotEmpty)
                   Padding(

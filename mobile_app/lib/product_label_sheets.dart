@@ -94,29 +94,32 @@ Future<void> showProductListSheet({
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   final product = products[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: color.withOpacity(0.10),
-                      child: Icon(
-                        product.currentStock <= 0
-                            ? Icons.error_outline
-                            : Icons.warning_amber_rounded,
-                        color: color,
+                  return Material(
+                    color: Colors.white,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: color.withOpacity(0.10),
+                        child: Icon(
+                          product.currentStock <= 0
+                              ? Icons.error_outline
+                              : Icons.warning_amber_rounded,
+                          color: color,
+                        ),
                       ),
+                      title: Text(
+                        product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        "${product.barcode} ยท เธเธเน€เธซเธฅเธทเธญ ${product.currentStock} ${product.unit}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => showProductCodeSheet(context, product),
                     ),
-                    title: Text(
-                      product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => showProductCodeSheet(context, product),
                   );
                 },
               ),

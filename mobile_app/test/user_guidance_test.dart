@@ -51,7 +51,12 @@ void main() {
   });
 
   testWidgets("1. HelpCenterPage renders all sections correctly", (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: HelpCenterPage()));
+    await tester.pumpWidget(MaterialApp(
+      home: HelpCenterPage(
+        api: fakeApi,
+        currentUser: testUser,
+      ),
+    ));
     await tester.pumpAndSettle();
 
     expect(find.text("วิธีใช้งาน"), findsOneWidget);

@@ -1400,7 +1400,10 @@ class MorePage extends StatelessWidget {
         icon: Icons.help_outline,
         onTap: () => _openPage(
           context,
-          const HelpCenterPage(),
+          HelpCenterPage(
+            api: api,
+            currentUser: currentUser,
+          ),
         ),
       ),
     ];

@@ -403,6 +403,7 @@ class DeliveryOrder {
     this.lastHandoffAt,
     this.scheduledDeliveryAt,
     this.unreadCount = 0,
+    this.trackingNumber,
   });
 
   factory DeliveryOrder.fromJson(Map<String, dynamic> json) {
@@ -438,6 +439,7 @@ class DeliveryOrder {
       items: items,
       createdAt: DateTime.parse(json["created_at"] as String).toLocal(),
       updatedAt: DateTime.parse(json["updated_at"] as String).toLocal(),
+      trackingNumber: json["tracking_number"] as String?,
     );
   }
 
@@ -465,6 +467,7 @@ class DeliveryOrder {
   final List<OrderItemModel> items;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? trackingNumber;
 }
 
 class ProductActivityLog {
