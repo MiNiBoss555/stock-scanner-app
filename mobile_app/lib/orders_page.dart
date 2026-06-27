@@ -17,6 +17,7 @@ import "order_chat_page.dart";
 import "theme/app_theme.dart";
 import "empty_state.dart";
 import "loading_state.dart";
+import "widgets/orders_status_tabs.dart";
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -58,6 +59,7 @@ class _OrdersPageState extends State<OrdersPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
   Timer? _searchDebounce;
+  OrderStatusTab _selectedTab = OrderStatusTab.all;
 
   Future<void> _showOrderPreview(DeliveryOrder order) async {
     final statusLabel = order.status == "new"
@@ -2075,10 +2077,19 @@ class _OrdersPageState extends State<OrdersPage> {
                               final searchFilteredOrders = data.orders
                                   .where((o) => _matchesSearch(o, _searchQuery))
                                   .toList();
-                              final cancelled = searchFilteredOrders
+                              final counts = <OrderStatusTab, int>{};
+                              for (final tab in visibleOrderStatusTabs) {
+                                counts[tab] = searchFilteredOrders
+                                    .where((o) => tab.matches(o.status))
+                                    .length;
+                              }
+                              final visibleOrders = searchFilteredOrders
+                                  .where((o) => _selectedTab.matches(o.status))
+                                  .toList();
+                              final cancelled = visibleOrders
                                   .where((o) => o.status == "cancelled")
                                   .toList();
-                              final active = searchFilteredOrders
+                              final active = visibleOrders
                                   .where((o) => o.status != "cancelled")
                                   .toList();
 
@@ -2109,7 +2120,16 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                   ),
                                 ),
-                                if (active.isEmpty && _searchQuery.isNotEmpty)
+                                OrdersStatusTabs(
+                                  selectedTab: _selectedTab,
+                                  counts: counts,
+                                  onChanged: (tab) {
+                                    setState(() {
+                                      _selectedTab = tab;
+                                    });
+                                  },
+                                ),
+                                if (visibleOrders.isEmpty)
                                   EmptyState(
                                     key: const Key("empty_search_state"),
                                     icon: Icons.search_off,
@@ -2169,6 +2189,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                       order: order,
                                       api: widget.api,
                                       currentUser: widget.currentUser,
+                                      onOpenDetails: () => _showOrderPreview(order),
                                       printUrl: widget.api.orderPrintUrl(
                                         orderId: order.id,
                                         requesterId: widget.currentUser.userId,
@@ -2262,6 +2283,7 @@ class _CancelledOrdersPage extends StatelessWidget {
                 order: order,
                 api: api,
                 currentUser: currentUser,
+                onOpenDetails: () {},
                 printUrl: api.orderPrintUrl(
                     orderId: order.id, requesterId: currentUser.userId),
                 packingSlipUrl: api.orderPackingSlipUrl(
@@ -2456,6 +2478,7 @@ class _OrderTile extends StatelessWidget {
     required this.printUrl,
     required this.packingSlipUrl,
     required this.pdfUrl,
+    required this.onOpenDetails,
     required this.onAssign,
     required this.onUploadProof,
     required this.onOpenProofGallery,
@@ -2473,6 +2496,7 @@ class _OrderTile extends StatelessWidget {
   final String printUrl;
   final String packingSlipUrl;
   final String pdfUrl;
+  final VoidCallback onOpenDetails;
   final VoidCallback onAssign;
   final VoidCallback onUploadProof;
   final VoidCallback onOpenProofGallery;
@@ -2482,6 +2506,120 @@ class _OrderTile extends StatelessWidget {
   final VoidCallback onFixDeliveryStatus;
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onChatUpdated;
+
+  void _showActionBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return Container(
+          key: Key("order_action_sheet_${order.id}"),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.edit_note_rounded),
+                  title: const Text("แก้ไขจำนวนส่ง"),
+                  onTap: canOperate(currentUser, order)
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          onFixDeliveryStatus();
+                        }
+                      : null,
+                  enabled: canOperate(currentUser, order),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.inventory_2_rounded),
+                  title: const Text("ใบปะหน้าจัดของ"),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _openUrl(packingSlipUrl);
+                  },
+                ),
+                if (canCancel(currentUser, order))
+                  ListTile(
+                    key: Key("order_action_cancel_${order.id}"),
+                    leading: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
+                    title: const Text("ยกเลิกออเดอร์", style: TextStyle(color: Colors.redAccent)),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text("ยืนยันการยกเลิกออเดอร์"),
+                          content: const Text("คุณต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(false),
+                              child: const Text("ไม่"),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(true),
+                              child: const Text("ยืนยัน"),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        onStatusChanged("cancelled");
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool canOperate(AppUser user, DeliveryOrder o) {
+    String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
+    bool _hasThaiWord(String haystack, String needle) =>
+        haystack.contains(needle);
+    String _nameNorm(String? value) =>
+        (value ?? "").trim().toLowerCase().replaceAll(RegExp(r"\s+"), " ");
+
+    final role = _roleNorm(user.role);
+    final position = _roleNorm(user.position);
+    final isProducerRole =
+        role.contains("production") || _hasThaiWord(role, "ผลิต") ||
+        position.contains("production") || _hasThaiWord(position, "ผลิต");
+    final isQcRole =
+        role == "qc" || role.contains("quality") || role.contains("ตรวจ");
+    final isDeliveryRole =
+        role.contains("delivery") || _hasThaiWord(role, "ส่ง");
+
+    final isProducerNameMatch =
+        _nameNorm(user.userName) == _nameNorm(o.productionUserName);
+    final isQcNameMatch =
+        _nameNorm(user.userName) == _nameNorm(o.qcUserName);
+    final isDeliveryNameMatch =
+        _nameNorm(user.userName) == _nameNorm(o.deliveryUserName);
+
+    final isProducer = user.userId == (o.productionUserId ?? "") ||
+        isProducerNameMatch ||
+        isProducerRole;
+    final isQc = user.userId == (o.qcUserId ?? "") ||
+        isQcNameMatch ||
+        isQcRole;
+    final isDelivery = user.userId == (o.deliveryUserId ?? "") ||
+        user.userId == (o.assignedToId ?? "") ||
+        isDeliveryNameMatch ||
+        isDeliveryRole;
+
+    return user.isAdmin ||
+        user.userId == o.createdById ||
+        isProducer ||
+        isQc ||
+        isDelivery;
+  }
+
+  bool canCancel(AppUser user, DeliveryOrder o) {
+    return (user.isAdmin || user.userId == o.createdById) &&
+        o.status != "delivered" &&
+        o.status != "cancelled";
+  }
 
   String _fmtOrderDateTime(DateTime value) {
     final dd = value.day.toString().padLeft(2, "0");
@@ -2604,8 +2742,51 @@ class _OrderTile extends StatelessWidget {
             order.status != "delivered" &&
             order.status != "cancelled";
     final isCancelled = order.status == "cancelled";
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Dismissible(
+      key: Key("dismissible_${order.id}"),
+      background: Container(
+        key: Key("order_swipe_open_${order.id}"),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerLeft,
+        child: const Row(
+          children: [
+            Icon(Icons.visibility_outlined, color: Colors.blue),
+            SizedBox(width: 8),
+            Text("เปิด", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        key: Key("order_swipe_menu_${order.id}"),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerRight,
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text("เมนู", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+            SizedBox(width: 8),
+            Icon(Icons.more_horiz, color: Colors.orange),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onOpenDetails();
+        } else if (direction == DismissDirection.endToStart) {
+          _showActionBottomSheet(context);
+        }
+        return false;
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -2952,7 +3133,7 @@ class _OrderTile extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
