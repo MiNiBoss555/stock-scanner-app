@@ -15,6 +15,8 @@ import "api_service.dart";
 import "models.dart";
 import "order_chat_page.dart";
 import "theme/app_theme.dart";
+import "empty_state.dart";
+import "loading_state.dart";
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -53,6 +55,9 @@ class _OrdersPageState extends State<OrdersPage> {
   String? _orderPickerId;
   late Future<_OrdersPageData> _future;
   late List<_DraftOrderItem> _draftItems;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  Timer? _searchDebounce;
 
   Future<void> _showOrderPreview(DeliveryOrder order) async {
     final statusLabel = order.status == "new"
@@ -194,10 +199,37 @@ class _OrdersPageState extends State<OrdersPage> {
     _customerPhoneController.dispose();
     _customerAddressController.dispose();
     _noteController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
     for (final item in _draftItems) {
       item.dispose();
     }
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        _searchQuery = value;
+      });
+    });
+  }
+
+  bool _matchesSearch(DeliveryOrder order, String query) {
+    if (query.trim().isEmpty) return true;
+    final q = query.toLowerCase();
+    return order.customerName.toLowerCase().contains(q) ||
+        (order.customerPhone?.toLowerCase().contains(q) ?? false) ||
+        order.id.toLowerCase().contains(q) ||
+        (order.trackingNumber?.toLowerCase().contains(q) ?? false) ||
+        (order.assignedToName?.toLowerCase().contains(q) ?? false) ||
+        (order.productionUserName?.toLowerCase().contains(q) ?? false) ||
+        (order.qcUserName?.toLowerCase().contains(q) ?? false) ||
+        (order.deliveryUserName?.toLowerCase().contains(q) ?? false) ||
+        order.createdByName.toLowerCase().contains(q);
   }
 
   void _handleRealtimeRefresh() {
@@ -1523,7 +1555,9 @@ class _OrdersPageState extends State<OrdersPage> {
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
+                return LoadingState(
+                  message: "กำลังโหลดข้อมูลออเดอร์...",
+                );
               }
               if (snapshot.hasError) {
                 return _ErrorState(message: snapshot.error.toString());
@@ -2038,101 +2072,127 @@ class _OrdersPageState extends State<OrdersPage> {
                             const _EmptyTile(message: "ยังไม่มีออเดอร์ในระบบ")
                           else
                             ...(() {
-                              final cancelled = data.orders
+                              final searchFilteredOrders = data.orders
+                                  .where((o) => _matchesSearch(o, _searchQuery))
+                                  .toList();
+                              final cancelled = searchFilteredOrders
                                   .where((o) => o.status == "cancelled")
                                   .toList();
-                              final active = data.orders
+                              final active = searchFilteredOrders
                                   .where((o) => o.status != "cancelled")
                                   .toList();
+
                               return <Widget>[
-                                if (active.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Material(
-                                      type: MaterialType.transparency,
-                                      child: DropdownMenu<String>(
-                                        initialSelection: _orderPickerId,
-                                        expandedInsets: EdgeInsets.zero,
-                                        enableFilter: true,
-                                        enableSearch: true,
-                                        leadingIcon:
-                                            const Icon(Icons.search_rounded),
-                                        label: const Text("เลือกออเดอร์"),
-                                        hintText:
-                                            "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
-                                        dropdownMenuEntries: active
-                                            .map(
-                                              (order) =>
-                                                  DropdownMenuEntry<String>(
-                                                value: order.id,
-                                                label:
-                                                    "${order.customerName} • ${order.id.substring(0, 8)} • ${order.status}",
-                                              ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: _onSearchChanged,
+                                    decoration: InputDecoration(
+                                      hintText: "ค้นหาชื่อลูกค้า เบอร์โทร เลขออเดอร์...",
+                                      prefixIcon: const Icon(Icons.search_rounded),
+                                      suffixIcon: _searchController.text.isNotEmpty
+                                          ? IconButton(
+                                              key: const Key("clear_search_button"),
+                                              icon: const Icon(Icons.clear_rounded),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _searchController.clear();
+                                                  _searchQuery = "";
+                                                });
+                                              },
                                             )
-                                            .toList(),
-                                        onSelected: (value) async {
-                                          if (value == null) return;
-                                          setState(() {
-                                            _orderPickerId = value;
-                                          });
-                                          final target = active.firstWhere(
-                                            (o) => o.id == value,
-                                            orElse: () => active.first,
-                                          );
-                                          await _showOrderPreview(target);
-                                        },
+                                          : null,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                   ),
-                                if (cancelled.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => _openCancelledOrders(
-                                          cancelled, activeStaff, data),
-                                      icon: const Icon(Icons.archive_outlined),
-                                      label: Text(
-                                          "ดูออเดอร์ที่ยกเลิก (${cancelled.length})"),
-                                    ),
-                                  ),
-                                ...active.map(
-                                  (order) => _OrderTile(
-                                    order: order,
-                                    api: widget.api,
-                                    currentUser: widget.currentUser,
-                                    printUrl: widget.api.orderPrintUrl(
-                                      orderId: order.id,
-                                      requesterId: widget.currentUser.userId,
-                                    ),
-                                    packingSlipUrl:
-                                        widget.api.orderPackingSlipUrl(
-                                      orderId: order.id,
-                                      requesterId: widget.currentUser.userId,
-                                    ),
-                                    pdfUrl: widget.api.orderPdfUrl(
-                                      orderId: order.id,
-                                      requesterId: widget.currentUser.userId,
-                                    ),
-                                    onAssign: () =>
-                                        _assignOrder(order, activeStaff),
-                                    onUploadProof: () =>
-                                        _uploadProofPhoto(order),
-                                    onOpenProofGallery: () =>
-                                        _openProofGallery(order),
-                                    onResolveBackorder: () =>
-                                        _resolveBackorder(order),
-                                    proofCount: (_orderProofPhotos[order.id] ??
-                                             const <String>[])
-                                        .length,
-                                    onDeliverPartial: () =>
-                                        _deliverPartial(order),
-                                    onFixDeliveryStatus: () =>
-                                        _fixDeliveryStatus(order),
-                                    onStatusChanged: (status) =>
-                                        _updateStatus(order, status),
-                                    onChatUpdated: _refresh,
-                                  ),
                                 ),
+                                if (active.isEmpty && _searchQuery.isNotEmpty)
+                                  EmptyState(
+                                    key: const Key("empty_search_state"),
+                                    icon: Icons.search_off,
+                                    title: "ไม่พบออเดอร์",
+                                    message: "ลองค้นหาด้วยชื่อลูกค้า เบอร์โทร หรือเลขออเดอร์",
+                                  )
+                                else ...[
+                                  if (active.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: Material(
+                                        type: MaterialType.transparency,
+                                        child: DropdownMenu<String>(
+                                          initialSelection: _orderPickerId,
+                                          expandedInsets: EdgeInsets.zero,
+                                          enableFilter: true,
+                                          enableSearch: true,
+                                          leadingIcon: const Icon(Icons.search_rounded),
+                                          label: const Text("เลือกออเดอร์"),
+                                          hintText: "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
+                                          dropdownMenuEntries: active
+                                              .map(
+                                                (order) => DropdownMenuEntry<String>(
+                                                  value: order.id,
+                                                  label:
+                                                      "${order.customerName} • ${(order.id.length < 8 ? order.id : order.id.substring(0, 8))} • ${order.status}",
+                                                ),
+                                              )
+                                              .toList(),
+                                          onSelected: (value) async {
+                                            if (value == null) return;
+                                            setState(() {
+                                              _orderPickerId = value;
+                                            });
+                                            final target = active.firstWhere(
+                                              (o) => o.id == value,
+                                              orElse: () => active.first,
+                                            );
+                                            await _showOrderPreview(target);
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  if (cancelled.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _openCancelledOrders(
+                                            cancelled, activeStaff, data),
+                                        icon: const Icon(Icons.archive_outlined),
+                                        label: Text(
+                                            "ดูออเดอร์ที่ยกเลิก (${cancelled.length})"),
+                                      ),
+                                    ),
+                                  ...active.map(
+                                    (order) => _OrderTile(
+                                      order: order,
+                                      api: widget.api,
+                                      currentUser: widget.currentUser,
+                                      printUrl: widget.api.orderPrintUrl(
+                                        orderId: order.id,
+                                        requesterId: widget.currentUser.userId,
+                                      ),
+                                      packingSlipUrl: widget.api.orderPackingSlipUrl(
+                                        orderId: order.id,
+                                        requesterId: widget.currentUser.userId,
+                                      ),
+                                      pdfUrl: widget.api.orderPdfUrl(
+                                        orderId: order.id,
+                                        requesterId: widget.currentUser.userId,
+                                      ),
+                                      onAssign: () => _assignOrder(order, activeStaff),
+                                      onUploadProof: () => _uploadProofPhoto(order),
+                                      onOpenProofGallery: () => _openProofGallery(order),
+                                      onResolveBackorder: () => _resolveBackorder(order),
+                                      proofCount: (_orderProofPhotos[order.id] ?? const <String>[]).length,
+                                      onDeliverPartial: () => _deliverPartial(order),
+                                      onFixDeliveryStatus: () => _fixDeliveryStatus(order),
+                                      onStatusChanged: (status) => _updateStatus(order, status),
+                                      onChatUpdated: _refresh,
+                                    ),
+                                  ),
+                                ]
                               ];
                             })(),
                         ],

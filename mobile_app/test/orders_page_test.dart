@@ -258,7 +258,7 @@ void main() {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => OrdersPage(api: fakeApi, currentUser: testUser),
+                  builder: (_) => Material(child: OrdersPage(api: fakeApi, currentUser: testUser)),
                 ),
               );
             },
