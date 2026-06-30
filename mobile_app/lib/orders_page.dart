@@ -1416,6 +1416,8 @@ class _OrdersPageState extends State<OrdersPage> {
 
   Future<void> _assignOrder(DeliveryOrder order, List<AppUser> users) async {
     String? production = order.productionUserId;
+    String? boardProduction = order.boardProductionUserId;
+    String? robotProduction = order.robotProductionUserId;
     String? qc = order.qcUserId;
     String? delivery = order.deliveryUserId ?? order.assignedToId;
     final confirmed = await showDialog<bool>(
@@ -1430,8 +1432,8 @@ class _OrdersPageState extends State<OrdersPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String?>(
-                      value: production,
-                      decoration: const InputDecoration(labelText: "ฝ่ายผลิต"),
+                      value: boardProduction,
+                      decoration: const InputDecoration(labelText: "ฝ่ายผลิตบอร์ด"),
                       items: [
                         const DropdownMenuItem<String?>(
                             value: null, child: Text("ยังไม่กำหนด")),
@@ -1440,7 +1442,21 @@ class _OrdersPageState extends State<OrdersPage> {
                             child: Text("${u.userName} (${u.userId})"))),
                       ],
                       onChanged: (value) =>
-                          setDialogState(() => production = value),
+                          setDialogState(() => boardProduction = value),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String?>(
+                      value: robotProduction,
+                      decoration: const InputDecoration(labelText: "ฝ่ายผลิตหุ่นยนต์"),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                            value: null, child: Text("ยังไม่กำหนด")),
+                        ...users.map((u) => DropdownMenuItem<String?>(
+                            value: u.userId,
+                            child: Text("${u.userName} (${u.userId})"))),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => robotProduction = value),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String?>(
@@ -1495,6 +1511,8 @@ class _OrdersPageState extends State<OrdersPage> {
         requesterId: widget.currentUser.userId,
         orderId: order.id,
         productionUserId: production,
+        boardProductionUserId: boardProduction,
+        robotProductionUserId: robotProduction,
         qcUserId: qc,
         deliveryUserId: delivery,
       );
@@ -2909,7 +2927,10 @@ class _OrderTile extends StatelessWidget {
                 "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} · ${_fmtOrderDateTime(order.lastHandoffAt!)}",
               ),
             Text(
-              "ฝ่ายผลิต: ${(order.productionUserName ?? "-")}${(order.productionUserId ?? "").isNotEmpty ? " (${order.productionUserId})" : ""}",
+              "ฝ่ายผลิตบอร์ด: ${(order.boardProductionUserName ?? "-")}${(order.boardProductionUserId ?? "").isNotEmpty ? " (${order.boardProductionUserId})" : ""}",
+            ),
+            Text(
+              "ฝ่ายผลิตหุ่นยนต์: ${(order.robotProductionUserName ?? "-")}${(order.robotProductionUserId ?? "").isNotEmpty ? " (${order.robotProductionUserId})" : ""}",
             ),
             Text(
               "QC: ${(order.qcUserName ?? "-")}${(order.qcUserId ?? "").isNotEmpty ? " (${order.qcUserId})" : ""}",
@@ -2917,6 +2938,10 @@ class _OrderTile extends StatelessWidget {
             Text(
               "จัดส่ง: ${(order.deliveryUserName ?? "-")}${(order.deliveryUserId ?? "").isNotEmpty ? " (${order.deliveryUserId})" : ""}",
             ),
+            if (order.productionUserName != null && order.productionUserName!.isNotEmpty)
+              Text(
+                "ฝ่ายผลิตเดิม: ${order.productionUserName}${(order.productionUserId ?? "").isNotEmpty ? " (${order.productionUserId})" : ""}",
+              ),
             if (order.scheduledDeliveryAt != null)
               Text(
                 "กำหนดส่ง: ${_fmtOrderDateTime(order.scheduledDeliveryAt!)}",

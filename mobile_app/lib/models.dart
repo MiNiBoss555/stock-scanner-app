@@ -394,6 +394,10 @@ class DeliveryOrder {
     this.assignedToName,
     this.productionUserId,
     this.productionUserName,
+    this.boardProductionUserId,
+    this.boardProductionUserName,
+    this.robotProductionUserId,
+    this.robotProductionUserName,
     this.qcUserId,
     this.qcUserName,
     this.deliveryUserId,
@@ -423,6 +427,10 @@ class DeliveryOrder {
       assignedToName: json["assigned_to_name"] as String?,
       productionUserId: json["production_user_id"] as String?,
       productionUserName: json["production_user_name"] as String?,
+      boardProductionUserId: json["board_production_user_id"] as String?,
+      boardProductionUserName: json["board_production_user_name"] as String?,
+      robotProductionUserId: json["robot_production_user_id"] as String?,
+      robotProductionUserName: json["robot_production_user_name"] as String?,
       qcUserId: json["qc_user_id"] as String?,
       qcUserName: json["qc_user_name"] as String?,
       deliveryUserId: json["delivery_user_id"] as String?,
@@ -455,6 +463,10 @@ class DeliveryOrder {
   final String? assignedToName;
   final String? productionUserId;
   final String? productionUserName;
+  final String? boardProductionUserId;
+  final String? boardProductionUserName;
+  final String? robotProductionUserId;
+  final String? robotProductionUserName;
   final String? qcUserId;
   final String? qcUserName;
   final String? deliveryUserId;

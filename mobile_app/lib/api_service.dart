@@ -227,7 +227,9 @@ class StockApiService {
   }
 
   Future<AppUser> getCurrentUser() async {
+    final start = DateTime.now();
     final response = await _get("/auth/me");
+    print("DEBUG TIMER: load current user duration = ${DateTime.now().difference(start).inMilliseconds} ms");
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
@@ -821,6 +823,8 @@ class StockApiService {
     required String requesterId,
     required String orderId,
     String? productionUserId,
+    String? boardProductionUserId,
+    String? robotProductionUserId,
     String? qcUserId,
     String? deliveryUserId,
   }) async {
@@ -828,6 +832,8 @@ class StockApiService {
       "/orders/$orderId/team",
       {
         "production_user_id": productionUserId,
+        "board_production_user_id": boardProductionUserId,
+        "robot_production_user_id": robotProductionUserId,
         "qc_user_id": qcUserId,
         "delivery_user_id": deliveryUserId,
       },
