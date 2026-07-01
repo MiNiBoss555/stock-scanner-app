@@ -55,6 +55,8 @@ class FakeStockApiService extends StockApiService {
     String? note,
     String? assignedToId,
     String? productionUserId,
+    String? boardProductionUserId,
+    String? robotProductionUserId,
     String? qcUserId,
     String? deliveryUserId,
     DateTime? scheduledDeliveryAt,
@@ -145,6 +147,8 @@ class FakeStockApiService extends StockApiService {
     required String requesterId,
     required String orderId,
     String? productionUserId,
+    String? boardProductionUserId,
+    String? robotProductionUserId,
     String? qcUserId,
     String? deliveryUserId,
   }) async {
@@ -246,6 +250,36 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(OrdersPage), findsOneWidget);
+    });
+
+    testWidgets("Create order team assignment shows board and robot production and not legacy production", (WidgetTester tester) async {
+      final binding = TestWidgetsFlutterBinding.instance;
+      binding.window.physicalSizeTestValue = const Size(800, 2000);
+      binding.window.devicePixelRatioTestValue = 1.0;
+
+      await tester.pumpWidget(createTestWidget(OrdersPage(
+        api: fakeApi,
+        currentUser: testUser,
+      )));
+      await tester.pumpAndSettle();
+
+      // Tap on "กำหนด" to show advanced team options
+      final configureButton = find.text("กำหนด");
+      expect(configureButton, findsOneWidget);
+      await tester.ensureVisible(configureButton);
+      await tester.tap(configureButton);
+      await tester.pumpAndSettle();
+
+      // Assert board/robot production are visible
+      expect(find.text("ฝ่ายผลิตบอร์ด"), findsOneWidget);
+      expect(find.text("ฝ่ายผลิตหุ่นยนต์"), findsOneWidget);
+
+      // Assert old standalone "ฝ่ายผลิต" dropdown label is not visible
+      expect(find.text("ฝ่ายผลิต"), findsNothing);
+
+      // Reset values
+      binding.window.clearPhysicalSizeTestValue();
+      binding.window.clearDevicePixelRatioTestValue();
     });
 
     // Test 2: ตรวจสอบว่า Navigation ไปยัง OrdersPage ทำงานปกติ
@@ -625,7 +659,7 @@ void main() {
         expect(find.text("เบอร์โทร: 0829998888"), findsOneWidget);
         expect(find.text("ที่อยู่: 9/9 ต.ท่าทราย อ.เมือง จ.นนทบุรี 11000"), findsOneWidget);
 
-        await tester.tap(find.text("ยกเลิก"));
+        await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
       });
 
@@ -652,7 +686,7 @@ void main() {
         expect(fakeApi.lastOcrFilePath, contains("autocropped_"));
         expect(find.text("ยืนยันข้อมูลที่สแกนได้"), findsOneWidget);
 
-        await tester.tap(find.text("ยกเลิก"));
+        await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
       });
 
@@ -679,7 +713,7 @@ void main() {
         expect(fakeApi.lastOcrFilePath, "/mocked/path/to/cropped_image.png");
         expect(find.text("ยืนยันข้อมูลที่สแกนได้"), findsOneWidget);
 
-        await tester.tap(find.text("ยกเลิก"));
+        await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
       });
 
@@ -705,7 +739,7 @@ void main() {
         expect(fakeApi.lastOcrFilePath, "/mocked/path/to/cropped_image.png");
         expect(find.text("ยืนยันข้อมูลที่สแกนได้"), findsOneWidget);
 
-        await tester.tap(find.text("ยกเลิก"));
+        await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
       });
 
@@ -730,7 +764,7 @@ void main() {
         expect(fakeApi.lastOcrFilePath, "/mocked/path/to/scanned_document.png");
         expect(find.text("ยืนยันข้อมูลที่สแกนได้"), findsOneWidget);
 
-        await tester.tap(find.text("ยกเลิก"));
+        await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
       });
     });

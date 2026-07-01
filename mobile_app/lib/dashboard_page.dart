@@ -8,6 +8,7 @@ import "theme/app_theme.dart";
 import "dashboard_home.dart";
 import "chat_assistant_page.dart";
 import "orders_page.dart";
+import "login_page.dart";
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
@@ -262,11 +263,17 @@ class DashboardPageState extends State<DashboardPage> with RouteAware {
   }
 
   Future<DashboardData> _load() async {
+    final start = DateTime.now();
     final results = await Future.wait([
       widget.api.getSummary(),
       widget.api.getProducts(),
       widget.api.getOrders(requesterId: widget.currentUser.userId, limit: 300),
     ]);
+    debugPrint("DEBUG TIMER: load initial dashboard duration = ${DateTime.now().difference(start).inMilliseconds} ms");
+    if (loginTapStart != null) {
+      debugPrint("DEBUG TIMER: total time from login tap to first screen = ${DateTime.now().difference(loginTapStart!).inMilliseconds} ms");
+      loginTapStart = null;
+    }
     final allOrders = results[2] as List<DeliveryOrder>;
     int duePriority(DeliveryOrder order) {
       final dueAt = order.scheduledDeliveryAt;

@@ -443,6 +443,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   }
 
   Future<void> _handleLogin(LoginSession session) async {
+    final saveSessionStart = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
     _api.setAccessToken(session.accessToken);
     await prefs.setString(_sessionUserIdKey, session.user.userId);
@@ -450,16 +451,15 @@ class _StockScannerAppState extends State<StockScannerApp> {
     await prefs.setString(
         _sessionUserJsonKey, jsonEncode(session.user.toJson()));
     await prefs.remove(_sessionPinKey);
+    debugPrint("DEBUG TIMER: save session duration = ${DateTime.now().difference(saveSessionStart).inMilliseconds} ms");
     if (mounted) {
       setState(() {
         _currentUser = session.user;
       });
     }
-    try {
-      await _registerPushForUser(session.user.userId);
-    } catch (_) {
-      // best effort
-    }
+    unawaited(_registerPushForUser(session.user.userId).catchError((e) {
+      debugPrint("Push token registration error: $e");
+    }));
   }
 
   Future<void> _registerPushForUser(String userId) async {
@@ -1014,6 +1014,7 @@ class StockHomePage extends StatefulWidget {
 
 class _StockHomePageState extends State<StockHomePage> {
   int _currentIndex = 0;
+  final Set<int> _loadedTabs = {0};
   final ValueNotifier<int> _realtimeRevision = ValueNotifier<int>(0);
   final GlobalKey<DashboardPageState> _dashboardKey =
       GlobalKey<DashboardPageState>();
@@ -1096,6 +1097,10 @@ class _StockHomePageState extends State<StockHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (authCompleteTime != null) {
+      debugPrint("DEBUG TIMER: auth complete to home visible = ${DateTime.now().difference(authCompleteTime!).inMilliseconds} ms");
+      authCompleteTime = null;
+    }
     final pages = <Widget>[
       DashboardPage(
         key: _dashboardKey,
@@ -1135,22 +1140,28 @@ class _StockHomePageState extends State<StockHomePage> {
           ),
         ),
       ),
-      ScanPage(
-        api: widget.api,
-        currentUser: widget.currentUser,
-        onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
-      ),
-      HistoryPage(api: widget.api, refreshSignal: _realtimeRevision),
-      ChatAssistantPage(
-        api: widget.api,
-        refreshSignal: _realtimeRevision,
-        onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
-        onBack: () {
-          setState(() {
-            _currentIndex = 0;
-          });
-        },
-      ),
+      _loadedTabs.contains(1)
+          ? ScanPage(
+              api: widget.api,
+              currentUser: widget.currentUser,
+              onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+            )
+          : const SizedBox.shrink(),
+      _loadedTabs.contains(2)
+          ? HistoryPage(api: widget.api, refreshSignal: _realtimeRevision)
+          : const SizedBox.shrink(),
+      _loadedTabs.contains(3)
+          ? ChatAssistantPage(
+              api: widget.api,
+              refreshSignal: _realtimeRevision,
+              onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+              onBack: () {
+                setState(() {
+                  _currentIndex = 0;
+                });
+              },
+            )
+          : const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -1158,7 +1169,10 @@ class _StockHomePageState extends State<StockHomePage> {
       body: Stack(
         children: [
           SafeArea(
-            child: pages[_currentIndex],
+            child: IndexedStack(
+              index: _currentIndex,
+              children: pages,
+            ),
           ),
           SafeArea(
             child: Align(
@@ -1205,6 +1219,7 @@ class _StockHomePageState extends State<StockHomePage> {
             onDestinationSelected: (index) {
               setState(() {
                 _currentIndex = index;
+                _loadedTabs.add(index);
               });
               if (index == 0) {
                 _dashboardKey.currentState?.refreshNow();
@@ -1255,12 +1270,20 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
+  static bool _firstHistoryLoadLogged = false;
   late Future<List<MovementRecord>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.api.getMovements();
+    final start = DateTime.now();
+    _future = widget.api.getMovements().then((val) {
+      if (!_firstHistoryLoadLogged) {
+        debugPrint("DEBUG TIMER: first HistoryPage load duration = ${DateTime.now().difference(start).inMilliseconds} ms");
+        _firstHistoryLoadLogged = true;
+      }
+      return val;
+    });
     widget.refreshSignal.addListener(_handleRealtimeRefresh);
   }
 

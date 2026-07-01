@@ -6,6 +6,9 @@ import "api_service.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
+DateTime? loginTapStart;
+DateTime? authCompleteTime;
+
 class LoginPage extends StatefulWidget {
   const LoginPage({
     super.key,
@@ -59,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
+    loginTapStart = DateTime.now();
     final userId = _userIdController.text.trim().toUpperCase();
     final pin = _pinController.text.trim();
 
@@ -95,6 +99,8 @@ class _LoginPageState extends State<LoginPage> {
       final session = await widget.api
           .login(userId: userId, pin: pin)
           .timeout(const Duration(seconds: 20));
+      authCompleteTime = DateTime.now();
+      debugPrint("DEBUG TIMER: login tap to auth complete = ${authCompleteTime!.difference(loginTapStart!).inMilliseconds} ms");
       await widget.onLogin(session);
     } catch (error) {
       final message = error.toString().replaceFirst("Exception: ", "");
