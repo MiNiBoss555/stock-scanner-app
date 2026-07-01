@@ -47,6 +47,8 @@ class _OrdersPageState extends State<OrdersPage> {
   final TextEditingController _noteController = TextEditingController();
   String? _selectedAssigneeId;
   String? _selectedProductionUserId;
+  String? _selectedBoardProductionUserId;
+  String? _selectedRobotProductionUserId;
   String? _selectedQcUserId;
   String? _selectedDeliveryUserId;
   DateTime? _scheduledDeliveryAt;
@@ -119,6 +121,11 @@ class _OrdersPageState extends State<OrdersPage> {
                   const _ReceiptDivider(),
                   const SizedBox(height: 8),
                   _receiptRow("สถานะ", statusLabel),
+      _receiptRow("ขั้นตอน", _workflowStatusLabel(order.orderWorkflowStatus)),
+      if ((order.orderWorkflowStatus == "rejected_board" || order.orderWorkflowStatus == "rejected_robot") &&
+          order.orderWorkflowNote != null &&
+          order.orderWorkflowNote!.isNotEmpty)
+        _receiptRow("หมายเหตุ QC", order.orderWorkflowNote!, bold: true),
                   _receiptRow("ผู้รับออเดอร์", order.createdByName),
                   _receiptRow(
                       "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
@@ -367,6 +374,8 @@ class _OrdersPageState extends State<OrdersPage> {
             : _noteController.text.trim(),
         assignedToId: _selectedAssigneeId,
         productionUserId: _selectedProductionUserId,
+        boardProductionUserId: _selectedBoardProductionUserId,
+        robotProductionUserId: _selectedRobotProductionUserId,
         qcUserId: _selectedQcUserId,
         deliveryUserId: _selectedDeliveryUserId,
         scheduledDeliveryAt: _scheduledDeliveryAt,
@@ -381,6 +390,8 @@ class _OrdersPageState extends State<OrdersPage> {
         _createOrderAutovalidate = AutovalidateMode.disabled;
         _selectedAssigneeId = null;
         _selectedProductionUserId = null;
+        _selectedBoardProductionUserId = null;
+        _selectedRobotProductionUserId = null;
         _selectedQcUserId = null;
         _selectedDeliveryUserId = null;
         _scheduledDeliveryAt = null;
@@ -1150,44 +1161,47 @@ class _OrdersPageState extends State<OrdersPage> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text("ส่งสินค้า (บางส่วน)"),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ...order.items.map((item) {
-                        final remaining =
-                            item.quantity - item.deliveredQuantity;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                  child: Text(
-                                      "${item.productName} (ค้าง $remaining)")),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 72,
-                                child: TextFormField(
-                                  initialValue: qtyValues[item.barcode] ?? "0",
-                                  keyboardType: TextInputType.number,
-                                  decoration:
-                                      const InputDecoration(labelText: "ส่ง"),
-                                  onChanged: (value) =>
-                                      qtyValues[item.barcode] = value,
+              content: Material(
+                color: Colors.transparent,
+                child: SizedBox(
+                  width: 420,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ...order.items.map((item) {
+                          final remaining =
+                              item.quantity - item.deliveredQuantity;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                    child: Text(
+                                        "${item.productName} (ค้าง $remaining)")),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 72,
+                                  child: TextFormField(
+                                    initialValue: qtyValues[item.barcode] ?? "0",
+                                    keyboardType: TextInputType.number,
+                                    decoration:
+                                        const InputDecoration(labelText: "ส่ง"),
+                                    onChanged: (value) =>
+                                        qtyValues[item.barcode] = value,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      TextField(
-                        onChanged: (value) => note = value,
-                        decoration:
-                            const InputDecoration(labelText: "หมายเหตุ"),
-                      ),
-                    ],
+                              ],
+                            ),
+                          );
+                        }),
+                        TextField(
+                          onChanged: (value) => note = value,
+                          decoration:
+                              const InputDecoration(labelText: "หมายเหตุ"),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1254,48 +1268,51 @@ class _OrdersPageState extends State<OrdersPage> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text("แก้ไขจำนวนส่ง (แอดมิน)"),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ...order.items.map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  "${item.productName} (ทั้งหมด ${item.quantity})",
-                                  style: const TextStyle(fontSize: 13),
+              content: Material(
+                color: Colors.transparent,
+                child: SizedBox(
+                  width: 420,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ...order.items.map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "${item.productName} (ทั้งหมด ${item.quantity})",
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 72,
-                                child: TextFormField(
-                                  initialValue:
-                                      targetValues[item.barcode] ?? "0",
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                      labelText: "ส่งแล้ว"),
-                                  onChanged: (value) =>
-                                      targetValues[item.barcode] = value,
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 72,
+                                  child: TextFormField(
+                                    initialValue:
+                                        targetValues[item.barcode] ?? "0",
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                        labelText: "ส่งแล้ว"),
+                                    onChanged: (value) =>
+                                        targetValues[item.barcode] = value,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          );
+                        }),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็นระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
                           ),
-                        );
-                      }),
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็นระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1566,21 +1583,29 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: ColoredBox(
-        color: brandSurface,
-        child: RefreshIndicator(
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        child: ColoredBox(
+          color: brandSurface,
+          child: RefreshIndicator(
           onRefresh: _refresh,
           child: FutureBuilder<_OrdersPageData>(
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return LoadingState(
-                  message: "กำลังโหลดข้อมูลออเดอร์...",
+                return Material(
+                  color: Colors.transparent,
+                  child: LoadingState(
+                    message: "กำลังโหลดข้อมูลออเดอร์...",
+                  ),
                 );
               }
               if (snapshot.hasError) {
-                return _ErrorState(message: snapshot.error.toString());
+                return Material(
+                  color: Colors.transparent,
+                  child: _ErrorState(message: snapshot.error.toString()),
+                );
               }
               final data = snapshot.data!;
               for (final order in data.orders) {
@@ -1601,8 +1626,10 @@ class _OrdersPageState extends State<OrdersPage> {
               final listPadding = kIsWeb
                   ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
                   : const EdgeInsets.all(16);
-              return ListView(
-                padding: listPadding,
+              return Material(
+                color: Colors.transparent,
+                child: ListView(
+                  padding: listPadding,
                 children: [
                   const _PageHeader(
                     title: "ออเดอร์และจัดส่ง",
@@ -1673,10 +1700,12 @@ class _OrdersPageState extends State<OrdersPage> {
                           ),
                           const SizedBox(height: 16),
                           Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     "สร้างออเดอร์ใหม่",
@@ -1931,7 +1960,8 @@ class _OrdersPageState extends State<OrdersPage> {
                                     contentPadding: EdgeInsets.zero,
                                     title: const Text("ทีมงานออเดอร์"),
                                     subtitle: Text(
-                                      "ผลิต: ${_userLabelById(activeStaff, _selectedProductionUserId, "-")} · "
+                                      "ผลิตบอร์ด: ${_userLabelById(activeStaff, _selectedBoardProductionUserId, "-")} · "
+                                      "ผลิตหุ่นยนต์: ${_userLabelById(activeStaff, _selectedRobotProductionUserId, "-")} · "
                                       "QC: ${_userLabelById(activeStaff, _selectedQcUserId, "-")} · "
                                       "ส่ง: ${_userLabelById(activeStaff, _selectedDeliveryUserId ?? _selectedAssigneeId, "-")}",
                                       maxLines: 2,
@@ -1948,9 +1978,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                   ),
                                   if (_showAdvancedTeam) ...[
                                     DropdownButtonFormField<String?>(
-                                      value: _selectedProductionUserId,
+                                      value: _selectedBoardProductionUserId,
                                       decoration: const InputDecoration(
-                                          labelText: "ฝ่ายผลิต"),
+                                          labelText: "ฝ่ายผลิตบอร์ด"),
                                       items: [
                                         const DropdownMenuItem<String?>(
                                           value: null,
@@ -1965,7 +1995,29 @@ class _OrdersPageState extends State<OrdersPage> {
                                         ),
                                       ],
                                       onChanged: (value) => setState(
-                                        () => _selectedProductionUserId = value,
+                                        () => _selectedBoardProductionUserId = value,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    DropdownButtonFormField<String?>(
+                                      value: _selectedRobotProductionUserId,
+                                      decoration: const InputDecoration(
+                                          labelText: "ฝ่ายผลิตหุ่นยนต์"),
+                                      items: [
+                                        const DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text("-"),
+                                        ),
+                                        ...activeStaff.map(
+                                          (user) => DropdownMenuItem<String?>(
+                                            value: user.userId,
+                                            child: Text(
+                                                "${user.userName} (${user.userId})"),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(
+                                        () => _selectedRobotProductionUserId = value,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -2081,7 +2133,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                 ],
                               ),
                             ),
-                          ),
+                          ),),
                           const SizedBox(height: 16),
                           Text(
                             "รายการออเดอร์",
@@ -2239,12 +2291,12 @@ class _OrdersPageState extends State<OrdersPage> {
                     ),
                   ),
                 ],
-              );
+              ),);
             },
           ),
         ),
       ),
-    );
+    ),);
   }
 }
 
@@ -2869,8 +2921,23 @@ class _OrderTile extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                   ),
-                ),
-              ],
+),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _workflowStatusTone(order.orderWorkflowStatus).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _workflowStatusLabel(order.orderWorkflowStatus),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: _workflowStatusTone(order.orderWorkflowStatus),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                          ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -2935,6 +3002,19 @@ class _OrderTile extends StatelessWidget {
             Text(
               "QC: ${(order.qcUserName ?? "-")}${(order.qcUserId ?? "").isNotEmpty ? " (${order.qcUserId})" : ""}",
             ),
+            if ((order.orderWorkflowStatus == "rejected_board" || order.orderWorkflowStatus == "rejected_robot") &&
+                order.orderWorkflowNote != null &&
+                order.orderWorkflowNote!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  "หมายเหตุ QC: ${order.orderWorkflowNote}",
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
             Text(
               "จัดส่ง: ${(order.deliveryUserName ?? "-")}${(order.deliveryUserId ?? "").isNotEmpty ? " (${order.deliveryUserId})" : ""}",
             ),
@@ -3778,4 +3858,46 @@ String stripLabelPrefixes(String line) {
     }
   }
   return line;
+}
+
+
+String _workflowStatusLabel(String status) {
+  switch (status) {
+    case "pending_board":
+      return "รอผลิตบอร์ด";
+    case "pending_robot":
+      return "รอผลิตหุ่นยนต์";
+    case "waiting_board":
+      return "รอประกอบบอร์ด";
+    case "assembling":
+      return "กำลังประกอบ";
+    case "pending_qc":
+      return "รอตรวจสอบ QC";
+    case "rejected_board":
+      return "บอร์ดไม่ผ่าน QC";
+    case "rejected_robot":
+      return "หุ่นยนต์ไม่ผ่าน QC";
+    case "pending_delivery":
+      return "รอจัดส่ง";
+    case "delivered":
+      return "จัดส่งสำเร็จ";
+    default:
+      return status;
+  }
+}
+
+Color _workflowStatusTone(String status) {
+  switch (status) {
+    case "rejected_board":
+    case "rejected_robot":
+      return Colors.redAccent;
+    case "delivered":
+      return Colors.green;
+    case "pending_qc":
+      return Colors.orangeAccent;
+    case "assembling":
+      return Colors.blueAccent;
+    default:
+      return Colors.blueGrey;
+  }
 }

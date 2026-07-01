@@ -689,6 +689,8 @@ class StockApiService {
     String? note,
     String? assignedToId,
     String? productionUserId,
+    String? boardProductionUserId,
+    String? robotProductionUserId,
     String? qcUserId,
     String? deliveryUserId,
     DateTime? scheduledDeliveryAt,
@@ -703,6 +705,8 @@ class StockApiService {
         "note": note,
         "assigned_to_id": assignedToId,
         "production_user_id": productionUserId,
+        "board_production_user_id": boardProductionUserId,
+        "robot_production_user_id": robotProductionUserId,
         "qc_user_id": qcUserId,
         "delivery_user_id": deliveryUserId,
         "scheduled_delivery_at": scheduledDeliveryAt?.toUtc().toIso8601String(),
@@ -854,6 +858,19 @@ class StockApiService {
         "status": status,
       },
       {"requester_id": requesterId},
+      _headers(),
+    );
+    return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<DeliveryOrder> updateOrderWorkflow(String orderId, String action, String? note) async {
+    final response = await _postJson(
+      "/orders/$orderId/workflow",
+      {
+        "action": action,
+        "note": note,
+      },
+      null,
       _headers(),
     );
     return DeliveryOrder.fromJson(_decode(response) as Map<String, dynamic>);
