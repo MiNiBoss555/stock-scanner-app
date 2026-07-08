@@ -83,7 +83,7 @@ class _OrdersPageState extends State<OrdersPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => FractionallySizedBox(
-        heightFactor: 0.52,
+        heightFactor: 0.65,
         child: SafeArea(
           child: Container(
             margin: const EdgeInsets.all(12),
@@ -125,7 +125,7 @@ class _OrdersPageState extends State<OrdersPage> {
       if ((order.orderWorkflowStatus == "rejected_board" || order.orderWorkflowStatus == "rejected_robot") &&
           order.orderWorkflowNote != null &&
           order.orderWorkflowNote!.isNotEmpty)
-        _receiptRow("หมายเหตุ QC", order.orderWorkflowNote!, bold: true),
+        _receiptRow("หมายเหตุ QC", order.orderWorkflowNote!, bold: true, valueColor: Colors.redAccent),
                   _receiptRow("ผู้รับออเดอร์", order.createdByName),
                   _receiptRow(
                       "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
@@ -147,6 +147,177 @@ class _OrdersPageState extends State<OrdersPage> {
                     icon: const Icon(Icons.open_in_new_rounded),
                     label: const Text("เปิดออเดอร์นี้"),
                   ),
+                  
+                  // Workflow action buttons
+                  (() {
+                    final role = (widget.currentUser.role).trim().toLowerCase();
+                    final position = (widget.currentUser.position ?? "").trim().toLowerCase();
+                    final isProducerRole = role.contains("production") ||
+                        role.contains("ผลิต") ||
+                        position.contains("production") ||
+                        position.contains("ผลิต");
+                    final isQcRole = role == "qc" || role.contains("quality") || role.contains("ตรวจ");
+                    final isDeliveryRole = role.contains("delivery") || role.contains("ส่ง");
+
+                    final isBoard = isProducerRole && (position.contains("บอร์ด") || position.contains("board"));
+                    final isRobot = isProducerRole && (position.contains("หุ่นยนต์") || position.contains("robot"));
+                    final isGenericProd = isProducerRole && !isBoard && !isRobot;
+
+                    final showBoard = widget.currentUser.isAdmin || isBoard || isGenericProd;
+                    final showRobot = widget.currentUser.isAdmin || isRobot || isGenericProd;
+                    final showQc = widget.currentUser.isAdmin || isQcRole;
+                    final showDelivery = widget.currentUser.isAdmin || isDeliveryRole;
+
+                    Future<void> handleWorkflowAction(String action) async {
+                      String? note;
+                      if (action == "reject_to_board" || action == "reject_to_robot") {
+                        note = await showDialog<String>(
+                          context: context,
+                          builder: (dialogContext) {
+                            final controller = TextEditingController();
+                            return AlertDialog(
+                              title: const Text("ระบุเหตุผลที่ต้องแก้ไข"),
+                              content: TextField(
+                                controller: controller,
+                                decoration: const InputDecoration(
+                                  hintText: "กรุณาระบุเหตุผล...",
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(),
+                                  child: const Text("ยกเลิก"),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    final text = controller.text.trim();
+                                    if (text.isEmpty) {
+                                      showAppSnack(context, "กรุณาระบุเหตุผลก่อนส่งกลับ");
+                                      return;
+                                    }
+                                    Navigator.of(dialogContext).pop(text);
+                                  },
+                                  child: const Text("ตกลง"),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                        if (note == null || note.isEmpty) {
+                          return;
+                        }
+                      }
+
+                      try {
+                        await widget.api.updateOrderWorkflow(order.id, action, note);
+                        if (mounted) {
+                          Navigator.of(context).pop(); // Close bottom sheet
+                          showAppSnack(context, "ดำเนินการสำเร็จ");
+                          setState(() {
+                            _future = _load(); // Refresh orders
+                          });
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          showAppSnack(context, "เกิดข้อผิดพลาด: $e");
+                        }
+                      }
+                    }
+
+                    Widget _actionButton(String label, String action, String keyStr) {
+                      return ElevatedButton(
+                        key: Key(keyStr),
+                        onPressed: () => handleWorkflowAction(action),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          label,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      );
+                    }
+
+                    List<Widget> actionButtons = [];
+                    final status = order.orderWorkflowStatus;
+
+                    if (status == "pending_board" || status == "rejected_board") {
+                      if (showBoard) {
+                        actionButtons.addAll([
+                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                          _actionButton("ส่งให้ผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                        ]);
+                      }
+                    } else if (status == "pending_robot" || status == "rejected_robot") {
+                      if (showRobot) {
+                        actionButtons.addAll([
+                          _actionButton("รอบอร์ด", "wait_for_board", "workflow_action_wait_for_board"),
+                          _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                        ]);
+                      }
+                    } else if (status == "waiting_board") {
+                      if (showRobot) {
+                        actionButtons.addAll([
+                          _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                        ]);
+                      }
+                    } else if (status == "assembling") {
+                      if (showRobot) {
+                        actionButtons.addAll([
+                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                        ]);
+                      }
+                    } else if (status == "pending_qc") {
+                      if (showQc) {
+                        actionButtons.addAll([
+                          _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
+                          _actionButton("ไม่ผ่าน ส่งกลับผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                          _actionButton("ไม่ผ่าน ส่งกลับผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                        ]);
+                      }
+                    } else if (status == "pending_delivery") {
+                      if (showDelivery) {
+                        actionButtons.addAll([
+                          _actionButton("รอจัดส่ง", "wait_delivery", "workflow_action_wait_delivery"),
+                          _actionButton("จัดส่งแล้ว", "delivered", "workflow_action_delivered"),
+                        ]);
+                      }
+                    }
+
+                    if (actionButtons.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        const _ReceiptDivider(),
+                        const SizedBox(height: 8),
+                        Text(
+                          "จัดการขั้นตอนงาน",
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.black.withOpacity(0.60),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actionButtons,
+                        ),
+                      ],
+                    );
+                  })(),
                 ],
               ),
             ),
@@ -156,7 +327,7 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
-  Widget _receiptRow(String label, String value, {bool bold = false}) {
+  Widget _receiptRow(String label, String value, {bool bold = false, Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -177,6 +348,7 @@ class _OrdersPageState extends State<OrdersPage> {
               value,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                    color: valueColor,
                   ),
             ),
           ),
