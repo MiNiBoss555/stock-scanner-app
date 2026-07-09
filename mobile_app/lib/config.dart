@@ -3,7 +3,7 @@ import "package:flutter/foundation.dart";
 class AppConfig {
   static const String _apiUrl = String.fromEnvironment(
     "API_URL",
-    defaultValue: "https://stock-scanner-api-478e.onrender.com",
+    defaultValue: "http://127.0.0.1:8000",
   );
 
   static String get baseUrl {

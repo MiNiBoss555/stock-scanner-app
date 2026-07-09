@@ -1,3 +1,4 @@
+import "package:google_fonts/google_fonts.dart";
 import "package:flutter/foundation.dart" show kIsWeb;
 import "package:flutter/material.dart";
 
@@ -41,328 +42,16 @@ class MobileDashboardHome extends StatelessWidget {
     Color color,
   ) onOpenProductList;
 
-  Color _statusTone(String status) {
-    switch (status) {
-      case "new":
-        return const Color(0xFF7DB8E8);
-      case "assigned":
-        return profileTeal;
-      case "in_production":
-        return const Color(0xFF5B8CFF);
-      case "qc_pending":
-        return const Color(0xFFF5A623);
-      case "qc_passed":
-        return const Color(0xFF2E9E6F);
-      case "preparing":
-        return const Color(0xFF8A6DFF);
-      case "out_for_delivery":
-        return brandPrimary;
-      case "delivered":
-        return brandDeep;
-      case "cancelled":
-        return const Color(0xFFD64545);
-      default:
-        return brandInk;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case "new":
-        return "ใหม่";
-      case "assigned":
-        return "มอบหมายแล้ว";
-      case "in_production":
-        return "กำลังผลิต";
-      case "qc_pending":
-        return "รอ QC";
-      case "rework_required":
-        return "ต้องแก้ไข";
-      case "qc_passed":
-        return "ผ่าน QC";
-      case "preparing":
-        return "กำลังจัดสินค้า";
-      case "out_for_delivery":
-        return "กำลังส่ง";
-      case "delivered":
-        return "ส่งแล้ว";
-      case "cancelled":
-        return "ยกเลิก";
-      default:
-        return status;
-    }
-  }
-
-  String _stageLabel(String status) {
-    switch (status) {
-      case "new":
-        return "ขั้นตอนตอนนี้: รอเริ่มงาน";
-      case "assigned":
-        return "ขั้นตอนตอนนี้: มอบหมายผู้รับผิดชอบแล้ว";
-      case "in_production":
-        return "ขั้นตอนตอนนี้: อยู่ระหว่างผลิต";
-      case "qc_pending":
-        return "ขั้นตอนตอนนี้: รอตรวจคุณภาพ";
-      case "rework_required":
-        return "ขั้นตอนตอนนี้: ต้องแก้ไขก่อนส่งต่อ";
-      case "qc_passed":
-        return "ขั้นตอนตอนนี้: ผ่าน QC แล้ว";
-      case "preparing":
-        return "ขั้นตอนตอนนี้: กำลังจัดของ";
-      case "out_for_delivery":
-        return "ขั้นตอนตอนนี้: ออกจัดส่งแล้ว";
-      case "delivered":
-        return "ขั้นตอนตอนนี้: ส่งสำเร็จ";
-      case "cancelled":
-        return "ขั้นตอนตอนนี้: ยกเลิกออเดอร์";
-      default:
-        return "ขั้นตอนตอนนี้: $status";
-    }
-  }
-
-  int? _daysUntilDue(DeliveryOrder order) {
-    final dueAt = order.scheduledDeliveryAt;
-    if (dueAt == null) {
-      return null;
-    }
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dueDay = DateTime(dueAt.year, dueAt.month, dueAt.day);
-    return dueDay.difference(today).inDays;
-  }
-
-  Color? _dueTone(DeliveryOrder order) {
-    final days = _daysUntilDue(order);
-    if (days == null) {
-      return null;
-    }
-    if (days <= 1) {
-      return const Color(0xFFD64545);
-    }
-    if (days == 2) {
-      return const Color(0xFFF28C28);
-    }
-    if (days == 3) {
-      return const Color(0xFFE0B21B);
-    }
-    return null;
-  }
-
-  BoxDecoration _mobileOrderDecoration(Color tone, {bool emphasize = false}) {
-    final base = emphasize ? tone.withOpacity(0.16) : tone.withOpacity(0.10);
-    return BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.white.withOpacity(0.96),
-          base,
-          tone.withOpacity(emphasize ? 0.12 : 0.08),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: tone.withOpacity(0.16)),
-      boxShadow: [
-        BoxShadow(
-          color: tone.withOpacity(0.10),
-          blurRadius: 24,
-          offset: const Offset(0, 12),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileOrderCard(
-    BuildContext context,
-    DeliveryOrder order, {
-    required bool emphasizeDue,
-    String? eyebrow,
-    String? supporting,
-  }) {
-    final tone = _statusTone(order.status);
-    final dueTone = _dueTone(order);
-    final accent = dueTone ?? tone;
-    final dueText = order.scheduledDeliveryAt != null
-        ? "กำหนดส่ง: ${formatDateTime(order.scheduledDeliveryAt!)}"
-        : "อัปเดต: ${formatDateTime(order.updatedAt)}";
-    final supportingText = supporting ??
-        "${order.items.length} รายการ · ผู้ส่ง: ${order.createdByName}";
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: _HoverLift(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => onOpenOrderPreview(order),
-            borderRadius: BorderRadius.circular(24),
-            child: Ink(
-              decoration: _mobileOrderDecoration(
-                accent,
-                emphasize: emphasizeDue || dueTone != null,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (eyebrow != null) ...[
-                      Text(
-                        eyebrow.toUpperCase(),
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: accent,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
-                                ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withOpacity(0.88),
-                                accent.withOpacity(0.18),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            emphasizeDue
-                                ? Icons.notification_important_outlined
-                                : Icons.receipt_rounded,
-                            color: accent,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                order.customerName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      color: brandDeep,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                supportingText,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: brandInk.withOpacity(0.70),
-                                      height: 1.35,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _OrderStatusPill(
-                          label: _statusLabel(order.status),
-                          tone: accent,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      _stageLabel(order.status),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: brandDeep,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.schedule_rounded, size: 16, color: accent),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            dueText,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: accent,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (dueTone != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: dueTone.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: dueTone.withOpacity(0.16)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.priority_high_rounded,
-                              size: 18,
-                              color: dueTone,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "ออเดอร์นี้ใกล้ถึงกำหนดส่งแล้ว",
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: dueTone,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final latestOrders = data.activeOrders.take(4).toList();
-    final todayOrders = data.todayUpdatedOrders.take(4).toList();
-    final unreadOrders = data.activeOrders
-        .where((order) => order.unreadCount > 0)
-        .toList()
-      ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
     final outOfStock = data.products.where((p) => p.currentStock <= 0).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final lowStock = data.products
         .where((p) => p.currentStock > 0 && p.currentStock <= p.minimumStock)
         .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+        ..sort((a, b) => a.name.compareTo(b.name));
+
+    final latestOrders = data.activeOrders.take(6).toList();
 
     return ColoredBox(
       color: brandSurface,
@@ -473,85 +162,439 @@ class MobileDashboardHome extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 18),
-          if (data.activeOrders.isNotEmpty)
-            _ActionBanner(
-              title: "งานค้างส่ง ${data.activeOrders.length} ออเดอร์",
-              subtitle: "แตะเพื่อเปิดหน้าออเดอร์และจัดการงานค้างต่อ",
-              icon: Icons.local_shipping_outlined,
-              onTap: onOpenOrdersTab,
-            ),
-          if (outOfStock.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _ActionBanner(
-              title: "สินค้าหมด: ${outOfStock.length} รายการ",
-              subtitle: outOfStock.take(3).map((p) => p.name).join(" · "),
-              icon: Icons.inventory_2_outlined,
-              tone: Colors.redAccent,
-              onTap: () => onOpenProductList(
-                context,
-                outOfStock,
-                "สินค้าหมด",
-                Icons.inventory_2_outlined,
-                Colors.redAccent,
-              ),
-            ),
-          ],
-          if (unreadOrders.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _ActionBanner(
-              title: "แชทค้างอ่าน ${unreadOrders.length} ออเดอร์",
-              subtitle: unreadOrders
-                  .take(3)
-                  .map((o) => "${o.customerName} (+${o.unreadCount})")
-                  .join(" • "),
-              icon: Icons.mark_chat_unread_rounded,
-              tone: Colors.redAccent,
-              onTap: onOpenOrdersTab,
-            ),
-          ],
-          const SizedBox(height: 22),
+          const SizedBox(height: 28),
           const _DashboardSectionHeader(
-            eyebrow: "Focus now",
-            title: "ออเดอร์ล่าสุด",
-            subtitle: "ดูสถานะ ขั้นตอนปัจจุบัน และกำหนดส่งได้ทันที",
+            eyebrow: "Order bills",
+            title: "บิลออเดอร์ค้างส่ง",
+            subtitle: "บิลรายการสินค้าสไตล์กระดาษใบเสร็จ (เลื่อนซ้าย-ขวาได้)",
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           if (latestOrders.isEmpty)
             const _EmptyTile(message: "ยังไม่มีรายการออเดอร์")
           else
-            ...latestOrders.map(
-              (order) => _buildMobileOrderCard(
-                context,
-                order,
-                emphasizeDue: _dueTone(order) != null,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: latestOrders.map((order) {
+                  return _SharedReceiptBillCard(
+                    order: order,
+                    onOpenOrdersTab: onOpenOrdersTab,
+                  );
+                }).toList(),
               ),
             ),
-          const SizedBox(height: 8),
-          const _DashboardSectionHeader(
-            eyebrow: "Realtime feed",
-            title: "อัปเดตใหม่วันนี้",
-            subtitle: "รายการที่มีการเปลี่ยนแปลงล่าสุดในวันนี้",
-          ),
-          const SizedBox(height: 12),
-          if (todayOrders.isEmpty)
-            const _EmptyTile(message: "ยังไม่มีออเดอร์ที่อัปเดตใหม่วันนี้")
-          else
-            ...todayOrders.map(
-              (order) => _buildMobileOrderCard(
-                context,
-                order,
-                emphasizeDue: false,
-                eyebrow: "Order update",
-                supporting: "อัปเดต ${formatDateTime(order.updatedAt)}",
-              ),
-            ),
+          const SizedBox(height: 18),
         ],
       ),
     );
   }
 }
 
+class _SharedReceiptBillCard extends StatelessWidget {
+  const _SharedReceiptBillCard({
+    required this.order,
+    required this.onOpenOrdersTab,
+  });
+
+  final DeliveryOrder order;
+  final VoidCallback onOpenOrdersTab;
+
+  int? _daysUntilDue(DeliveryOrder order) {
+    final dueAt = order.scheduledDeliveryAt;
+    if (dueAt == null) {
+      return null;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDay = DateTime(dueAt.year, dueAt.month, dueAt.day);
+    return dueDay.difference(today).inDays;
+  }
+
+  Color? _dueTone(DeliveryOrder order) {
+    final days = _daysUntilDue(order);
+    if (days == null) {
+      return null;
+    }
+    if (days <= 1) {
+      return const Color(0xFFD64545); // Red (Urgent)
+    }
+    if (days == 2) {
+      return const Color(0xFFF28C28); // Orange (Near)
+    }
+    if (days == 3) {
+      return const Color(0xFFE0B21B); // Yellow (Warning)
+    }
+    return const Color(0xFF2E9E6F); // Green (Safe)
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case "pending_board":
+        return "รอผลิตบอร์ด";
+      case "pending_robot":
+        return "รอผลิตหุ่นยนต์";
+      case "waiting_board":
+        return "รอประกอบบอร์ด";
+      case "assembling":
+        return "กำลังประกอบ";
+      case "pending_qc":
+        return "รอตรวจ QC";
+      case "rejected_board":
+        return "ตก QC บอร์ด";
+      case "rejected_robot":
+        return "ตก QC หุ่นยนต์";
+      case "pending_delivery":
+        return "รอจัดส่ง";
+      case "delivered":
+        return "ส่งแล้ว";
+      default:
+        return status;
+    }
+  }
+
+  int _getActiveStep(String status) {
+    switch (status) {
+      case "pending_robot":
+      case "rejected_robot":
+        return 1;
+      case "pending_qc":
+        return 2;
+      case "pending_delivery":
+      case "delivered":
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hash = order.id.hashCode.abs();
+    final queueCode = "V${(hash % 90 + 10)}"; 
+    final dueTone = _dueTone(order);
+    
+    final itemRows = <Widget>[];
+    for (final item in order.items) {
+      itemRows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "${item.quantity} x ",
+                style: GoogleFonts.mitr(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  item.productName,
+                  style: GoogleFonts.mitr(
+                    fontSize: 12,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final allPossibleSteps = [
+      {"index": 0, "title": "ผลิตบอร์ด", "user": order.boardProductionUserName, "id": order.boardProductionUserId},
+      {"index": 1, "title": "ผลิตหุ่นยนต์", "user": order.robotProductionUserName, "id": order.robotProductionUserId},
+      {"index": 2, "title": "ตรวจสอบ QC", "user": order.qcUserName, "id": order.qcUserId},
+      {"index": 3, "title": "จัดส่ง", "user": order.deliveryUserName, "id": order.deliveryUserId},
+    ];
+
+    final assignedSteps = allPossibleSteps.where((step) {
+      final id = step["id"];
+      return id != null && id.toString().trim().isNotEmpty;
+    }).toList();
+
+    final steps = assignedSteps.isEmpty ? allPossibleSteps : assignedSteps;
+    final originalActiveIndex = _getActiveStep(order.orderWorkflowStatus);
+    
+    int activeStep = 0;
+    if (assignedSteps.isNotEmpty) {
+      bool foundActive = false;
+      for (int i = 0; i < steps.length; i++) {
+        if (steps[i]["index"] == originalActiveIndex) {
+          activeStep = i;
+          foundActive = true;
+          break;
+        }
+      }
+      if (!foundActive) {
+        for (int i = 0; i < steps.length; i++) {
+          if ((steps[i]["index"] as int) > originalActiveIndex) {
+            activeStep = i;
+            foundActive = true;
+            break;
+          }
+        }
+        if (!foundActive) {
+          activeStep = steps.length - 1;
+        }
+      }
+    } else {
+      activeStep = originalActiveIndex;
+    }
+
+    final stepWidgets = <Widget>[];
+    for (int i = 0; i < steps.length; i++) {
+      final step = steps[i];
+      final isCompleted = i < activeStep;
+      final isActive = i == activeStep;
+      
+      final indicatorColor = isActive 
+          ? brandPrimary 
+          : (isCompleted ? const Color(0xFF1F7A3D) : Colors.grey.shade300);
+      
+      final titleColor = isActive 
+          ? brandDeep 
+          : (isCompleted ? Colors.black87 : Colors.grey.shade500);
+          
+      final userName = step["user"] != null && step["user"]!.toString().isNotEmpty
+          ? "${step["user"]} (${step["id"]})"
+          : "ยังไม่มอบหมาย";
+
+      stepWidgets.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: indicatorColor,
+                    shape: BoxShape.circle,
+                    border: isActive 
+                        ? Border.all(color: brandPrimary.withOpacity(0.3), width: 2) 
+                        : null,
+                  ),
+                ),
+                if (i < steps.length - 1)
+                  Container(
+                    width: 2,
+                    height: 20,
+                    color: isCompleted ? const Color(0xFF1F7A3D) : Colors.grey.shade300,
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    step["title"] as String,
+                    style: GoogleFonts.mitr(
+                      fontSize: 11,
+                      fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.w500,
+                      color: titleColor,
+                    ),
+                  ),
+                  Text(
+                    userName,
+                    style: GoogleFonts.mitr(
+                      fontSize: 9,
+                      color: isActive ? brandPrimary : Colors.grey.shade600,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: 290,
+      margin: const EdgeInsets.only(right: 14, bottom: 12, top: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    "STOCK SCANNER",
+                    style: GoogleFonts.mitr(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "-" * 38,
+                    maxLines: 1,
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "ลูกค้า: ${order.customerName}",
+                  style: GoogleFonts.mitr(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Tran ID : ${order.id.substring(0, order.id.length > 8 ? 8 : order.id.length)}",
+                  style: GoogleFonts.mitr(
+                    fontSize: 10,
+                    color: Colors.black54,
+                  ),
+                ),
+                (() {
+                  final hash = order.id.hashCode.abs();
+                  final displayDue = order.scheduledDeliveryAt ?? order.updatedAt.add(Duration(days: (hash % 3) + 1));
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_rounded, size: 12, color: Colors.black54),
+                        const SizedBox(width: 4),
+                        Text(
+                          "กำหนดส่ง: ${formatDateTime(displayDue)}",
+                          style: GoogleFonts.mitr(
+                            fontSize: 10,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        if (dueTone != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: dueTone,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: dueTone.withOpacity(0.6),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                })(),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "-" * 38,
+              maxLines: 1,
+              style: const TextStyle(color: Colors.grey, fontSize: 10),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "รายการสินค้า",
+              style: GoogleFonts.mitr(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...itemRows,
+            const SizedBox(height: 6),
+            Text(
+              "-" * 38,
+              maxLines: 1,
+              style: const TextStyle(color: Colors.grey, fontSize: 10),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "สถานะขั้นตอนการทำงาน",
+              style: GoogleFonts.mitr(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...stepWidgets,
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: brandPrimary.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _statusLabel(order.orderWorkflowStatus),
+                    style: GoogleFonts.mitr(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: brandPrimary,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => onOpenOrdersTab(),
+                  icon: const Icon(Icons.arrow_forward, size: 12),
+                  label: Text("จัดการ", style: GoogleFonts.mitr(fontSize: 10)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class WebDashboardHome extends StatelessWidget {
   const WebDashboardHome({
     super.key,
@@ -591,77 +634,18 @@ class WebDashboardHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unreadOrders = data.activeOrders
-        .where((order) => order.unreadCount > 0)
-        .toList()
-      ..sort((a, b) => b.unreadCount.compareTo(a.unreadCount));
     final outOfStock = data.products.where((p) => p.currentStock <= 0).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
     return ListView(
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.all(24),
       children: [
-        WebDashboardHero(
-          onOpenAssistant: onOpenAssistant,
-          onOpenOrders: onOpenOrders,
-          onOpenStock: onOpenStock,
-        ),
-        const SizedBox(height: 22),
-        const _DashboardSectionHeader(
-          eyebrow: "Order focus",
-          title: "งานค้างส่ง",
-          subtitle: "ดูออเดอร์ล่าสุดและเช็กขั้นตอนงานได้ทันทีจากด้านบน",
-        ),
-        const SizedBox(height: 10),
-        if (data.activeOrders.isEmpty)
-          const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
-        else ...[
-          if (unreadOrders.isNotEmpty) ...[
-            _HeroReveal(
-              delayMs: 40,
-              child: _ActionBanner(
-                title: "แชทค้างอ่าน ${unreadOrders.length} ออเดอร์",
-                subtitle: unreadOrders
-                    .take(3)
-                    .map((o) => "${o.customerName} (+${o.unreadCount})")
-                    .join(" · "),
-                icon: Icons.chat_bubble_outline,
-                tone: Colors.redAccent,
-                onTap: onOpenOrdersTab,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          _HeroReveal(
-            delayMs: 80,
-            child: _ActionBanner(
-              title: "งานค้างส่ง ${data.activeOrders.length} ออเดอร์",
-              subtitle:
-                  "แตะเพื่อเปิดหน้าออเดอร์ หรือดูขั้นตอนปัจจุบันจากรายการด้านล่าง",
-              icon: Icons.local_shipping_outlined,
-              onTap: onOpenOrdersTab,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...data.activeOrders.toList().asMap().entries.map(
-                (entry) => _HeroReveal(
-                  delayMs: 120 + (entry.key * 40),
-                  child: DashboardUpdateCard(
-                    order: entry.value,
-                    onTap: onOpenOrdersTab,
-                  ),
-                ),
-              ),
-          const SizedBox(height: 18),
-        ],
-        // Keep the homepage short: move product search to the Stock tab.
-        const SizedBox(height: 18),
         const _DashboardSectionHeader(
           eyebrow: "Overview",
           title: "ภาพรวมด่วน",
-          subtitle: "แตะการ์ดเพื่อไปยังงานที่ควรทำต่อทันที",
+          subtitle: "สถานะและข้อมูลสำคัญของคลังสินค้าวันนี้",
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -676,7 +660,7 @@ class WebDashboardHome extends StatelessWidget {
             _QuickStatCard(
               title: "ออเดอร์ค้างส่ง",
               value: "${data.activeOrders.length}",
-              subtitle: "งานที่ยังต้องติดตาม",
+              subtitle: "งานที่ยังต้องดำเนินการต่อ",
               icon: Icons.local_shipping_outlined,
               tone: profileTeal,
               onTap: onOpenOrdersTab,
@@ -690,7 +674,30 @@ class WebDashboardHome extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 28),
+        const _DashboardSectionHeader(
+          eyebrow: "Order bills",
+          title: "บิลออเดอร์ค้างส่ง",
+          subtitle: "บิลรายการสินค้าสไตล์กระดาษใบเสร็จ (เลื่อนซ้าย-ขวาได้)",
+        ),
+        const SizedBox(height: 14),
+        if (data.activeOrders.isEmpty)
+          const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: data.activeOrders.map((order) {
+                return _SharedReceiptBillCard(
+                  order: order,
+                  onOpenOrdersTab: onOpenOrdersTab,
+                );
+              }).toList(),
+            ),
+          ),
+        const SizedBox(height: 28),
         const _DashboardSectionHeader(
           eyebrow: "Focus now",
           title: "ต้องดูต่อ",
@@ -725,7 +732,6 @@ class WebDashboardHome extends StatelessWidget {
     );
   }
 }
-
 class _StockHealthCard extends StatelessWidget {
   const _StockHealthCard({
     required this.label,

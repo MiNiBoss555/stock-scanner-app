@@ -35,6 +35,7 @@ import "dashboard_page.dart";
 import "help_center_page.dart";
 import "models.dart";
 import "theme/app_theme.dart";
+import "package:google_fonts/google_fonts.dart";
 
 
 
@@ -1014,6 +1015,7 @@ class StockHomePage extends StatefulWidget {
 
 class _StockHomePageState extends State<StockHomePage> {
   int _currentIndex = 0;
+  List<Map<String, dynamic>> menuItems = [];
   final Set<int> _loadedTabs = {0};
   final ValueNotifier<int> _realtimeRevision = ValueNotifier<int>(0);
   final GlobalKey<DashboardPageState> _dashboardKey =
@@ -1101,68 +1103,308 @@ class _StockHomePageState extends State<StockHomePage> {
       debugPrint("DEBUG TIMER: auth complete to home visible = ${DateTime.now().difference(authCompleteTime!).inMilliseconds} ms");
       authCompleteTime = null;
     }
-    final pages = <Widget>[
-      DashboardPage(
-        key: _dashboardKey,
-        api: widget.api,
-        refreshSignal: _realtimeRevision,
-        currentUser: widget.currentUser,
-        routeObserver: _StockScannerAppState._routeObserver,
-        onOpenOrdersTab: () {
-          Navigator.of(context).push(
+    menuItems = [
+      {
+        "icon": Icons.dashboard_outlined,
+        "selectedIcon": Icons.dashboard,
+        "label": "ภาพรวม",
+        "page": (BuildContext context) => DashboardPage(
+          key: _dashboardKey,
+          api: widget.api,
+          refreshSignal: _realtimeRevision,
+          currentUser: widget.currentUser,
+          routeObserver: _StockScannerAppState._routeObserver,
+          onOpenOrdersTab: () {
+            if (kIsWeb) {
+              // Find the index of the "ออเดอร์และจัดส่ง" page
+              for (int i = 0; i < menuItems.length; i++) {
+                if (menuItems[i]["label"] == "ออเดอร์และจัดส่ง") {
+                  setState(() {
+                    _currentIndex = i;
+                    _loadedTabs.add(i);
+                  });
+                  break;
+                }
+              }
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OrdersPage(
+                    api: widget.api,
+                    currentUser: widget.currentUser,
+                    refreshSignal: _realtimeRevision,
+                  ),
+                ),
+              );
+            }
+          },
+          onOpenProductList: (context, products, title, icon, color) {
+            showProductListSheet(
+              context: context,
+              products: products,
+              title: title,
+              icon: icon,
+              color: color,
+            );
+          },
+          onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+          onOpenCustomLabel: (context, label) => showCustomLabelSheet(context, label),
+          onOpenOrderChat: (context, order) => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => OrdersPage(
+              builder: (_) => OrderChatPage(
                 api: widget.api,
                 currentUser: widget.currentUser,
-                refreshSignal: _realtimeRevision,
+                order: order,
               ),
             ),
-          );
+          ),
+        )
+      },
+      {
+        "icon": Icons.qr_code_scanner_outlined,
+        "selectedIcon": Icons.qr_code_scanner,
+        "label": "สแกน",
+        "page": (BuildContext context) => ScanPage(
+          api: widget.api,
+          currentUser: widget.currentUser,
+          onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+        )
+      },
+      {
+        "icon": Icons.history_outlined,
+        "selectedIcon": Icons.history,
+        "label": "ประวัติ",
+        "page": (BuildContext context) => HistoryPage(api: widget.api, refreshSignal: _realtimeRevision)
+      },
+      {
+        "icon": Icons.smart_toy_rounded,
+        "selectedIcon": Icons.smart_toy,
+        "label": "ผู้ช่วย",
+        "page": (BuildContext context) => ChatAssistantPage(
+          api: widget.api,
+          refreshSignal: _realtimeRevision,
+          onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+          onBack: () {
+            setState(() {
+              _currentIndex = 0;
+            });
+          },
+        )
+      },
+    ];
+
+    if (kIsWeb) {
+      menuItems.addAll([
+        {
+          "icon": Icons.person_outline,
+          "selectedIcon": Icons.person,
+          "label": "โปรไฟล์",
+          "page": (BuildContext context) => ProfilePage(
+            currentUser: widget.currentUser,
+            api: widget.api,
+            onLogout: () async {
+              await widget.onLogout();
+            },
+            onRefreshSession: widget.onRefreshSession,
+          )
         },
-        onOpenProductList: (context, products, title, icon, color) {
-          showProductListSheet(
-            context: context,
-            products: products,
-            title: title,
-            icon: icon,
-            color: color,
-          );
+        {
+          "icon": Icons.local_shipping_outlined,
+          "selectedIcon": Icons.local_shipping,
+          "label": "ออเดอร์และจัดส่ง",
+          "page": (BuildContext context) => OrdersPage(
+            api: widget.api,
+            currentUser: widget.currentUser,
+            refreshSignal: _realtimeRevision,
+          )
         },
-        onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
-        onOpenCustomLabel: (context, label) => showCustomLabelSheet(context, label),
-        onOpenOrderChat: (context, order) => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OrderChatPage(
-              api: widget.api,
-              currentUser: widget.currentUser,
-              order: order,
+        {
+          "icon": Icons.search_rounded,
+          "selectedIcon": Icons.search,
+          "label": "ค้นหาสินค้า",
+          "page": (BuildContext context) => ProductSearchPage(
+            api: widget.api,
+            currentUser: widget.currentUser,
+            onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
+          )
+        },
+        {
+          "icon": Icons.help_outline,
+          "selectedIcon": Icons.help,
+          "label": "วิธีใช้งาน",
+          "page": (BuildContext context) => HelpCenterPage(
+            api: widget.api,
+            currentUser: widget.currentUser,
+          )
+        },
+      ]);
+
+      if (widget.currentUser.isAdmin) {
+        menuItems.addAll([
+          {
+            "icon": Icons.restore_from_trash_outlined,
+            "selectedIcon": Icons.restore_from_trash,
+            "label": "ถังขยะสินค้า",
+            "page": (BuildContext context) => ProductRecycleBinPage(api: widget.api, currentUser: widget.currentUser)
+          },
+          {
+            "icon": Icons.history_outlined,
+            "selectedIcon": Icons.history,
+            "label": "ประวัติกิจกรรมสินค้า",
+            "page": (BuildContext context) => ProductActivityLogPage(api: widget.api, currentUser: widget.currentUser)
+          },
+          {
+            "icon": Icons.admin_panel_settings_outlined,
+            "selectedIcon": Icons.admin_panel_settings,
+            "label": "ผู้ดูแลระบบ",
+            "page": (BuildContext context) => AdminPage(api: widget.api, currentUser: widget.currentUser)
+          },
+        ]);
+      }
+    }
+
+    final pages = <Widget>[];
+    for (int i = 0; i < menuItems.length; i++) {
+      if (i == 0 || _loadedTabs.contains(i)) {
+        pages.add(menuItems[i]["page"](context) as Widget);
+      } else {
+        pages.add(const SizedBox.shrink());
+      }
+    }
+
+    Widget buildNavTile(int index) {
+      final isSelected = _currentIndex == index;
+      final data = menuItems[index];
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _currentIndex = index;
+              _loadedTabs.add(index);
+            });
+            if (index == 0) {
+              _dashboardKey.currentState?.refreshNow();
+            }
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? _brandPrimary.withOpacity(0.08) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? data["selectedIcon"] as IconData : data["icon"] as IconData,
+                  color: isSelected ? _brandPrimary : _brandInk.withOpacity(0.70),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    data["label"] as String,
+                    style: TextStyle(
+                      color: isSelected ? _brandPrimary : _brandInk.withOpacity(0.85),
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+      );
+    }
+
+    final sidebar = Container(
+      width: 260,
+      decoration: BoxDecoration(
+        color: _brandCard,
+        border: Border(right: BorderSide(color: _brandPrimary.withOpacity(0.08))),
       ),
-      _loadedTabs.contains(1)
-          ? ScanPage(
-              api: widget.api,
-              currentUser: widget.currentUser,
-              onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
-            )
-          : const SizedBox.shrink(),
-      _loadedTabs.contains(2)
-          ? HistoryPage(api: widget.api, refreshSignal: _realtimeRevision)
-          : const SizedBox.shrink(),
-      _loadedTabs.contains(3)
-          ? ChatAssistantPage(
-              api: widget.api,
-              refreshSignal: _realtimeRevision,
-              onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
-              onBack: () {
-                setState(() {
-                  _currentIndex = 0;
-                });
-              },
-            )
-          : const SizedBox.shrink(),
-    ];
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+            child: _BrandLogoWordmark(),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              children: List.generate(menuItems.length, (index) => buildNavTile(index)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _brandPrimary.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: _brandPrimary.withOpacity(0.12),
+                    child: Text(
+                      widget.currentUser.userName.substring(0, min(1, widget.currentUser.userName.length)).toUpperCase(),
+                      style: const TextStyle(color: _brandPrimary, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.currentUser.userName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _brandInk),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          widget.currentUser.role.toUpperCase(),
+                          style: TextStyle(fontSize: 10, color: _brandInk.withOpacity(0.60), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, size: 20, color: Colors.redAccent),
+                    onPressed: () async {
+                      await widget.onLogout();
+                    },
+                    tooltip: "ออกจากระบบ",
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (kIsWeb) {
+      return Scaffold(
+        body: Row(
+          children: [
+            sidebar,
+            Expanded(
+              child: SafeArea(
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: pages,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       extendBody: false,
@@ -1187,8 +1429,7 @@ class _StockHomePageState extends State<StockHomePage> {
                     foregroundColor: _brandDeep,
                     side: BorderSide(color: _brandPrimary.withOpacity(0.12)),
                   ),
-                  tooltip:
-                      "\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21",
+                  tooltip: "เพิ่มเติม",
                 ),
               ),
             ),
@@ -1229,29 +1470,28 @@ class _StockHomePageState extends State<StockHomePage> {
               NavigationDestination(
                 icon: Icon(Icons.dashboard_outlined),
                 selectedIcon: Icon(Icons.dashboard),
-                label: "\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21",
+                label: "ภาพรวม",
               ),
               NavigationDestination(
                 icon: Icon(Icons.qr_code_scanner_outlined),
                 selectedIcon: Icon(Icons.qr_code_scanner),
-                label: "\u0e2a\u0e41\u0e01\u0e19",
+                label: "สแกน",
               ),
               NavigationDestination(
                 icon: Icon(Icons.history_outlined),
                 selectedIcon: Icon(Icons.history),
-                label: "\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34",
+                label: "ประวัติ",
               ),
               NavigationDestination(
                 icon: Icon(Icons.smart_toy_rounded),
                 selectedIcon: Icon(Icons.smart_toy),
-                label: "\u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22",
+                label: "ผู้ช่วย",
               ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ); }
 }
 
 
