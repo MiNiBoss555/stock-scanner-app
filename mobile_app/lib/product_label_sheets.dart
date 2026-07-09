@@ -113,7 +113,7 @@ Future<void> showProductListSheet({
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
-                        "${product.barcode} ยท เธเธเน€เธซเธฅเธทเธญ ${product.currentStock} ${product.unit}",
+                        "${product.barcode} • คงเหลือ ${product.currentStock} ${product.unit}",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

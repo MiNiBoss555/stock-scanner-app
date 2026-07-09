@@ -1,4 +1,4 @@
-import "dart:async";
+﻿import "dart:async";
 import "dart:convert";
 import "dart:io";
 import "package:flutter/foundation.dart";
@@ -83,7 +83,7 @@ class _OrdersPageState extends State<OrdersPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => FractionallySizedBox(
-        heightFactor: 0.65,
+        heightFactor: 0.72,
         child: SafeArea(
           child: Container(
             margin: const EdgeInsets.all(12),
@@ -129,6 +129,10 @@ class _OrdersPageState extends State<OrdersPage> {
                   _receiptRow("ผู้รับออเดอร์", order.createdByName),
                   _receiptRow(
                       "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
+                  _receiptRow("ฝ่ายผลิตบอร์ด", _formatUserDisplay(order.boardProductionUserName, order.boardProductionUserId)),
+                  _receiptRow("ฝ่ายผลิตหุ่นยนต์", _formatUserDisplay(order.robotProductionUserName, order.robotProductionUserId)),
+                  _receiptRow("QC", _formatUserDisplay(order.qcUserName, order.qcUserId)),
+                  _receiptRow("จัดส่ง", _formatUserDisplay(order.deliveryUserName, order.deliveryUserId)),
                   if (order.customerPhone != null &&
                       order.customerPhone!.isNotEmpty)
                     _receiptRow("โทร", order.customerPhone!),
@@ -247,7 +251,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       if (showBoard) {
                         actionButtons.addAll([
                           _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                          _actionButton("ส่งให้ผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                          _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
                           _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
                         ]);
                       }
@@ -279,8 +283,8 @@ class _OrdersPageState extends State<OrdersPage> {
                       if (showQc) {
                         actionButtons.addAll([
                           _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
-                          _actionButton("ไม่ผ่าน ส่งกลับผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
-                          _actionButton("ไม่ผ่าน ส่งกลับผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                          _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                          _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
                         ]);
                       }
                     } else if (status == "pending_delivery") {
@@ -325,6 +329,16 @@ class _OrdersPageState extends State<OrdersPage> {
         ),
       ),
     );
+  }
+
+  String _formatUserDisplay(String? name, String? id) {
+    if (name == null || name.isEmpty || name == "-") {
+      return "-";
+    }
+    if (id == null || id.isEmpty) {
+      return name;
+    }
+    return "$name ($id)";
   }
 
   Widget _receiptRow(String label, String value, {bool bold = false, Color? valueColor}) {
@@ -1479,7 +1493,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         const Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็นระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
+                            "ใส่จำนวน 'ส่งแล้ว' ทั้งหมดที่ต้องการให้เป็น ระบบจะคำนวณส่วนต่างให้อัตโนมัติ",
                             style: TextStyle(fontSize: 11, color: Colors.grey),
                           ),
                         ),
@@ -1895,7 +1909,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                           icon: const Icon(
                                               Icons.content_paste_go_outlined),
                                           label:
-                                              const Text("วางข้อมูลลูกค้าจากแชท"),
+                                              const Text("วางข้อมูลลูกค้าจากแชต"),
                                         ),
                                         OutlinedButton.icon(
                                           onPressed: _scanCustomerInfo,
@@ -2055,7 +2069,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                           TextOverflow.ellipsis,
                                                     ),
                                                     subtitle: Text(
-                                                      "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
+                                                      "${product.barcode} • คงเหลือ ${product.currentStock} ${product.unit}",
                                                       maxLines: 1,
                                                       overflow:
                                                           TextOverflow.ellipsis,
@@ -2081,7 +2095,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                           if (selectedProduct != null) ...[
                                             const SizedBox(height: 6),
                                             Text(
-                                              "บาร์โค้ด: ${selectedProduct.barcode} · คงเหลือ ${selectedProduct.currentStock} ${selectedProduct.unit}",
+                                              "บาร์โค้ด: ${selectedProduct.barcode} • คงเหลือ ${selectedProduct.currentStock} ${selectedProduct.unit}",
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall
@@ -2132,9 +2146,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                     contentPadding: EdgeInsets.zero,
                                     title: const Text("ทีมงานออเดอร์"),
                                     subtitle: Text(
-                                      "ผลิตบอร์ด: ${_userLabelById(activeStaff, _selectedBoardProductionUserId, "-")} · "
-                                      "ผลิตหุ่นยนต์: ${_userLabelById(activeStaff, _selectedRobotProductionUserId, "-")} · "
-                                      "QC: ${_userLabelById(activeStaff, _selectedQcUserId, "-")} · "
+                                      "ผลิตบอร์ด: ${_userLabelById(activeStaff, _selectedBoardProductionUserId, "-")} • "
+                                      "ผลิตหุ่นยนต์: ${_userLabelById(activeStaff, _selectedRobotProductionUserId, "-")} • "
+                                      "QC: ${_userLabelById(activeStaff, _selectedQcUserId, "-")} ยท "
                                       "ส่ง: ${_userLabelById(activeStaff, _selectedDeliveryUserId ?? _selectedAssigneeId, "-")}",
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -2397,7 +2411,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                 (order) => DropdownMenuEntry<String>(
                                                   value: order.id,
                                                   label:
-                                                      "${order.customerName} • ${(order.id.length < 8 ? order.id : order.id.substring(0, 8))} • ${order.status}",
+                                                      "${order.customerName} โ€ข ${(order.id.length < 8 ? order.id : order.id.substring(0, 8))} โ€ข ${order.status}",
                                                 ),
                                               )
                                               .toList(),
@@ -2884,19 +2898,26 @@ class _OrderTile extends StatelessWidget {
   }
 
   Color _statusTone() {
+    return semanticStatusTone(_statusSemantic());
+  }
+
+  SemanticStatus _statusSemantic() {
     switch (order.status) {
       case "assigned":
-        return profileTeal;
+        return SemanticStatus.pending;
+      case "in_production":
       case "preparing":
-        return profileAccent;
       case "out_for_delivery":
-        return brandPrimary;
+        return SemanticStatus.working;
+      case "qc_pending":
+      case "qc_passed":
+        return SemanticStatus.qc;
       case "delivered":
-        return brandDeep;
+        return SemanticStatus.delivered;
       case "cancelled":
-        return Colors.redAccent;
+        return SemanticStatus.rejected;
       default:
-        return brandInk;
+        return SemanticStatus.neutral;
     }
   }
 
@@ -2909,7 +2930,7 @@ class _OrderTile extends StatelessWidget {
       case "qc_pending":
         return "รอ QC";
       case "rework_required":
-        return "ตีกลับแก้";
+        return "ตีกลับแก้ไข";
       case "qc_passed":
         return "QC ผ่าน";
       case "preparing":
@@ -2984,6 +3005,159 @@ class _OrderTile extends StatelessWidget {
             order.status != "delivered" &&
             order.status != "cancelled";
     final isCancelled = order.status == "cancelled";
+    Widget buildPrimaryAction({
+      required VoidCallback? onPressed,
+      required IconData icon,
+      required String label,
+    }) {
+      return FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+      );
+    }
+
+    Widget buildSecondaryAction({
+      required VoidCallback? onPressed,
+      required IconData icon,
+      required String label,
+      bool destructive = false,
+    }) {
+      return OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: destructive
+            ? OutlinedButton.styleFrom(
+                foregroundColor: semanticStatusTone(SemanticStatus.rejected),
+              )
+            : null,
+      );
+    }
+
+    Future<void> confirmCancel() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text("ยกเลิกออเดอร์"),
+          content: const Text("ต้องการยกเลิกออเดอร์นี้ใช่ไหม"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text("ไม่ยกเลิก"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text("ยกเลิกออเดอร์"),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        onStatusChanged("cancelled");
+      }
+    }
+
+    Widget? primaryWorkflowAction;
+    final secondaryWorkflowActions = <Widget>[];
+
+    if (hasProduction &&
+        (currentUser.isAdmin || isProducer) &&
+        (order.status == "new" ||
+            order.status == "assigned" ||
+            order.status == "rework_required")) {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: () => onStatusChanged("in_production"),
+        icon: Icons.precision_manufacturing_rounded,
+        label: "เริ่มผลิต",
+      );
+    } else if (qcEnabled &&
+        (currentUser.isAdmin || isProducer) &&
+        (order.status == "in_production" ||
+            ((!hasProduction) &&
+                (order.status == "new" ||
+                    order.status == "assigned" ||
+                    order.status == "rework_required")))) {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: () => onStatusChanged("qc_pending"),
+        icon: Icons.fact_check_outlined,
+        label: "ส่ง QC",
+      );
+    } else if (qcEnabled &&
+        (currentUser.isAdmin || isQc) &&
+        order.status == "qc_pending") {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: () => onStatusChanged("qc_passed"),
+        icon: Icons.verified_rounded,
+        label: "QC ผ่าน",
+      );
+      secondaryWorkflowActions.add(
+        buildSecondaryAction(
+          onPressed: () => onStatusChanged("rework_required"),
+          icon: Icons.undo_rounded,
+          label: "ตีกลับแก้ไข",
+        ),
+      );
+    } else if ((currentUser.isAdmin || isDelivery) &&
+        ((hasProduction && qcAssigned && order.status == "qc_passed") ||
+            (hasProduction && !qcAssigned && order.status == "in_production") ||
+            (!hasProduction &&
+                !qcAssigned &&
+                (order.status == "new" || order.status == "assigned")))) {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: () => onStatusChanged("preparing"),
+        icon: Icons.inventory_2_outlined,
+        label: "เริ่มจัดสินค้า",
+      );
+    } else if ((currentUser.isAdmin || isDelivery) &&
+        order.status == "preparing") {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: () => onStatusChanged("out_for_delivery"),
+        icon: Icons.local_shipping_outlined,
+        label: "ออกจัดส่ง",
+      );
+    } else if (canOperate && order.status == "out_for_delivery") {
+      primaryWorkflowAction = buildPrimaryAction(
+        onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
+        icon: Icons.done_all_rounded,
+        label: "ส่งสำเร็จ",
+      );
+    }
+
+    if (hasBackorder) {
+      secondaryWorkflowActions.add(
+        buildSecondaryAction(
+          onPressed: onResolveBackorder,
+          icon: Icons.check_circle_outline,
+          label: "ปิดค้างจ่าย",
+        ),
+      );
+    }
+    if (canOperate) {
+      secondaryWorkflowActions.add(
+        FilledButton.tonal(
+          onPressed: onDeliverPartial,
+          child: const Text("ส่งบางส่วน"),
+        ),
+      );
+      secondaryWorkflowActions.add(
+        buildSecondaryAction(
+          onPressed: onFixDeliveryStatus,
+          icon: Icons.edit_note_rounded,
+          label: "แก้ไขจำนวนส่ง",
+        ),
+      );
+    }
+    if (canCancel) {
+      secondaryWorkflowActions.add(
+        buildSecondaryAction(
+          onPressed: confirmCancel,
+          icon: Icons.cancel_outlined,
+          label: "ยกเลิกออเดอร์",
+          destructive: true,
+        ),
+      );
+    }
     return Dismissible(
       key: Key("dismissible_${order.id}"),
       background: Container(
@@ -3066,14 +3240,17 @@ class _OrderTile extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: semanticStatusSurface(SemanticStatus.rejected),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: Colors.red.withOpacity(0.35)),
+                      border: Border.all(
+                        color: semanticStatusTone(SemanticStatus.rejected)
+                            .withOpacity(0.35),
+                      ),
                     ),
                     child: const Text(
                       "ค้างจ่าย",
                       style: TextStyle(
-                        color: Colors.red,
+                        color: Color(0xFFB42318),
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
                       ),
@@ -3098,13 +3275,17 @@ class _OrderTile extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: _workflowStatusTone(order.orderWorkflowStatus).withOpacity(0.12),
+                            color: semanticStatusSurface(
+                              _workflowStatusSemantic(order.orderWorkflowStatus),
+                            ),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
                             _workflowStatusLabel(order.orderWorkflowStatus),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: _workflowStatusTone(order.orderWorkflowStatus),
+                                  color: semanticStatusTone(
+                                    _workflowStatusSemantic(order.orderWorkflowStatus),
+                                  ),
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -3131,7 +3312,9 @@ class _OrderTile extends StatelessWidget {
                           : Icons.radio_button_unchecked,
                       size: 16,
                       color:
-                          isDone ? Colors.green : brandInk.withOpacity(0.55),
+                          isDone
+                              ? semanticStatusTone(SemanticStatus.completed)
+                              : brandInk.withOpacity(0.55),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -3140,7 +3323,9 @@ class _OrderTile extends StatelessWidget {
                             ? "${item.productName} x${item.quantity} (ส่งแล้ว)"
                             : "${item.productName} x${item.quantity} (ค้าง $remaining)",
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isDone ? Colors.green.shade700 : brandInk,
+                              color: isDone
+                                  ? semanticStatusTone(SemanticStatus.completed)
+                                  : brandInk,
                               fontWeight:
                                   isDone ? FontWeight.w700 : FontWeight.w500,
                             ),
@@ -3163,7 +3348,7 @@ class _OrderTile extends StatelessWidget {
                 order.lastHandoffTo != null &&
                 order.lastHandoffAt != null)
               Text(
-                "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} · ${_fmtOrderDateTime(order.lastHandoffAt!)}",
+                "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} • ${_fmtOrderDateTime(order.lastHandoffAt!)}",
               ),
             Text(
               "ฝ่ายผลิตบอร์ด: ${(order.boardProductionUserName ?? "-")}${(order.boardProductionUserId ?? "").isNotEmpty ? " (${order.boardProductionUserId})" : ""}",
@@ -3226,7 +3411,7 @@ class _OrderTile extends StatelessWidget {
                       onChatUpdated();
                     },
                     icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text("แชทติดตามงาน"),
+                    label: const Text("แชตติดตามงาน"),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _openUrl(printUrl),
@@ -3250,6 +3435,7 @@ class _OrderTile extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+                  if (primaryWorkflowAction != null) primaryWorkflowAction,
                   OutlinedButton.icon(
                     onPressed: () => _openUrl(printUrl),
                     icon: const Icon(Icons.print_outlined),
@@ -3274,7 +3460,7 @@ class _OrderTile extends StatelessWidget {
                       onChatUpdated();
                     },
                     icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text("แชทติดตามงาน"),
+                    label: const Text("แชตติดตามงาน"),
                   ),
                   OutlinedButton.icon(
                     onPressed: canOperate ? onUploadProof : null,
@@ -3286,120 +3472,10 @@ class _OrderTile extends StatelessWidget {
                     icon: const Icon(Icons.photo_library_outlined),
                     label: Text("รูปหลักฐาน ($proofCount)"),
                   ),
-                  if (hasBackorder)
-                    OutlinedButton.icon(
-                      onPressed: onResolveBackorder,
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text("ปิดค้างจ่าย"),
-                    ),
-                  FilledButton.tonal(
-                    onPressed: canOperate ? onDeliverPartial : null,
-                    child: const Text("ส่งบางส่วน"),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: canOperate ? onFixDeliveryStatus : null,
-                    icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text("แก้ไขจำนวนส่ง"),
-                  ),
-                  if (canCancel)
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text("ยกเลิกออเดอร์"),
-                            content:
-                                const Text("ต้องการยกเลิกออเดอร์นี้ใช่ไหม"),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(false),
-                                child: const Text("ไม่ยกเลิก"),
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(true),
-                                child: const Text("ยกเลิกออเดอร์"),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true) {
-                          onStatusChanged("cancelled");
-                        }
-                      },
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text("ยกเลิกออเดอร์"),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                      ),
-                    ),
-                  // If production/QC aren't configured, skip those steps and move to delivery flow.
-                  if (hasProduction &&
-                      (currentUser.isAdmin || isProducer) &&
-                      (order.status == "new" ||
-                          order.status == "assigned" ||
-                          order.status == "rework_required"))
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("in_production"),
-                      child: const Text("เริ่มผลิต"),
-                    ),
-                  // Allow sending to QC even if production wasn't assigned (some teams skip the production step).
-                  if (qcEnabled &&
-                      (currentUser.isAdmin || isProducer) &&
-                      (order.status == "in_production" ||
-                          ((!hasProduction) &&
-                              (order.status == "new" ||
-                                  order.status == "assigned" ||
-                                  order.status == "rework_required"))))
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("qc_pending"),
-                      child: const Text("ส่ง QC"),
-                    ),
-                  if (qcEnabled &&
-                      (currentUser.isAdmin || isQc) &&
-                      order.status == "qc_pending")
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("rework_required"),
-                      child: const Text("ตีกลับแก้"),
-                    ),
-                  if (qcEnabled &&
-                      (currentUser.isAdmin || isQc) &&
-                      order.status == "qc_pending")
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("qc_passed"),
-                      child: const Text("QC ผ่าน"),
-                    ),
-                  if ((currentUser.isAdmin || isDelivery) &&
-                      ((hasProduction &&
-                              qcAssigned &&
-                              order.status == "qc_passed") ||
-                          (hasProduction &&
-                              !qcAssigned &&
-                              order.status == "in_production") ||
-                          (!hasProduction &&
-                              !qcAssigned &&
-                              (order.status == "new" ||
-                                  order.status == "assigned"))))
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("preparing"),
-                      child: const Text("กำลังจัด"),
-                    ),
-                  if ((currentUser.isAdmin || isDelivery) &&
-                      order.status == "preparing")
-                    FilledButton.tonal(
-                      onPressed: () => onStatusChanged("out_for_delivery"),
-                      child: const Text("กำลังส่ง"),
-                    ),
-                  FilledButton.tonal(
-                    onPressed: (canOperate && canMarkDelivered)
-                        ? () => onStatusChanged("delivered")
-                        : null,
-                    child: const Text("ส่งแล้ว"),
-                  ),
-                  if (!canMarkDelivered)
+                  ...secondaryWorkflowActions,
+                  if (!canMarkDelivered && order.status == "out_for_delivery")
                     Text(
-                      "ต้องมีรูปหลักฐานก่อนกดส่งแล้ว",
+                      "ต้องมีรูปหลักฐานก่อนกดส่งสำเร็จ",
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -3740,7 +3816,7 @@ bool _isPseudoLatinSoup(String? text) {
   if (text == null || text.isEmpty) return false;
   // 1. Detect characters from Latin-1 Supplement/Extended (like accented letters)
   // output by Latin OCR when scanning Thai text.
-  final soupPattern = RegExp(r'[àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿāăąćĉ¢ĉċčďđēĕėęěĝğġģĥħĩīĭįıĵķĺļľŀłńņňŉŋōŏőœŕŗřśŝşšţťŧũūŭůűųŵŷźżžſƀƁƂƃƄƅƆƇƈƉƊɖɗƎǝǏǐǑǒǓǔǕǖǗǘǙǚǛǜ]');
+  final soupPattern = RegExp(r'[ร รกรขรฃรครฅรฆรงรจรฉรชรซรฌรญรฎรฏรฐรฑรฒรณรดรตรถรธรนรบรปรผรฝรพรฟฤฤฤ…ฤฤยขฤฤฤฤฤ‘ฤ“ฤ•ฤ—ฤฤฤฤฤกฤฃฤฅฤงฤฉฤซฤญฤฏฤฑฤตฤทฤบฤผฤพล€ลลลลลลลลล‘ล“ล•ล—ลลลลลกลฃลฅลงลฉลซลญลฏลฑลณลตลทลบลผลพลฟฦ€ฦฦฦฦฦ…ฦฦฦฦฦษ–ษ—ฦวววว‘ว’ว“ว”ว•ว–ว—ววววว]');
   if (soupPattern.hasMatch(text)) return true;
 
   // 2. Since local ML Kit only recognizes Latin, any name/address it detects
@@ -3839,39 +3915,39 @@ Map<String, String?> parseCustomerOcr(String rawText) {
 String repairThaiMojibakeSafe(String value) {
   var repaired = value;
   bool looksMojibake(String s) {
-    return RegExp(r"(à¸|à¹|Ã)").hasMatch(s);
+    return RegExp(r"(ร ยธ|ร ยน|ร)").hasMatch(s);
   }
 
   int cp1252Map(int code) {
     if (code <= 255) return code;
     switch (code) {
-      case 0x20ac: return 0x80; // €
-      case 0x201a: return 0x82; // ‚
-      case 0x0192: return 0x83; // ƒ
-      case 0x201e: return 0x84; // „
-      case 0x2026: return 0x85; // …
-      case 0x2020: return 0x86; // †
-      case 0x2021: return 0x87; // ‡
-      case 0x02c6: return 0x88; // ˆ
-      case 0x2030: return 0x89; // ‰
-      case 0x0160: return 0x8a; // Š
-      case 0x2039: return 0x8b; // ‹
-      case 0x0152: return 0x8c; // Œ
-      case 0x017d: return 0x8e; // Ž
-      case 0x2018: return 0x91; // ‘
-      case 0x2019: return 0x92; // ’
-      case 0x201c: return 0x93; // “
-      case 0x201d: return 0x94; // ”
-      case 0x2022: return 0x95; // •
-      case 0x2013: return 0x96; // –
-      case 0x2014: return 0x97; // —
-      case 0x02dc: return 0x98; // ˜
-      case 0x2122: return 0x99; // ™
-      case 0x0161: return 0x9a; // š
-      case 0x203a: return 0x9b; // ›
-      case 0x0153: return 0x9c; // œ
-      case 0x017e: return 0x9e; // ž
-      case 0x0178: return 0x9f; // Ÿ
+      case 0x20ac: return 0x80; // โฌ
+      case 0x201a: return 0x82; // โ€
+      case 0x0192: return 0x83; // ฦ’
+      case 0x201e: return 0x84; // โ€
+      case 0x2026: return 0x85; // โ€ฆ
+      case 0x2020: return 0x86; // โ€ 
+      case 0x2021: return 0x87; // โ€ก
+      case 0x02c6: return 0x88; // ห
+      case 0x2030: return 0x89; // โ€ฐ
+      case 0x0160: return 0x8a; // ล 
+      case 0x2039: return 0x8b; // โ€น
+      case 0x0152: return 0x8c; // ล’
+      case 0x017d: return 0x8e; // ลฝ
+      case 0x2018: return 0x91; // โ€
+      case 0x2019: return 0x92; // โ€
+      case 0x201c: return 0x93; // โ€
+      case 0x201d: return 0x94; // โ€
+      case 0x2022: return 0x95; // โ€ข
+      case 0x2013: return 0x96; // โ€“
+      case 0x2014: return 0x97; // โ€”
+      case 0x02dc: return 0x98; // ห
+      case 0x2122: return 0x99; // โข
+      case 0x0161: return 0x9a; // ลก
+      case 0x203a: return 0x9b; // โ€บ
+      case 0x0153: return 0x9c; // ล“
+      case 0x017e: return 0x9e; // ลพ
+      case 0x0178: return 0x9f; // ลธ
       default: return 0x3f; // ?
     }
   }
@@ -4058,18 +4134,23 @@ String _workflowStatusLabel(String status) {
   }
 }
 
-Color _workflowStatusTone(String status) {
+SemanticStatus _workflowStatusSemantic(String status) {
   switch (status) {
+    case "pending_board":
+    case "pending_robot":
+      return SemanticStatus.pending;
+    case "waiting_board":
+    case "assembling":
+    case "pending_delivery":
+      return SemanticStatus.working;
+    case "pending_qc":
+      return SemanticStatus.qc;
     case "rejected_board":
     case "rejected_robot":
-      return Colors.redAccent;
+      return SemanticStatus.rejected;
     case "delivered":
-      return Colors.green;
-    case "pending_qc":
-      return Colors.orangeAccent;
-    case "assembling":
-      return Colors.blueAccent;
+      return SemanticStatus.delivered;
     default:
-      return Colors.blueGrey;
+      return SemanticStatus.neutral;
   }
 }

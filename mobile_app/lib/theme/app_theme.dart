@@ -28,6 +28,39 @@ const double radiusXl = 28;
 const pagePadding = EdgeInsets.all(spaceMd);
 const cardPadding = EdgeInsets.all(spaceMd);
 
+enum SemanticStatus {
+  neutral,
+  pending,
+  working,
+  qc,
+  completed,
+  delivered,
+  rejected,
+}
+
+Color semanticStatusTone(SemanticStatus status) {
+  switch (status) {
+    case SemanticStatus.pending:
+      return const Color(0xFF8A5A00);
+    case SemanticStatus.working:
+      return brandPrimary;
+    case SemanticStatus.qc:
+      return profileTeal;
+    case SemanticStatus.completed:
+      return const Color(0xFF1F7A3D);
+    case SemanticStatus.delivered:
+      return brandDeep;
+    case SemanticStatus.rejected:
+      return const Color(0xFFB42318);
+    case SemanticStatus.neutral:
+      return const Color(0xFF5F6B7A);
+  }
+}
+
+Color semanticStatusSurface(SemanticStatus status) {
+  return Color.lerp(brandSurface, semanticStatusTone(status), 0.12)!;
+}
+
 // --- Text Formatter ---
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override

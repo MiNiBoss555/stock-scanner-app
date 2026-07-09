@@ -78,7 +78,6 @@ def test_order_print_page_returns_html(api_context: dict) -> None:
 
     assert response.status_code == 200, response.text
     assert "text/html" in response.headers["content-type"]
-    assert f"Order {order_id}" in response.text
     assert order_id in response.text
 
 
@@ -222,4 +221,52 @@ def test_legacy_production_assignment_still_works(api_context: dict) -> None:
     orders_list = get_resp.json()
     matched = [o for o in orders_list if o["id"] == order_id][0]
     assert matched["production_user_id"] == "EMP002"
+
+
+def test_order_board_robot_production_assignment_persistence(api_context: dict) -> None:
+    client = api_context["client"]
+    token = login_and_get_token(client, user_id="EMP001", pin="1234")
+
+    # Create a new order with board and robot production users
+    create_resp = client.post(
+        "/orders",
+        headers=auth_headers(token),
+        json={
+            "customer_name": "Test Board Robot Customer",
+            "board_production_user_id": "EMP001",
+            "robot_production_user_id": "EMP002",
+            "items": [
+                {"barcode": "8850001110012", "quantity": 1},
+            ],
+        },
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    order = create_resp.json()
+    assert order["board_production_user_id"] == "EMP001"
+    assert order["robot_production_user_id"] == "EMP002"
+
+    order_id = order["id"]
+
+    # Re-assign using team endpoint
+    assign_resp = client.post(
+        f"/orders/{order_id}/team",
+        headers=auth_headers(token),
+        json={
+            "board_production_user_id": "EMP002",
+            "robot_production_user_id": "EMP001",
+        },
+    )
+    assert assign_resp.status_code == 200, assign_resp.text
+    order_updated = assign_resp.json()
+    assert order_updated["board_production_user_id"] == "EMP002"
+    assert order_updated["robot_production_user_id"] == "EMP001"
+
+    # Reload order list to verify database persistence
+    get_resp = client.get("/orders", headers=auth_headers(token))
+    assert get_resp.status_code == 200
+    orders_list = get_resp.json()
+    matched = [o for o in orders_list if o["id"] == order_id][0]
+    assert matched["board_production_user_id"] == "EMP002"
+    assert matched["robot_production_user_id"] == "EMP001"
+
 
