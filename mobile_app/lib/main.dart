@@ -525,6 +525,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: _brandSurface,
+        fontFamily: GoogleFonts.prompt().fontFamily,
         textTheme: ThemeData.light().textTheme.copyWith(
               headlineSmall: const TextStyle(
                 fontSize: 28,

@@ -285,7 +285,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
             children: [
               Text(
                 "${item.quantity} x ",
-                style: GoogleFonts.mitr(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
@@ -294,7 +294,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.productName,
-                  style: GoogleFonts.mitr(
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.black87,
                   ),
@@ -399,7 +399,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                 children: [
                   Text(
                     step["title"] as String,
-                    style: GoogleFonts.mitr(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.w500,
                       color: titleColor,
@@ -407,7 +407,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                   ),
                   Text(
                     userName,
-                    style: GoogleFonts.mitr(
+                    style: TextStyle(
                       fontSize: 9,
                       color: isActive ? brandPrimary : Colors.grey.shade600,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
@@ -444,9 +444,9 @@ class _SharedReceiptBillCard extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     "STOCK SCANNER",
-                    style: GoogleFonts.mitr(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
                       color: Colors.black,
@@ -468,7 +468,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
               children: [
                 Text(
                   "ลูกค้า: ${order.customerName}",
-                  style: GoogleFonts.mitr(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
@@ -479,7 +479,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   "Tran ID : ${order.id.substring(0, order.id.length > 8 ? 8 : order.id.length)}",
-                  style: GoogleFonts.mitr(
+                  style: const TextStyle(
                     fontSize: 10,
                     color: Colors.black54,
                   ),
@@ -495,7 +495,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           "กำหนดส่ง: ${formatDateTime(displayDue)}",
-                          style: GoogleFonts.mitr(
+                          style: const TextStyle(
                             fontSize: 10,
                             color: Colors.black87,
                           ),
@@ -531,9 +531,9 @@ class _SharedReceiptBillCard extends StatelessWidget {
               style: const TextStyle(color: Colors.grey, fontSize: 10),
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               "รายการสินค้า",
-              style: GoogleFonts.mitr(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: Colors.black,
@@ -548,9 +548,9 @@ class _SharedReceiptBillCard extends StatelessWidget {
               style: const TextStyle(color: Colors.grey, fontSize: 10),
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               "สถานะขั้นตอนการทำงาน",
-              style: GoogleFonts.mitr(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: Colors.black,
@@ -570,7 +570,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                   ),
                   child: Text(
                     _statusLabel(order.orderWorkflowStatus),
-                    style: GoogleFonts.mitr(
+                    style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       color: brandPrimary,
@@ -580,7 +580,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () => onOpenOrdersTab(),
                   icon: const Icon(Icons.arrow_forward, size: 12),
-                  label: Text("จัดการ", style: GoogleFonts.mitr(fontSize: 10)),
+                  label: const Text("จัดการ", style: TextStyle(fontSize: 10)),
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: const Size(0, 0),

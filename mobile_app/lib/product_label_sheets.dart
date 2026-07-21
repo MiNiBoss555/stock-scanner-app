@@ -193,6 +193,47 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
   }
 
   Future<void> _printLabel() async {
+    final chosenFormat = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text("เลือกขนาดกระดาษป้ายสินค้า"),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, "roll_50_30"),
+            child: const Row(
+              children: [
+                Icon(Icons.label_outlined),
+                SizedBox(width: 10),
+                Text("สติ๊กเกอร์ม้วน (50x30 mm)"),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, "a4_grid"),
+            child: const Row(
+              children: [
+                Icon(Icons.grid_on_rounded),
+                SizedBox(width: 10),
+                Text("แผ่น A4 (แผ่นละ 24 ป้าย)"),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, "a6_single"),
+            child: const Row(
+              children: [
+                Icon(Icons.crop_portrait_rounded),
+                SizedBox(width: 10),
+                Text("ป้ายเดี่ยวมาตรฐาน (A6)"),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (chosenFormat == null) return;
+
     try {
       setState(() {
         _isPrinting = true;
@@ -200,21 +241,57 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
 
       final bytes = await _captureLabelBytes();
       final image = pw.MemoryImage(bytes);
+
       await Printing.layoutPdf(
         onLayout: (format) async {
           final doc = pw.Document();
-          doc.addPage(
-            pw.Page(
-              pageFormat: PdfPageFormat.a6,
-              margin: const pw.EdgeInsets.all(16),
-              build: (context) => pw.Center(
-                child: pw.Image(
-                  image,
-                  fit: pw.BoxFit.contain,
+
+          if (chosenFormat == "roll_50_30") {
+            doc.addPage(
+              pw.Page(
+                pageFormat: PdfPageFormat(
+                  50 * PdfPageFormat.mm,
+                  30 * PdfPageFormat.mm,
+                  marginAll: 2,
+                ),
+                build: (context) => pw.Center(
+                  child: pw.Image(image, fit: pw.BoxFit.contain),
                 ),
               ),
-            ),
-          );
+            );
+          } else if (chosenFormat == "a4_grid") {
+            doc.addPage(
+              pw.Page(
+                pageFormat: PdfPageFormat.a4,
+                margin: const pw.EdgeInsets.all(12),
+                build: (context) => pw.GridView(
+                  crossAxisCount: 3,
+                  childAspectRatio: 50 / 30,
+                  children: List.generate(
+                    24,
+                    (_) => pw.Container(
+                      padding: const pw.EdgeInsets.all(3),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+                      ),
+                      child: pw.Image(image, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          } else {
+            doc.addPage(
+              pw.Page(
+                pageFormat: PdfPageFormat.a6,
+                margin: const pw.EdgeInsets.all(16),
+                build: (context) => pw.Center(
+                  child: pw.Image(image, fit: pw.BoxFit.contain),
+                ),
+              ),
+            );
+          }
+
           return doc.save();
         },
         name: "${widget.product.name}-${widget.product.barcode}",

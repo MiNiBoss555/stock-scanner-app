@@ -18,6 +18,7 @@ import "theme/app_theme.dart";
 import "empty_state.dart";
 import "loading_state.dart";
 import "widgets/orders_status_tabs.dart";
+import "widgets/thermal_slip_sheet.dart";
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -2350,40 +2351,166 @@ class _OrdersPageState extends State<OrdersPage> {
                                   .toList();
 
                               return <Widget>[
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: TextField(
-                                    controller: _searchController,
-                                    onChanged: _onSearchChanged,
-                                    decoration: InputDecoration(
-                                      hintText: "ค้นหาชื่อลูกค้า เบอร์โทร เลขออเดอร์...",
-                                      prefixIcon: const Icon(Icons.search_rounded),
-                                      suffixIcon: _searchController.text.isNotEmpty
-                                          ? IconButton(
-                                              key: const Key("clear_search_button"),
-                                              icon: const Icon(Icons.clear_rounded),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _searchController.clear();
-                                                  _searchQuery = "";
-                                                });
-                                              },
-                                            )
-                                          : null,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outline.withOpacity(0.08),
                                     ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.03),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                OrdersStatusTabs(
-                                  selectedTab: _selectedTab,
-                                  counts: counts,
-                                  onChanged: (tab) {
-                                    setState(() {
-                                      _selectedTab = tab;
-                                    });
-                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextField(
+                                        controller: _searchController,
+                                        onChanged: _onSearchChanged,
+                                        decoration: InputDecoration(
+                                          hintText: "ค้นหาชื่อลูกค้า เบอร์โทร เลขออเดอร์...",
+                                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                                          suffixIcon: _searchController.text.isNotEmpty
+                                              ? IconButton(
+                                                  key: const Key("clear_search_button"),
+                                                  icon: const Icon(Icons.clear_rounded, size: 18),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _searchController.clear();
+                                                      _searchQuery = "";
+                                                    });
+                                                  },
+                                                )
+                                              : null,
+                                          filled: true,
+                                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide(
+                                              color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(24),
+                                            borderSide: BorderSide(
+                                              color: Theme.of(context).primaryColor,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      OrdersStatusTabs(
+                                        selectedTab: _selectedTab,
+                                        counts: counts,
+                                        onChanged: (tab) {
+                                          setState(() {
+                                            _selectedTab = tab;
+                                          });
+                                        },
+                                      ),
+                                      if (active.isNotEmpty || cancelled.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            final isWide = constraints.maxWidth > 500;
+                                            final dropdownWidget = active.isNotEmpty
+                                                ? Expanded(
+                                                    flex: isWide ? 1 : 0,
+                                                    child: Material(
+                                                      type: MaterialType.transparency,
+                                                      child: DropdownMenu<String>(
+                                                        initialSelection: _orderPickerId,
+                                                        expandedInsets: EdgeInsets.zero,
+                                                        enableFilter: true,
+                                                        enableSearch: true,
+                                                        leadingIcon: const Icon(Icons.search_rounded, size: 20),
+                                                        label: const Text("เลือกออเดอร์"),
+                                                        hintText: "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
+                                                        dropdownMenuEntries: active
+                                                            .map(
+                                                              (order) => DropdownMenuEntry<String>(
+                                                                value: order.id,
+                                                                label:
+                                                                    "${order.customerName} • ${(order.id.length < 8 ? order.id : order.id.substring(0, 8))} • ${order.status}",
+                                                              ),
+                                                            )
+                                                            .toList(),
+                                                        onSelected: (value) async {
+                                                          if (value == null) return;
+                                                          setState(() {
+                                                            _orderPickerId = value;
+                                                          });
+                                                          final target = active.firstWhere(
+                                                            (o) => o.id == value,
+                                                            orElse: () => active.first,
+                                                          );
+                                                          await _showOrderPreview(target);
+                                                        },
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink();
+
+                                            final cancelledWidget = cancelled.isNotEmpty
+                                                ? SizedBox(
+                                                    height: 48,
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: () => _openCancelledOrders(
+                                                          cancelled, activeStaff, data),
+                                                      icon: const Icon(Icons.archive_outlined, size: 18),
+                                                      label: Text(
+                                                        "ดูออเดอร์ที่ยกเลิก (${cancelled.length})",
+                                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                                      ),
+                                                      style: OutlinedButton.styleFrom(
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.circular(24),
+                                                        ),
+                                                        side: BorderSide(
+                                                          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink();
+
+                                            if (isWide && active.isNotEmpty && cancelled.isNotEmpty) {
+                                              return Row(
+                                                children: [
+                                                  dropdownWidget,
+                                                  const SizedBox(width: 12),
+                                                  cancelledWidget,
+                                                ],
+                                              );
+                                            }
+
+                                            return Column(
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              children: [
+                                                if (active.isNotEmpty) dropdownWidget,
+                                                if (active.isNotEmpty && cancelled.isNotEmpty)
+                                                  const SizedBox(height: 10),
+                                                if (cancelled.isNotEmpty) cancelledWidget,
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                                 if (visibleOrders.isEmpty)
                                   EmptyState(
@@ -3424,6 +3551,11 @@ class _OrderTile extends StatelessWidget {
                     label: const Text("ใบปะหน้าจัดของ"),
                   ),
                   OutlinedButton.icon(
+                    onPressed: () => showThermalReceiptSlipSheet(context: context, order: order),
+                    icon: const Icon(Icons.receipt_long_rounded),
+                    label: const Text("สลิป 58/80mm"),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: onOpenProofGallery,
                     icon: const Icon(Icons.photo_library_outlined),
                     label: Text("รูปหลักฐาน ($proofCount)"),
@@ -3445,6 +3577,11 @@ class _OrderTile extends StatelessWidget {
                     onPressed: () => _openUrl(packingSlipUrl),
                     icon: const Icon(Icons.inventory_2_rounded),
                     label: const Text("ใบปะหน้าจัดของ"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => showThermalReceiptSlipSheet(context: context, order: order),
+                    icon: const Icon(Icons.receipt_long_rounded),
+                    label: const Text("สลิป 58/80mm"),
                   ),
                   OutlinedButton.icon(
                     onPressed: () async {
