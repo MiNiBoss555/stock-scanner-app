@@ -1,4 +1,4 @@
-﻿import "dart:async";
+import "dart:async";
 import "dart:convert";
 import "dart:io";
 import "package:flutter/foundation.dart";
@@ -2421,97 +2421,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                           });
                                         },
                                       ),
-                                      if (active.isNotEmpty || cancelled.isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        LayoutBuilder(
-                                          builder: (context, constraints) {
-                                            final isWide = constraints.maxWidth > 500;
-                                            final dropdownWidget = active.isNotEmpty
-                                                ? Expanded(
-                                                    flex: isWide ? 1 : 0,
-                                                    child: Material(
-                                                      type: MaterialType.transparency,
-                                                      child: DropdownMenu<String>(
-                                                        initialSelection: _orderPickerId,
-                                                        expandedInsets: EdgeInsets.zero,
-                                                        enableFilter: true,
-                                                        enableSearch: true,
-                                                        leadingIcon: const Icon(Icons.search_rounded, size: 20),
-                                                        label: const Text("เลือกออเดอร์"),
-                                                        hintText: "พิมพ์ชื่อ/เบอร์/รหัสออเดอร์เพื่อค้นหา",
-                                                        dropdownMenuEntries: active
-                                                            .map(
-                                                              (order) => DropdownMenuEntry<String>(
-                                                                value: order.id,
-                                                                label:
-                                                                    "${order.customerName} • ${(order.id.length < 8 ? order.id : order.id.substring(0, 8))} • ${order.status}",
-                                                              ),
-                                                            )
-                                                            .toList(),
-                                                        onSelected: (value) async {
-                                                          if (value == null) return;
-                                                          setState(() {
-                                                            _orderPickerId = value;
-                                                          });
-                                                          final target = active.firstWhere(
-                                                            (o) => o.id == value,
-                                                            orElse: () => active.first,
-                                                          );
-                                                          await _showOrderPreview(target);
-                                                        },
-                                                      ),
-                                                    ),
-                                                  )
-                                                : const SizedBox.shrink();
-
-                                            final cancelledWidget = cancelled.isNotEmpty
-                                                ? SizedBox(
-                                                    height: 48,
-                                                    child: OutlinedButton.icon(
-                                                      onPressed: () => _openCancelledOrders(
-                                                          cancelled, activeStaff, data),
-                                                      icon: const Icon(Icons.archive_outlined, size: 18),
-                                                      label: Text(
-                                                        "ดูออเดอร์ที่ยกเลิก (${cancelled.length})",
-                                                        style: const TextStyle(fontWeight: FontWeight.w600),
-                                                      ),
-                                                      style: OutlinedButton.styleFrom(
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.circular(24),
-                                                        ),
-                                                        side: BorderSide(
-                                                          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  )
-                                                : const SizedBox.shrink();
-
-                                            if (isWide && active.isNotEmpty && cancelled.isNotEmpty) {
-                                              return Row(
-                                                children: [
-                                                  dropdownWidget,
-                                                  const SizedBox(width: 12),
-                                                  cancelledWidget,
-                                                ],
-                                              );
-                                            }
-
-                                            return Column(
-                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                              children: [
-                                                if (active.isNotEmpty) dropdownWidget,
-                                                if (active.isNotEmpty && cancelled.isNotEmpty)
-                                                  const SizedBox(height: 10),
-                                                if (cancelled.isNotEmpty) cancelledWidget,
-                                              ],
-                                            );
-                                          },
-                                        ),
                                       ],
-                                    ],
+                                    ),
                                   ),
-                                ),
                                 if (visibleOrders.isEmpty)
                                   EmptyState(
                                     key: const Key("empty_search_state"),
@@ -2890,6 +2802,66 @@ class _OrderTile extends StatelessWidget {
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onChatUpdated;
 
+  void _showPrintMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                "พิมพ์ / เอกสารออเดอร์",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.inventory_2_rounded, color: brandPrimary),
+                title: const Text("ใบปะหน้าจัดส่ง / ใบส่งของ"),
+                subtitle: const Text("ขนาด 100x50mm สำหรับเครื่องพิมพ์ 4BARCODE"),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openUrl(packingSlipUrl);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.description_outlined, color: brandPrimary),
+                title: const Text("พิมพ์ใบออเดอร์"),
+                subtitle: const Text("รายละเอียดรายการออเดอร์สำหรับคลัง"),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openUrl(printUrl);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.receipt_long_rounded, color: brandPrimary),
+                title: const Text("สลิป 58/80mm"),
+                subtitle: const Text("สำหรับเครื่องพิมพ์สลิปความร้อน"),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  showThermalReceiptSlipSheet(context: context, order: order);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showActionBottomSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -2911,14 +2883,7 @@ class _OrderTile extends StatelessWidget {
                       : null,
                   enabled: canOperate(currentUser, order),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.inventory_2_rounded),
-                  title: const Text("ใบปะหน้าจัดของ"),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    _openUrl(packingSlipUrl);
-                  },
-                ),
+
                 if (canCancel(currentUser, order))
                   ListTile(
                     key: Key("order_action_cancel_${order.id}"),
@@ -3383,41 +3348,44 @@ class _OrderTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _statusTone().withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    _statusLabel(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _statusTone(),
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: semanticStatusSurface(
+                if ((order.orderWorkflowStatus ?? "").isEmpty ||
+                    order.orderWorkflowStatus == "assigned" ||
+                    order.orderWorkflowStatus == "in_production")
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _statusTone().withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _statusLabel(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: _statusTone(),
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: semanticStatusSurface(
+                        _workflowStatusSemantic(order.orderWorkflowStatus),
+                      ),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _workflowStatusLabel(order.orderWorkflowStatus),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: semanticStatusTone(
                               _workflowStatusSemantic(order.orderWorkflowStatus),
                             ),
-                            borderRadius: BorderRadius.circular(999),
+                            fontWeight: FontWeight.w700,
                           ),
-                          child: Text(
-                            _workflowStatusLabel(order.orderWorkflowStatus),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: semanticStatusTone(
-                                    _workflowStatusSemantic(order.orderWorkflowStatus),
-                                  ),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                          ],
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -3541,19 +3509,9 @@ class _OrderTile extends StatelessWidget {
                     label: const Text("แชตติดตามงาน"),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => _openUrl(printUrl),
+                    onPressed: () => _showPrintMenu(context),
                     icon: const Icon(Icons.print_outlined),
-                    label: const Text("พิมพ์ใบออเดอร์"),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _openUrl(packingSlipUrl),
-                    icon: const Icon(Icons.inventory_2_rounded),
-                    label: const Text("ใบปะหน้าจัดของ"),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => showThermalReceiptSlipSheet(context: context, order: order),
-                    icon: const Icon(Icons.receipt_long_rounded),
-                    label: const Text("สลิป 58/80mm"),
+                    label: const Text("พิมพ์เอกสาร"),
                   ),
                   OutlinedButton.icon(
                     onPressed: onOpenProofGallery,
@@ -3569,19 +3527,9 @@ class _OrderTile extends StatelessWidget {
                 children: [
                   if (primaryWorkflowAction != null) primaryWorkflowAction,
                   OutlinedButton.icon(
-                    onPressed: () => _openUrl(printUrl),
+                    onPressed: () => _showPrintMenu(context),
                     icon: const Icon(Icons.print_outlined),
-                    label: const Text("พิมพ์ใบออเดอร์"),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _openUrl(packingSlipUrl),
-                    icon: const Icon(Icons.inventory_2_rounded),
-                    label: const Text("ใบปะหน้าจัดของ"),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => showThermalReceiptSlipSheet(context: context, order: order),
-                    icon: const Icon(Icons.receipt_long_rounded),
-                    label: const Text("สลิป 58/80mm"),
+                    label: const Text("พิมพ์เอกสาร"),
                   ),
                   OutlinedButton.icon(
                     onPressed: () async {

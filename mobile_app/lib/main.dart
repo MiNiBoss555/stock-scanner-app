@@ -304,6 +304,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   static final RouteObserver<ModalRoute<void>> _routeObserver =
       RouteObserver<ModalRoute<void>>();
   final StockApiService _api = StockApiService();
+  final AppSettings _appSettings = AppSettings();
   static const Duration _minSplashDuration = Duration(milliseconds: 900);
   static const Duration _restoreTimeout = Duration(seconds: 4);
   AppUser? _currentUser;
@@ -313,6 +314,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   @override
   void initState() {
     super.initState();
+    _appSettings.loadSettings();
     if (!kIsWeb && !Platform.isWindows) {
       _messaging = FirebaseMessaging.instance;
     }
@@ -515,144 +517,165 @@ class _StockScannerAppState extends State<StockScannerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title:
-          "\u0e41\u0e2d\u0e1b\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _brandPrimary,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: _brandSurface,
-        fontFamily: GoogleFonts.prompt().fontFamily,
-        textTheme: ThemeData.light().textTheme.copyWith(
-              headlineSmall: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: _brandDeep,
-                letterSpacing: -0.4,
+    return AppSettingsScope(
+      notifier: _appSettings,
+      child: ListenableBuilder(
+        listenable: _appSettings,
+        builder: (context, _) {
+          return MaterialApp(
+            title:
+                "\u0e41\u0e2d\u0e1b\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
+            debugShowCheckedModeBanner: false,
+            themeMode: _appSettings.flutterThemeMode,
+            darkTheme: ThemeData.dark().copyWith(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: _brandPrimary,
+                brightness: Brightness.dark,
               ),
-              titleMedium: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: _brandDeep,
-              ),
-              titleSmall: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: _brandDeep,
-              ),
-              bodyMedium: const TextStyle(
-                fontSize: 14,
-                height: 1.4,
-                color: _brandInk,
-              ),
-              bodySmall: TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                color: _brandInk.withOpacity(0.72),
-              ),
+              scaffoldBackgroundColor: const Color(0xFF0F172A),
+              cardColor: const Color(0xFF1E293B),
+              textTheme: GoogleFonts.promptTextTheme(ThemeData.dark().textTheme),
+              useMaterial3: true,
             ),
-        cardTheme: CardThemeData(
-          color: _brandCard,
-          elevation: 0,
-          shadowColor: _brandPrimary.withOpacity(0.10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(_radiusLg),
-            side: BorderSide(color: _brandPrimary.withOpacity(0.10)),
-          ),
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: _brandDeep,
-          contentTextStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            height: 1.35,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(_radiusMd),
-          ),
-        ),
-        listTileTheme: const ListTileThemeData(
-          contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: _brandCard,
-          indicatorColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.70)!
-              .withOpacity(0.90),
-          labelTextStyle: WidgetStateProperty.resolveWith(
-            (states) => TextStyle(
-              color: states.contains(WidgetState.selected)
-                  ? _brandDeep
-                  : _brandInk,
-              fontWeight: states.contains(WidgetState.selected)
-                  ? FontWeight.w700
-                  : FontWeight.w500,
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: _brandPrimary,
+                brightness: Brightness.light,
+              ),
+              scaffoldBackgroundColor: _brandSurface,
+              fontFamily: GoogleFonts.prompt().fontFamily,
+              textTheme: GoogleFonts.promptTextTheme(
+                ThemeData.light().textTheme.copyWith(
+                      headlineSmall: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: _brandDeep,
+                        letterSpacing: -0.4,
+                      ),
+                      titleMedium: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _brandDeep,
+                      ),
+                      titleSmall: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _brandDeep,
+                      ),
+                      bodyMedium: const TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: _brandInk,
+                      ),
+                      bodySmall: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: _brandInk.withOpacity(0.72),
+                      ),
+                    ),
+              ),
+              cardTheme: CardThemeData(
+                color: _brandCard,
+                elevation: 0,
+                shadowColor: _brandPrimary.withOpacity(0.10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_radiusLg),
+                  side: BorderSide(color: _brandPrimary.withOpacity(0.10)),
+                ),
+              ),
+              snackBarTheme: SnackBarThemeData(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: _brandDeep,
+                contentTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.35,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_radiusMd),
+                ),
+              ),
+              listTileTheme: const ListTileThemeData(
+                contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              ),
+              navigationBarTheme: NavigationBarThemeData(
+                backgroundColor: _brandCard,
+                indicatorColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.70)!
+                    .withOpacity(0.90),
+                labelTextStyle: WidgetStateProperty.resolveWith(
+                  (states) => TextStyle(
+                    color: states.contains(WidgetState.selected)
+                        ? _brandDeep
+                        : _brandInk,
+                    fontWeight: states.contains(WidgetState.selected)
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: Color.lerp(_brandSurface, Colors.white, 0.58)!,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(_radiusMd),
+                  borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(_radiusMd),
+                  borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(_radiusMd)),
+                  borderSide: BorderSide(color: _brandPrimary, width: 1.4),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: _spaceMd,
+                  vertical: _spaceMd,
+                ),
+              ),
+              filledButtonTheme: FilledButtonThemeData(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _brandPrimary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_radiusMd),
+                  ),
+                ),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _brandPrimary,
+                  side: const BorderSide(color: _brandPrimary),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_radiusMd),
+                  ),
+                ),
+              ),
+              useMaterial3: true,
             ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Color.lerp(_brandSurface, Colors.white, 0.58)!,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(_radiusMd),
-            borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(_radiusMd),
-            borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(_radiusMd)),
-            borderSide: BorderSide(color: _brandPrimary, width: 1.4),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: _spaceMd,
-            vertical: _spaceMd,
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: _brandPrimary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(_radiusMd),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _brandPrimary,
-            side: const BorderSide(color: _brandPrimary),
-            minimumSize: const Size.fromHeight(48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(_radiusMd),
-            ),
-          ),
-        ),
-        useMaterial3: true,
-      ),
-      navigatorObservers: [_routeObserver],
-      home: _isRestoring
-          ? const _SplashScreen()
-          : Builder(
-              builder: (context) {
-                final inner = _currentUser == null
-                    ? LoginPage(api: _api, onLogin: _handleLogin)
-                    : StockHomePage(
-                        api: _api,
-                        currentUser: _currentUser!,
-                        onLogout: _handleLogout,
-                        onRefreshSession: _refreshSession,
-                      );
+            navigatorObservers: [_routeObserver],
+            home: _isRestoring
+                ? const _SplashScreen()
+                : Builder(
+                    builder: (context) {
+                      final inner = _currentUser == null
+                          ? LoginPage(api: _api, onLogin: _handleLogin)
+                          : StockHomePage(
+                              api: _api,
+                              currentUser: _currentUser!,
+                              onLogout: _handleLogout,
+                              onRefreshSession: _refreshSession,
+                            );
 
-                return inner;
-              },
-            ),
+                      return inner;
+                    },
+                  ),
+          );
+        },
+      ),
     );
   }
 }
@@ -1100,6 +1123,12 @@ class _StockHomePageState extends State<StockHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktopOrWeb = kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        MediaQuery.sizeOf(context).width > 700;
+
     if (authCompleteTime != null) {
       debugPrint("DEBUG TIMER: auth complete to home visible = ${DateTime.now().difference(authCompleteTime!).inMilliseconds} ms");
       authCompleteTime = null;
@@ -1194,7 +1223,7 @@ class _StockHomePageState extends State<StockHomePage> {
       },
     ];
 
-    if (kIsWeb) {
+    if (isDesktopOrWeb) {
       menuItems.addAll([
         {
           "icon": Icons.person_outline,
@@ -1389,7 +1418,7 @@ class _StockHomePageState extends State<StockHomePage> {
       ),
     );
 
-    if (kIsWeb) {
+    if (isDesktopOrWeb) {
       return Scaffold(
         body: Row(
           children: [

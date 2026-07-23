@@ -84,7 +84,13 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   void _playScanFeedback() {
-    unawaited(_playScanHaptic());
+    final settings = AppSettingsScope.of(context);
+    if (settings.enableHaptic) {
+      unawaited(_playScanHaptic());
+    }
+    if (!settings.enableSound) {
+      return;
+    }
     if (kIsWeb) {
       unawaited(SystemSound.play(SystemSoundType.click));
       return;
@@ -440,29 +446,21 @@ class _ScanPageState extends State<ScanPage> {
             ),
             const SizedBox(height: 12),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _qtyController,
-                  keyboardType: TextInputType.number,
-                  decoration: _scanInputDecoration(
-                    "จำนวน",
-                    hintText: "1",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _referenceController,
-                  decoration: _scanInputDecoration(
-                    "เลขความปลอดภัย/อ้างอิง",
-                    hintText: "ถ้ามี",
-                  ),
-                ),
-              ),
-            ],
+          TextField(
+            controller: _qtyController,
+            keyboardType: TextInputType.number,
+            decoration: _scanInputDecoration(
+              "จำนวน",
+              hintText: "1",
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _referenceController,
+            decoration: _scanInputDecoration(
+              "เลขความปลอดภัย/อ้างอิง",
+              hintText: "ถ้ามี",
+            ),
           ),
           const SizedBox(height: 12),
           TextField(

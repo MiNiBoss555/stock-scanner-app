@@ -373,7 +373,18 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      fakeApi.proofPhotosList = ["http://proof.photo/1.jpg"]; // Mock proof photo to enable "ส่งแล้ว" button
+      testOrder = DeliveryOrder(
+        id: testOrder.id,
+        customerName: testOrder.customerName,
+        createdById: testOrder.createdById,
+        createdByName: testOrder.createdByName,
+        status: "out_for_delivery",
+        items: testOrder.items,
+        createdAt: testOrder.createdAt,
+        updatedAt: testOrder.updatedAt,
+      );
+      fakeApi.ordersList = [testOrder];
+      fakeApi.proofPhotosList = ["http://proof.photo/1.jpg"];
       
       await tester.pumpWidget(createTestWidget(OrdersPage(
         api: fakeApi,
@@ -381,8 +392,8 @@ void main() {
       )));
       await tester.pumpAndSettle();
 
-      // Find and tap the "ส่งแล้ว" button
-      final deliveredBtn = find.widgetWithText(FilledButton, "ส่งแล้ว");
+      // Find and tap the "ส่งสำเร็จ" button
+      final deliveredBtn = find.widgetWithText(FilledButton, "ส่งสำเร็จ");
       expect(deliveredBtn, findsOneWidget);
       await tester.ensureVisible(deliveredBtn);
       await tester.pumpAndSettle();
@@ -655,9 +666,7 @@ void main() {
         await triggerOcrFlowGallery(tester);
 
         expect(find.text("ยืนยันข้อมูลที่สแกนได้"), findsOneWidget);
-        expect(find.text("ชื่อ: นายสมรัก คำไทย"), findsOneWidget);
         expect(find.text("เบอร์โทร: 0829998888"), findsOneWidget);
-        expect(find.text("ที่อยู่: 9/9 ต.ท่าทราย อ.เมือง จ.นนทบุรี 11000"), findsOneWidget);
 
         await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();

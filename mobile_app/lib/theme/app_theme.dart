@@ -1,6 +1,7 @@
 import "dart:convert";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
+import "package:shared_preferences/shared_preferences.dart";
 
 // --- Colors ---
 const brandPrimary = Color(0xFF005AA7);
@@ -27,6 +28,112 @@ const double radiusXl = 28;
 
 const pagePadding = EdgeInsets.all(spaceMd);
 const cardPadding = EdgeInsets.all(spaceMd);
+
+// --- Settings & Theme State Management ---
+enum AppThemeMode { system, light, dark }
+
+class AppSettings extends ChangeNotifier {
+  static const _prefThemeModeKey = "app_theme_mode";
+  static const _prefSoundKey = "app_scan_sound";
+  static const _prefHapticKey = "app_scan_haptic";
+
+  AppThemeMode _themeMode = AppThemeMode.system;
+  bool _enableSound = true;
+  bool _enableHaptic = true;
+
+  AppThemeMode get themeMode => _themeMode;
+  bool get enableSound => _enableSound;
+  bool get enableHaptic => _enableHaptic;
+
+  ThemeMode get flutterThemeMode {
+    switch (_themeMode) {
+      case AppThemeMode.light:
+        return ThemeMode.light;
+      case AppThemeMode.dark:
+        return ThemeMode.dark;
+      case AppThemeMode.system:
+        return ThemeMode.system;
+    }
+  }
+
+  Future<void> loadSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final modeStr = prefs.getString(_prefThemeModeKey) ?? "system";
+      _themeMode = AppThemeMode.values.firstWhere(
+        (e) => e.name == modeStr,
+        orElse: () => AppThemeMode.system,
+      );
+      _enableSound = prefs.getBool(_prefSoundKey) ?? true;
+      _enableHaptic = prefs.getBool(_prefHapticKey) ?? true;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> setThemeMode(AppThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefThemeModeKey, mode.name);
+  }
+
+  Future<void> setEnableSound(bool value) async {
+    _enableSound = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefSoundKey, value);
+  }
+
+  Future<void> setEnableHaptic(bool value) async {
+    _enableHaptic = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefHapticKey, value);
+  }
+}
+
+class AppSettingsScope extends InheritedNotifier<AppSettings> {
+  const AppSettingsScope({
+    super.key,
+    required AppSettings super.notifier,
+    required super.child,
+  });
+
+  static AppSettings of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<AppSettingsScope>();
+    return scope?.notifier ?? AppSettings();
+  }
+}
+
+ThemeData buildLightThemeData() {
+  return ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: brandPrimary,
+      primary: brandPrimary,
+      surface: brandSurface,
+      brightness: Brightness.light,
+    ),
+    scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+    cardColor: brandCard,
+  );
+}
+
+ThemeData buildDarkThemeData() {
+  return ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: brandPrimary,
+      primary: brandPrimary,
+      surface: const Color(0xFF1E293B),
+      brightness: Brightness.dark,
+    ),
+    scaffoldBackgroundColor: const Color(0xFF0F172A),
+    cardColor: const Color(0xFF1E293B),
+  );
+}
 
 enum SemanticStatus {
   neutral,

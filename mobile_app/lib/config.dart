@@ -3,16 +3,18 @@ import "package:flutter/foundation.dart";
 class AppConfig {
   static const String _apiUrl = String.fromEnvironment(
     "API_URL",
-    defaultValue: "http://127.0.0.1:8000",
+    defaultValue: "http://192.168.1.108:8000",
   );
 
   static String get baseUrl {
     if (kIsWeb) {
+      final base = Uri.base;
+      if (base.scheme.startsWith("http")) {
+        return "${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}";
+      }
       return _apiUrl;
     }
 
-    // When running on Android emulator, "127.0.0.1" points to the emulator itself.
-    // Map it to "10.0.2.2" so it reaches the host machine where uvicorn runs.
     if (defaultTargetPlatform == TargetPlatform.android) {
       final parsed = Uri.tryParse(_apiUrl);
       if (parsed != null &&
