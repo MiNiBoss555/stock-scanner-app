@@ -1773,100 +1773,154 @@ class _AppSettingsCard extends StatelessWidget {
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final textColor = isDark ? const Color(0xFFF1F5F9) : brandDeep;
 
-    return Container(
-      margin: const EdgeInsets.only(top: 16, bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(radiusLg),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : brandPrimary.withOpacity(0.16),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.only(top: 16, bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(radiusLg),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : brandPrimary.withOpacity(0.16),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withOpacity(0.2) : profileTeal.withOpacity(0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.2) : profileTeal.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.palette_outlined, color: brandPrimary, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  "การตั้งค่าแอปพลิเคชัน & ธีม",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              "โหมดการแสดงผล (Theme Mode)",
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor.withOpacity(0.8)),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<AppThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: AppThemeMode.system,
+                  icon: Icon(Icons.brightness_auto, size: 18),
+                  label: Text("ระบบ"),
+                ),
+                ButtonSegment(
+                  value: AppThemeMode.light,
+                  icon: Icon(Icons.light_mode, size: 18),
+                  label: Text("สว่าง"),
+                ),
+                ButtonSegment(
+                  value: AppThemeMode.dark,
+                  icon: Icon(Icons.dark_mode, size: 18),
+                  label: Text("มืด"),
+                ),
+              ],
+              selected: {settings.themeMode},
+              onSelectionChanged: (Set<AppThemeMode> selected) {
+                if (selected.isNotEmpty) {
+                  settings.setThemeMode(selected.first);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            Divider(height: 1, color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            const SizedBox(height: 4),
+            _SettingsSwitchRow(
+              icon: Icons.volume_up_outlined,
+              title: "เสียงสแกนบาร์โค้ด (Sound Feedback)",
+              subtitle: "ส่งเสียง 'ติ๊ด' เมื่อสแกนรหัสสินค้าสำเร็จ",
+              value: settings.enableSound,
+              textColor: textColor,
+              onChanged: (val) => settings.setEnableSound(val),
+            ),
+            Divider(height: 1, color: isDark ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFE2E8F0)),
+            _SettingsSwitchRow(
+              icon: Icons.vibration_outlined,
+              title: "ระบบการสั่น (Haptic Feedback)",
+              subtitle: "สั่นตอบสนองเบาๆ เมื่อสัมผัสหรือสแกนสำเร็จ",
+              value: settings.enableHaptic,
+              textColor: textColor,
+              onChanged: (val) => settings.setEnableHaptic(val),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class _SettingsSwitchRow extends StatelessWidget {
+  const _SettingsSwitchRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.textColor,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final Color textColor;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.palette_outlined, color: brandPrimary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                "การตั้งค่าแอปพลิเคชัน & ธีม",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            "โหมดการแสดงผล (Theme Mode)",
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor.withOpacity(0.8)),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<AppThemeMode>(
-            segments: const [
-              ButtonSegment(
-                value: AppThemeMode.system,
-                icon: Icon(Icons.brightness_auto),
-                label: Text("ระบบ"),
-              ),
-              ButtonSegment(
-                value: AppThemeMode.light,
-                icon: Icon(Icons.light_mode),
-                label: Text("สว่าง"),
-              ),
-              ButtonSegment(
-                value: AppThemeMode.dark,
-                icon: Icon(Icons.dark_mode),
-                label: Text("มืด"),
-              ),
-            ],
-            selected: {settings.themeMode},
-            onSelectionChanged: (Set<AppThemeMode> selected) {
-              if (selected.isNotEmpty) {
-                settings.setThemeMode(selected.first);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              "เสียงสแกนบาร์โค้ด (Sound Feedback)",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
+          Icon(icon, color: brandPrimary, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor.withOpacity(0.65),
+                  ),
+                ),
+              ],
             ),
-            subtitle: Text(
-              "ส่งเสียง 'ติ๊ด' เมื่อสแกนรหัสสินค้าสำเร็จ",
-              style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.65)),
-            ),
-            secondary: const Icon(Icons.volume_up_outlined, color: brandPrimary),
-            value: settings.enableSound,
-            onChanged: (val) => settings.setEnableSound(val),
           ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              "ระบบการสั่น (Haptic Feedback)",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
-            ),
-            subtitle: Text(
-              "สั่นตอบสนองเบาๆ เมื่อสัมผัสหรือสแกนสำเร็จ",
-              style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.65)),
-            ),
-            secondary: const Icon(Icons.vibration_outlined, color: brandPrimary),
-            value: settings.enableHaptic,
-            onChanged: (val) => settings.setEnableHaptic(val),
+          const SizedBox(width: 8),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: brandPrimary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
       ),

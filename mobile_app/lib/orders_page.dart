@@ -19,6 +19,7 @@ import "empty_state.dart";
 import "loading_state.dart";
 import "widgets/orders_status_tabs.dart";
 import "widgets/thermal_slip_sheet.dart";
+import "widgets/shipping_label_sheet.dart";
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({
@@ -2828,6 +2829,15 @@ class _OrderTile extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.print_rounded, color: Color(0xFF1E3A8A)),
+                title: const Text("ใบปะหน้า & ใบส่งสินค้า (BarTender / PDF)"),
+                subtitle: const Text("ผู้ส่ง-ผู้รับครึ่งบน, สินค้าครึ่งล่าง พร้อมตัวเลือกพิมพ์สำเนา"),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  showShippingLabelSheet(context: context, order: order);
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.inventory_2_rounded, color: brandPrimary),
                 title: const Text("ใบปะหน้าจัดส่ง / ใบส่งของ"),

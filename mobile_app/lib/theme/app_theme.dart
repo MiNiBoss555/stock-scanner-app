@@ -1,6 +1,7 @@
 import "dart:convert";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
+import "package:google_fonts/google_fonts.dart";
 import "package:shared_preferences/shared_preferences.dart";
 
 // --- Colors ---
@@ -13,6 +14,13 @@ const brandInk = Color(0xFF123B63);
 const brandCard = Colors.white;
 const profileTeal = Color(0xFF0068BF);
 const profileAccent = Color(0xFF7DB8E8);
+
+// Dark mode surface tokens
+const darkSurface = Color(0xFF0F172A);
+const darkCard = Color(0xFF1E293B);
+const darkCardBorder = Color(0xFF334155);
+const darkTextPrimary = Color(0xFFE2E8F0);
+const darkTextSecondary = Color(0xFF94A3B8);
 
 // --- Spacing & Radius ---
 const double spaceXs = 8;
@@ -106,6 +114,9 @@ class AppSettingsScope extends InheritedNotifier<AppSettings> {
 }
 
 ThemeData buildLightThemeData() {
+  const double radiusMd = 18;
+  const double radiusLg = 24;
+  const double spaceMd = 16;
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
@@ -117,23 +128,197 @@ ThemeData buildLightThemeData() {
     ),
     scaffoldBackgroundColor: const Color(0xFFF8FAFC),
     cardColor: brandCard,
+    dialogBackgroundColor: Colors.white,
+    fontFamily: GoogleFonts.prompt().fontFamily,
+    textTheme: GoogleFonts.promptTextTheme(
+      ThemeData.light().textTheme.copyWith(
+        headlineSmall: const TextStyle(
+          fontSize: 28, fontWeight: FontWeight.w800,
+          color: brandDeep, letterSpacing: -0.4,
+        ),
+        titleMedium: const TextStyle(
+          fontSize: 18, fontWeight: FontWeight.w700, color: brandDeep,
+        ),
+        titleSmall: const TextStyle(
+          fontSize: 15, fontWeight: FontWeight.w700, color: brandDeep,
+        ),
+        bodyMedium: const TextStyle(
+          fontSize: 14, height: 1.4, color: brandInk,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12, height: 1.35, color: brandInk.withOpacity(0.72),
+        ),
+      ),
+    ),
+    listTileTheme: const ListTileThemeData(
+      tileColor: Colors.transparent,
+      selectedTileColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: brandCard,
+      elevation: 0,
+      shadowColor: brandPrimary.withOpacity(0.10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusLg),
+        side: BorderSide(color: brandPrimary.withOpacity(0.10)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: brandDeep,
+      contentTextStyle: const TextStyle(
+        color: Colors.white, fontSize: 14, height: 1.35,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Color.lerp(brandSurface, Colors.white, 0.58)!,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: brandPrimary.withOpacity(0.12)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: brandPrimary.withOpacity(0.12)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusMd)),
+        borderSide: const BorderSide(color: brandPrimary, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: spaceMd, vertical: spaceMd,
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: brandPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: brandPrimary,
+        side: const BorderSide(color: brandPrimary),
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
+    ),
   );
 }
 
 ThemeData buildDarkThemeData() {
+  const double radiusMd = 18;
+  const double spaceMd = 16;
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
       seedColor: brandPrimary,
       primary: brandPrimary,
-      surface: const Color(0xFF1E293B),
+      surface: darkCard,
       brightness: Brightness.dark,
     ),
-    scaffoldBackgroundColor: const Color(0xFF0F172A),
-    cardColor: const Color(0xFF1E293B),
+    scaffoldBackgroundColor: darkSurface,
+    cardColor: darkCard,
+    dialogBackgroundColor: darkCard,
+    fontFamily: GoogleFonts.prompt().fontFamily,
+    textTheme: GoogleFonts.promptTextTheme(
+      ThemeData.dark().textTheme.copyWith(
+        headlineSmall: const TextStyle(
+          fontSize: 28, fontWeight: FontWeight.w800,
+          color: darkTextPrimary, letterSpacing: -0.4,
+        ),
+        titleMedium: const TextStyle(
+          fontSize: 18, fontWeight: FontWeight.w700, color: darkTextPrimary,
+        ),
+        titleSmall: const TextStyle(
+          fontSize: 15, fontWeight: FontWeight.w700, color: darkTextPrimary,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14, height: 1.4, color: darkTextSecondary,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12, height: 1.35,
+          color: darkTextSecondary.withOpacity(0.80),
+        ),
+      ),
+    ),
+    listTileTheme: const ListTileThemeData(
+      tileColor: Colors.transparent,
+      selectedTileColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: darkCard,
+      elevation: 0,
+      shadowColor: Colors.black38,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: darkCardBorder.withOpacity(0.70)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFF1E3A5F),
+      contentTextStyle: const TextStyle(
+        color: Colors.white, fontSize: 14, height: 1.35,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF1E293B),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: darkCardBorder.withOpacity(0.60)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: BorderSide(color: darkCardBorder.withOpacity(0.60)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusMd)),
+        borderSide: const BorderSide(color: brandPrimary, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: spaceMd, vertical: spaceMd,
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: brandPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: brandPrimary,
+        side: const BorderSide(color: brandPrimary),
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
+    ),
   );
 }
+
 
 enum SemanticStatus {
   neutral,
@@ -203,6 +388,43 @@ BoxDecoration softPanelDecoration({
         offset: const Offset(0, 10),
       ),
     ],
+  );
+}
+
+/// Dark-mode aware version: uses dark card color instead of white surface.
+BoxDecoration darkPanelDecoration({
+  Color tone = brandPrimary,
+  double radius = radiusLg,
+}) {
+  return BoxDecoration(
+    color: darkCard,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: darkCardBorder.withOpacity(0.80)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.22),
+        blurRadius: 18,
+        offset: const Offset(0, 8),
+      ),
+    ],
+  );
+}
+
+/// Returns [softPanelDecoration] for light mode and [darkPanelDecoration] for dark mode.
+BoxDecoration adaptivePanelDecoration(
+  BuildContext context, {
+  Color tone = brandPrimary,
+  double surfaceStrength = 0.55,
+  double radius = radiusLg,
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  if (isDark) {
+    return darkPanelDecoration(tone: tone, radius: radius);
+  }
+  return softPanelDecoration(
+    tone: tone,
+    surfaceStrength: surfaceStrength,
+    radius: radius,
   );
 }
 

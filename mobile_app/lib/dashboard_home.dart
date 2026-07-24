@@ -53,8 +53,9 @@ class MobileDashboardHome extends StatelessWidget {
 
     final latestOrders = data.activeOrders.take(6).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ColoredBox(
-      color: brandSurface,
+      color: isDark ? darkSurface : brandSurface,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -114,7 +115,8 @@ class MobileDashboardHome extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Container(
-            decoration: softPanelDecoration(
+            decoration: adaptivePanelDecoration(
+              context,
               tone: brandPrimary,
               radius: 24,
               surfaceStrength: 0.72,
@@ -127,7 +129,7 @@ class MobileDashboardHome extends StatelessWidget {
                   Text(
                     currentUser.userName,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: brandDeep,
+                          color: isDark ? darkTextPrimary : brandDeep,
                           fontWeight: FontWeight.w800,
                         ),
                   ),
@@ -135,7 +137,7 @@ class MobileDashboardHome extends StatelessWidget {
                   Text(
                     "เช็กงานที่ต้องตามต่อวันนี้ได้ในหน้าเดียว",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: brandInk.withOpacity(0.72),
+                          color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
                         ),
                   ),
                   const SizedBox(height: 14),
@@ -947,6 +949,7 @@ class _DashboardSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -962,7 +965,7 @@ class _DashboardSectionHeader extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: brandDeep,
+                color: isDark ? darkTextPrimary : brandDeep,
                 fontWeight: FontWeight.w900,
               ),
         ),
@@ -970,7 +973,7 @@ class _DashboardSectionHeader extends StatelessWidget {
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: brandInk.withOpacity(0.72),
+                color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
               ),
         ),
       ],
@@ -1093,6 +1096,7 @@ class _QuickStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return _HoverLift(
       lift: 4,
       scale: 1.006,
@@ -1105,12 +1109,12 @@ class _QuickStatCard extends StatelessWidget {
             width: 250,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? darkCard : Colors.white,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: tone.withOpacity(0.12)),
+              border: Border.all(color: isDark ? darkCardBorder.withOpacity(0.8) : tone.withOpacity(0.12)),
               boxShadow: [
                 BoxShadow(
-                  color: tone.withOpacity(0.08),
+                  color: isDark ? Colors.black.withOpacity(0.25) : tone.withOpacity(0.08),
                   blurRadius: 18,
                   offset: const Offset(0, 12),
                 ),
@@ -1132,7 +1136,7 @@ class _QuickStatCard extends StatelessWidget {
                 Text(
                   value,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: brandDeep,
+                        color: isDark ? darkTextPrimary : brandDeep,
                         fontWeight: FontWeight.w900,
                       ),
                 ),
@@ -1140,7 +1144,7 @@ class _QuickStatCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: brandDeep,
+                        color: isDark ? darkTextPrimary : brandDeep,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
@@ -1148,7 +1152,7 @@ class _QuickStatCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: brandInk.withOpacity(0.72),
+                        color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
                         height: 1.35,
                       ),
                 ),
@@ -1172,6 +1176,7 @@ class _LowStockFocusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1181,9 +1186,9 @@ class _LowStockFocusCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? darkCard : Colors.white,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: brandPrimary.withOpacity(0.12)),
+            border: Border.all(color: isDark ? darkCardBorder.withOpacity(0.8) : brandPrimary.withOpacity(0.12)),
           ),
           child: Row(
             children: [
@@ -1207,7 +1212,7 @@ class _LowStockFocusCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: brandDeep,
+                            color: isDark ? darkTextPrimary : brandDeep,
                             fontWeight: FontWeight.w800,
                           ),
                     ),
@@ -1215,7 +1220,7 @@ class _LowStockFocusCard extends StatelessWidget {
                     Text(
                       "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: brandInk.withOpacity(0.74),
+                            color: isDark ? darkTextSecondary : brandInk.withOpacity(0.74),
                           ),
                     ),
                   ],
@@ -1295,7 +1300,7 @@ class _EmptyTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: spaceLg, vertical: 22),
-      decoration: softPanelDecoration(surfaceStrength: 0.45),
+      decoration: adaptivePanelDecoration(context, surfaceStrength: 0.45),
       child: Row(
         children: [
           Container(
@@ -1320,7 +1325,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   "ยังไม่มีรายการ",
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: brandInk,
+                        color: Theme.of(context).brightness == Brightness.dark ? darkTextPrimary : brandInk,
                         fontWeight: FontWeight.w700,
                       ),
                 ),
@@ -1328,7 +1333,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: brandInk.withOpacity(0.70),
+                        color: Theme.of(context).brightness == Brightness.dark ? darkTextSecondary : brandInk.withOpacity(0.70),
                         height: 1.35,
                       ),
                 ),

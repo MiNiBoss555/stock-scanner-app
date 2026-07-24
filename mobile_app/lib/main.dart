@@ -18,6 +18,7 @@ import "package:shared_preferences/shared_preferences.dart";
 import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
+import "config.dart";
 import "admin_page.dart";
 import "product_recycle_bin_page.dart";
 import "product_activity_log_page.dart";
@@ -285,16 +286,21 @@ String _roleLabel(String role) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.loadCustomServerUrl();
   // Firebase options aren't configured for web or windows in this project yet.
   // Avoid crashing; push notifications remain mobile-only.
   if (!kIsWeb && !Platform.isWindows) {
     await Firebase.initializeApp();
   }
-  runApp(const StockScannerApp());
+  final appSettings = AppSettings();
+  await appSettings.loadSettings(); // await so theme is ready before first frame
+  runApp(StockScannerApp(initialSettings: appSettings));
 }
 
 class StockScannerApp extends StatefulWidget {
-  const StockScannerApp({super.key});
+  const StockScannerApp({super.key, this.initialSettings});
+
+  final AppSettings? initialSettings;
 
   @override
   State<StockScannerApp> createState() => _StockScannerAppState();
@@ -304,7 +310,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   static final RouteObserver<ModalRoute<void>> _routeObserver =
       RouteObserver<ModalRoute<void>>();
   final StockApiService _api = StockApiService();
-  final AppSettings _appSettings = AppSettings();
+  late final AppSettings _appSettings;
   static const Duration _minSplashDuration = Duration(milliseconds: 900);
   static const Duration _restoreTimeout = Duration(seconds: 4);
   AppUser? _currentUser;
@@ -314,7 +320,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
   @override
   void initState() {
     super.initState();
-    _appSettings.loadSettings();
+    _appSettings = widget.initialSettings ?? AppSettings()
+      ..loadSettings();
     if (!kIsWeb && !Platform.isWindows) {
       _messaging = FirebaseMessaging.instance;
     }
@@ -527,136 +534,10 @@ class _StockScannerAppState extends State<StockScannerApp> {
                 "\u0e41\u0e2d\u0e1b\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
             debugShowCheckedModeBanner: false,
             themeMode: _appSettings.flutterThemeMode,
-            darkTheme: ThemeData.dark().copyWith(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: _brandPrimary,
-                brightness: Brightness.dark,
-              ),
-              scaffoldBackgroundColor: const Color(0xFF0F172A),
-              cardColor: const Color(0xFF1E293B),
-              textTheme: GoogleFonts.promptTextTheme(ThemeData.dark().textTheme),
-              useMaterial3: true,
-            ),
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: _brandPrimary,
-                brightness: Brightness.light,
-              ),
-              scaffoldBackgroundColor: _brandSurface,
-              fontFamily: GoogleFonts.prompt().fontFamily,
-              textTheme: GoogleFonts.promptTextTheme(
-                ThemeData.light().textTheme.copyWith(
-                      headlineSmall: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: _brandDeep,
-                        letterSpacing: -0.4,
-                      ),
-                      titleMedium: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _brandDeep,
-                      ),
-                      titleSmall: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: _brandDeep,
-                      ),
-                      bodyMedium: const TextStyle(
-                        fontSize: 14,
-                        height: 1.4,
-                        color: _brandInk,
-                      ),
-                      bodySmall: TextStyle(
-                        fontSize: 12,
-                        height: 1.35,
-                        color: _brandInk.withOpacity(0.72),
-                      ),
-                    ),
-              ),
-              cardTheme: CardThemeData(
-                color: _brandCard,
-                elevation: 0,
-                shadowColor: _brandPrimary.withOpacity(0.10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(_radiusLg),
-                  side: BorderSide(color: _brandPrimary.withOpacity(0.10)),
-                ),
-              ),
-              snackBarTheme: SnackBarThemeData(
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: _brandDeep,
-                contentTextStyle: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.35,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(_radiusMd),
-                ),
-              ),
-              listTileTheme: const ListTileThemeData(
-                contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              ),
-              navigationBarTheme: NavigationBarThemeData(
-                backgroundColor: _brandCard,
-                indicatorColor: Color.lerp(_brandSurface, _brandSurfaceStrong, 0.70)!
-                    .withOpacity(0.90),
-                labelTextStyle: WidgetStateProperty.resolveWith(
-                  (states) => TextStyle(
-                    color: states.contains(WidgetState.selected)
-                        ? _brandDeep
-                        : _brandInk,
-                    fontWeight: states.contains(WidgetState.selected)
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                  ),
-                ),
-              ),
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Color.lerp(_brandSurface, Colors.white, 0.58)!,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_radiusMd),
-                  borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_radiusMd),
-                  borderSide: BorderSide(color: _brandPrimary.withOpacity(0.12)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(_radiusMd)),
-                  borderSide: BorderSide(color: _brandPrimary, width: 1.4),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: _spaceMd,
-                  vertical: _spaceMd,
-                ),
-              ),
-              filledButtonTheme: FilledButtonThemeData(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _brandPrimary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(_radiusMd),
-                  ),
-                ),
-              ),
-              outlinedButtonTheme: OutlinedButtonThemeData(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _brandPrimary,
-                  side: const BorderSide(color: _brandPrimary),
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(_radiusMd),
-                  ),
-                ),
-              ),
-              useMaterial3: true,
-            ),
+            darkTheme: buildDarkThemeData(),
+            theme: buildLightThemeData(),
             navigatorObservers: [_routeObserver],
+
             home: _isRestoring
                 ? const _SplashScreen()
                 : Builder(
@@ -1591,8 +1472,9 @@ class _HistoryPageState extends State<HistoryPage> {
             return _ErrorState(message: snapshot.error.toString());
           }
           final items = snapshot.data ?? [];
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return ColoredBox(
-            color: _brandSurface,
+            color: isDark ? darkSurface : _brandSurface,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -1739,9 +1621,10 @@ class MorePage extends StatelessWidget {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: ColoredBox(
-        color: _brandSurface,
+        color: isDark ? darkSurface : _brandSurface,
         child: ListView(
           padding: _pagePadding,
           children: [
@@ -1759,9 +1642,10 @@ class MorePage extends StatelessWidget {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   leading: CircleAvatar(
-                    backgroundColor:
-                        Color.lerp(_brandSurface, _brandSurfaceStrong, 0.75),
-                    child: Icon(item.icon, color: _brandDeep),
+                    backgroundColor: isDark
+                        ? darkCard
+                        : Color.lerp(_brandSurface, _brandSurfaceStrong, 0.75),
+                    child: Icon(item.icon, color: isDark ? brandPrimary : _brandDeep),
                   ),
                   title: Text(item.title),
                   subtitle: Text(item.subtitle),
@@ -1832,9 +1716,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: ColoredBox(
-        color: _brandSurface,
+        color: isDark ? darkSurface : _brandSurface,
         child: RefreshIndicator(
           onRefresh: () async {
             setState(() {
@@ -2007,17 +1892,22 @@ class _PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerColor = Color.lerp(_brandSurfaceStrong, _brandPrimary, 0.34)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final headerColor = isDark
+        ? const Color(0xFF1A2744)
+        : Color.lerp(_brandSurfaceStrong, _brandPrimary, 0.34)!;
     return Container(
       padding:
           const EdgeInsets.fromLTRB(_spaceLg, _spaceLg, _spaceLg, _spaceMd),
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: BorderRadius.circular(_radiusXl),
-        border: Border.all(color: _brandPrimary.withOpacity(0.16)),
+        border: Border.all(
+          color: isDark ? darkCardBorder.withOpacity(0.6) : _brandPrimary.withOpacity(0.16),
+        ),
         boxShadow: [
           BoxShadow(
-            color: _brandPrimary.withOpacity(0.10),
+            color: isDark ? Colors.black.withOpacity(0.25) : _brandPrimary.withOpacity(0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -2029,10 +1919,14 @@ class _PageHeader extends StatelessWidget {
           if (showBackButton) ...[
             IconButton(
               onPressed: () => Navigator.of(context).maybePop(),
-              icon: const Icon(Icons.arrow_back_rounded),
-              color: _brandDeep,
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                color: isDark ? darkTextPrimary : _brandDeep,
+              ),
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.82),
+                backgroundColor: isDark
+                    ? darkCard.withOpacity(0.82)
+                    : Colors.white.withOpacity(0.82),
               ),
             ),
             const SizedBox(height: _spaceXs),
@@ -2040,14 +1934,14 @@ class _PageHeader extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: _brandDeep,
+                  color: isDark ? darkTextPrimary : _brandDeep,
                 ),
           ),
           const SizedBox(height: 6),
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _brandInk.withOpacity(0.82),
+                  color: isDark ? darkTextSecondary : _brandInk.withOpacity(0.82),
                 ),
           ),
           const SizedBox(height: _spaceSm),

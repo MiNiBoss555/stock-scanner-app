@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Stock Scanner"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "PrinceBot.Co.,Ltd"
 #define MyAppExeName "stock_scanner_mobile.exe"
 
@@ -16,6 +16,10 @@ AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
+UsePreviousAppDir=yes
+CloseApplications=force
+RestartApplications=yes
+DirExistsWarning=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; "ArchitecturesAllowed=x64compatible" specifies that Setup cannot run
 ; on anything but x64 and Windows 11 on Arm.
@@ -29,7 +33,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\my-api
-OutputBaseFilename=StockScannerSetup-v1.0.3
+OutputBaseFilename=StockScannerSetup-v1.0.7
 SetupIconFile=C:\my-api\mobile_app\windows\runner\resources\app_icon.ico
 SolidCompression=yes
 WizardStyle=classic windows11

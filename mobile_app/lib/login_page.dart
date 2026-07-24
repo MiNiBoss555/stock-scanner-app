@@ -3,6 +3,7 @@ import "package:flutter/material.dart";
 import "package:flutter/services.dart" show FilteringTextInputFormatter;
 
 import "api_service.dart";
+import "config.dart";
 import "models.dart";
 import "theme/app_theme.dart";
 
@@ -226,6 +227,16 @@ class _LoginPageState extends State<LoginPage> {
                             "ถ้าเซิร์ฟเวอร์เพิ่งตื่น ครั้งแรกอาจใช้เวลา 10-20 วินาที",
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _showServerConfigDialog,
+                            icon: const Icon(Icons.settings_ethernet_rounded, size: 18),
+                            label: Text(
+                              "เซิร์ฟเวอร์: ${AppConfig.baseUrl}",
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -236,6 +247,59 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showServerConfigDialog() {
+    final controller = TextEditingController(text: AppConfig.baseUrl);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("ตั้งค่าเซิร์ฟเวอร์ (Server URL)"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "ระบุ IP Address ของเครื่องคอมพิวเตอร์ที่รันระบบอยู่ เช่น http://192.168.1.108:8000",
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: "Server URL",
+                  hintText: "http://192.168.1.108:8000",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await AppConfig.setCustomServerUrl(null);
+                if (mounted) {
+                  Navigator.pop(dialogContext);
+                  setState(() {});
+                }
+              },
+              child: const Text("คืนค่าเดิม"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await AppConfig.setCustomServerUrl(controller.text);
+                if (mounted) {
+                  Navigator.pop(dialogContext);
+                  setState(() {});
+                }
+              },
+              child: const Text("บันทึก IP ใหม่"),
+            ),
+          ],
+        );
+      },
     );
   }
 }

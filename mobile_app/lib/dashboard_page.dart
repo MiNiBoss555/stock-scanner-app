@@ -9,6 +9,7 @@ import "dashboard_home.dart";
 import "chat_assistant_page.dart";
 import "orders_page.dart";
 import "login_page.dart";
+import "services/version_check_service.dart";
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
@@ -49,6 +50,9 @@ class DashboardPageState extends State<DashboardPage> with RouteAware {
     super.initState();
     _future = _load();
     widget.refreshSignal.addListener(_handleRealtimeRefresh);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppVersionCheckService.checkForUpdates(context);
+    });
   }
 
   @override
