@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Stock Scanner"
-#define MyAppVersion "1.0.7"
+#define MyAppVersion "1.0.10"
 #define MyAppPublisher "PrinceBot.Co.,Ltd"
 #define MyAppExeName "stock_scanner_mobile.exe"
 
@@ -33,7 +33,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\my-api
-OutputBaseFilename=StockScannerSetup-v1.0.7
+OutputBaseFilename=StockScannerSetup-v1.0.10
 SetupIconFile=C:\my-api\mobile_app\windows\runner\resources\app_icon.ico
 SolidCompression=yes
 WizardStyle=classic windows11
@@ -47,12 +47,17 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "C:\my-api\mobile_app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+Source: "C:\my-api\Start_Web_App.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\my-api\launch_web_silent.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\my-api\Start_Desktop_App.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\my-api\launch_desktop_silent.vbs"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch_desktop_silent.vbs"""; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\Stock Scanner Web"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch_web_silent.vbs"""; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch_desktop_silent.vbs"""; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\Stock Scanner Web"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch_web_silent.vbs"""; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\launch_desktop_silent.vbs"""; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 

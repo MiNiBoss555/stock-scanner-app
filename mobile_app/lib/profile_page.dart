@@ -1769,9 +1769,8 @@ class _AppSettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsScope.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF1F5F9) : brandDeep;
+    const cardBg = Colors.white;
+    const textColor = brandDeep;
 
     return Material(
       color: Colors.transparent,
@@ -1782,11 +1781,11 @@ class _AppSettingsCard extends StatelessWidget {
           color: cardBg,
           borderRadius: BorderRadius.circular(radiusLg),
           border: Border.all(
-            color: isDark ? const Color(0xFF334155) : brandPrimary.withOpacity(0.16),
+            color: brandPrimary.withOpacity(0.16),
           ),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black.withOpacity(0.2) : profileTeal.withOpacity(0.08),
+              color: profileTeal.withOpacity(0.08),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -1797,10 +1796,10 @@ class _AppSettingsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.palette_outlined, color: brandPrimary, size: 22),
+                const Icon(Icons.settings_outlined, color: brandPrimary, size: 22),
                 const SizedBox(width: 8),
                 Text(
-                  "การตั้งค่าแอปพลิเคชัน & ธีม",
+                  "การตั้งค่าแอปพลิเคชัน",
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: textColor,
                         fontWeight: FontWeight.bold,
@@ -1808,40 +1807,7 @@ class _AppSettingsCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              "โหมดการแสดงผล (Theme Mode)",
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor.withOpacity(0.8)),
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<AppThemeMode>(
-              segments: const [
-                ButtonSegment(
-                  value: AppThemeMode.system,
-                  icon: Icon(Icons.brightness_auto, size: 18),
-                  label: Text("ระบบ"),
-                ),
-                ButtonSegment(
-                  value: AppThemeMode.light,
-                  icon: Icon(Icons.light_mode, size: 18),
-                  label: Text("สว่าง"),
-                ),
-                ButtonSegment(
-                  value: AppThemeMode.dark,
-                  icon: Icon(Icons.dark_mode, size: 18),
-                  label: Text("มืด"),
-                ),
-              ],
-              selected: {settings.themeMode},
-              onSelectionChanged: (Set<AppThemeMode> selected) {
-                if (selected.isNotEmpty) {
-                  settings.setThemeMode(selected.first);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            Divider(height: 1, color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             _SettingsSwitchRow(
               icon: Icons.volume_up_outlined,
               title: "เสียงสแกนบาร์โค้ด (Sound Feedback)",
@@ -1850,7 +1816,7 @@ class _AppSettingsCard extends StatelessWidget {
               textColor: textColor,
               onChanged: (val) => settings.setEnableSound(val),
             ),
-            Divider(height: 1, color: isDark ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFE2E8F0)),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
             _SettingsSwitchRow(
               icon: Icons.vibration_outlined,
               title: "ระบบการสั่น (Haptic Feedback)",

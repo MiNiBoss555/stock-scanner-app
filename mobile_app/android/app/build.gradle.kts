@@ -24,6 +24,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+
     defaultConfig {
         applicationId = "com.scanproduct.stockscanner"
         // You can update the following values to match your application needs.
@@ -31,7 +32,7 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionName = "1.0.9"
     }
 
     signingConfigs {

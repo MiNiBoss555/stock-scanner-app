@@ -7,7 +7,7 @@ class AppConfig {
 
   static const String _apiUrl = String.fromEnvironment(
     "API_URL",
-    defaultValue: "http://192.168.1.108:8000",
+    defaultValue: "http://192.168.1.112:8000",
   );
 
   static Future<void> loadCustomServerUrl() async {
@@ -52,6 +52,18 @@ class AppConfig {
       if (parsed != null &&
           (parsed.host == "127.0.0.1" || parsed.host == "localhost")) {
         return parsed.replace(host: "10.0.2.2").toString();
+      }
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final parsed = Uri.tryParse(_apiUrl);
+      if (parsed != null && parsed.host == "10.0.2.2") {
+        return parsed.replace(host: "127.0.0.1").toString();
+      }
+      // On Windows Desktop, if default _apiUrl is on a LAN IP that might not match,
+      // localhost / 127.0.0.1 is the primary local backend target unless custom URL is set.
+      if (_customServerUrl == null || _customServerUrl!.isEmpty) {
+        return "http://127.0.0.1:8000";
       }
     }
 

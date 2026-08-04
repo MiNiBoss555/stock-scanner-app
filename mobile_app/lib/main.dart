@@ -19,6 +19,7 @@ import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
 import "config.dart";
+import "server_scanner.dart";
 import "admin_page.dart";
 import "product_recycle_bin_page.dart";
 import "product_activity_log_page.dart";
@@ -175,6 +176,13 @@ String _normalizeFeedbackMessage(String message) {
   final repaired = _repairThaiMojibake(cleaned);
 
   final lowered = repaired.toLowerCase();
+  if (lowered.contains("socketexception") ||
+      lowered.contains("clientexception") ||
+      lowered.contains("connection refused") ||
+      lowered.contains("errno = 111") ||
+      lowered.contains("errno = 1225")) {
+    return "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาเปิดเซิร์ฟเวอร์บนคอมพิวเตอร์ เช็กว่าต่อ Wi-Fi เดียวกัน หรือกดเปลี่ยน IP เซิร์ฟเวอร์";
+  }
   if (repaired.contains("เซิร์ฟเวอร์") ||
       lowered.contains("server is taking longer") ||
       lowered.contains("responding more slowly") ||
@@ -335,6 +343,14 @@ class _StockScannerAppState extends State<StockScannerApp> {
     final savedUserId = prefs.getString(_sessionUserIdKey);
     final savedPin = prefs.getString(_sessionPinKey);
     final savedUserJson = prefs.getString(_sessionUserJsonKey);
+
+    if (!kIsWeb && !Platform.isWindows) {
+      unawaited(Future(() async {
+        if (!await ServerScanner.pingServer(AppConfig.baseUrl)) {
+          await ServerScanner.autoDiscoverServer();
+        }
+      }));
+    }
 
     if (savedToken != null &&
         savedToken.isNotEmpty &&
@@ -533,8 +549,6 @@ class _StockScannerAppState extends State<StockScannerApp> {
             title:
                 "\u0e41\u0e2d\u0e1b\u0e2a\u0e15\u0e4a\u0e2d\u0e01\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32",
             debugShowCheckedModeBanner: false,
-            themeMode: _appSettings.flutterThemeMode,
-            darkTheme: buildDarkThemeData(),
             theme: buildLightThemeData(),
             navigatorObservers: [_routeObserver],
 
@@ -1136,6 +1150,7 @@ class _StockHomePageState extends State<StockHomePage> {
           "page": (BuildContext context) => ProductSearchPage(
             api: widget.api,
             currentUser: widget.currentUser,
+            refreshSignal: _realtimeRevision,
             onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
           )
         },

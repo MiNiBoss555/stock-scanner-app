@@ -66,6 +66,10 @@ class StockApiService {
     }
   }
 
+  static String _connectionErrorMessage() {
+    return "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาเปิดเซิร์ฟเวอร์หรือตรวจสอบ URL (${AppConfig.baseUrl})";
+  }
+
   Future<http.Response> _postLogin(Map<String, dynamic> payload) async {
     try {
       return await http
@@ -76,8 +80,14 @@ class StockApiService {
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(
-          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 
@@ -89,9 +99,16 @@ class StockApiService {
             headers: _headers({"Content-Type": "application/json"}),
             body: jsonEncode(payload),
           )
-          .timeout(_requestTimeout);
+          .timeout(const Duration(seconds: 6));
     } on TimeoutException {
       throw Exception(_loginTimeoutMessage);
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 
@@ -105,8 +122,14 @@ class StockApiService {
           .get(_uri(path, queryParameters), headers: _headers(headers))
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(
-          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 
@@ -128,8 +151,14 @@ class StockApiService {
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(
-          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 
@@ -159,8 +188,14 @@ class StockApiService {
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(
-          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 
@@ -174,8 +209,14 @@ class StockApiService {
           .delete(_uri(path, queryParameters), headers: _headers(headers))
           .timeout(_requestTimeout);
     } on TimeoutException {
-      throw Exception(
-          "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+      throw Exception("เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่");
+    } on SocketException {
+      throw Exception(_connectionErrorMessage());
+    } catch (e) {
+      if (e.toString().contains("ClientException") || e.toString().contains("SocketException")) {
+        throw Exception(_connectionErrorMessage());
+      }
+      rethrow;
     }
   }
 

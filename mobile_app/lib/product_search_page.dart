@@ -2,6 +2,7 @@ import "dart:async";
 import "dart:io";
 
 import "package:excel/excel.dart" hide Border;
+import "package:flutter/foundation.dart" show ValueListenable;
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 import "package:mobile_scanner/mobile_scanner.dart" hide Barcode;
@@ -25,12 +26,14 @@ class ProductSearchPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.currentUser,
+    this.refreshSignal,
     this.onOpenProductDetails,
     this.guidanceMode,
   });
 
   final StockApiService api;
   final AppUser currentUser;
+  final ValueListenable<int>? refreshSignal;
   final void Function(BuildContext context, Product product)? onOpenProductDetails;
   final ProductSearchGuidanceMode? guidanceMode;
 
@@ -54,6 +57,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     _loadHistory();
     _checkSearchTip();
     _activeGuidanceMode = widget.guidanceMode;
+    widget.refreshSignal?.addListener(_load);
   }
 
   Future<void> _checkSearchTip() async {
@@ -78,6 +82,7 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
 
   @override
   void dispose() {
+    widget.refreshSignal?.removeListener(_load);
     _controller.dispose();
     super.dispose();
   }

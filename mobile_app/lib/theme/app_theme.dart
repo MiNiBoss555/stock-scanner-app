@@ -37,52 +37,24 @@ const double radiusXl = 28;
 const pagePadding = EdgeInsets.all(spaceMd);
 const cardPadding = EdgeInsets.all(spaceMd);
 
-// --- Settings & Theme State Management ---
-enum AppThemeMode { system, light, dark }
-
+// --- Settings State Management ---
 class AppSettings extends ChangeNotifier {
-  static const _prefThemeModeKey = "app_theme_mode";
   static const _prefSoundKey = "app_scan_sound";
   static const _prefHapticKey = "app_scan_haptic";
 
-  AppThemeMode _themeMode = AppThemeMode.system;
   bool _enableSound = true;
   bool _enableHaptic = true;
 
-  AppThemeMode get themeMode => _themeMode;
   bool get enableSound => _enableSound;
   bool get enableHaptic => _enableHaptic;
-
-  ThemeMode get flutterThemeMode {
-    switch (_themeMode) {
-      case AppThemeMode.light:
-        return ThemeMode.light;
-      case AppThemeMode.dark:
-        return ThemeMode.dark;
-      case AppThemeMode.system:
-        return ThemeMode.system;
-    }
-  }
 
   Future<void> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final modeStr = prefs.getString(_prefThemeModeKey) ?? "system";
-      _themeMode = AppThemeMode.values.firstWhere(
-        (e) => e.name == modeStr,
-        orElse: () => AppThemeMode.system,
-      );
       _enableSound = prefs.getBool(_prefSoundKey) ?? true;
       _enableHaptic = prefs.getBool(_prefHapticKey) ?? true;
       notifyListeners();
     } catch (_) {}
-  }
-
-  Future<void> setThemeMode(AppThemeMode mode) async {
-    _themeMode = mode;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefThemeModeKey, mode.name);
   }
 
   Future<void> setEnableSound(bool value) async {
@@ -216,109 +188,6 @@ ThemeData buildLightThemeData() {
   );
 }
 
-ThemeData buildDarkThemeData() {
-  const double radiusMd = 18;
-  const double spaceMd = 16;
-  return ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: brandPrimary,
-      primary: brandPrimary,
-      surface: darkCard,
-      brightness: Brightness.dark,
-    ),
-    scaffoldBackgroundColor: darkSurface,
-    cardColor: darkCard,
-    dialogBackgroundColor: darkCard,
-    fontFamily: GoogleFonts.prompt().fontFamily,
-    textTheme: GoogleFonts.promptTextTheme(
-      ThemeData.dark().textTheme.copyWith(
-        headlineSmall: const TextStyle(
-          fontSize: 28, fontWeight: FontWeight.w800,
-          color: darkTextPrimary, letterSpacing: -0.4,
-        ),
-        titleMedium: const TextStyle(
-          fontSize: 18, fontWeight: FontWeight.w700, color: darkTextPrimary,
-        ),
-        titleSmall: const TextStyle(
-          fontSize: 15, fontWeight: FontWeight.w700, color: darkTextPrimary,
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 14, height: 1.4, color: darkTextSecondary,
-        ),
-        bodySmall: TextStyle(
-          fontSize: 12, height: 1.35,
-          color: darkTextSecondary.withOpacity(0.80),
-        ),
-      ),
-    ),
-    listTileTheme: const ListTileThemeData(
-      tileColor: Colors.transparent,
-      selectedTileColor: Colors.transparent,
-    ),
-    cardTheme: CardThemeData(
-      color: darkCard,
-      elevation: 0,
-      shadowColor: Colors.black38,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: darkCardBorder.withOpacity(0.70)),
-      ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: const Color(0xFF1E3A5F),
-      contentTextStyle: const TextStyle(
-        color: Colors.white, fontSize: 14, height: 1.35,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radiusMd),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xFF1E293B),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: darkCardBorder.withOpacity(0.60)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: darkCardBorder.withOpacity(0.60)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(radiusMd)),
-        borderSide: const BorderSide(color: brandPrimary, width: 1.4),
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: spaceMd, vertical: spaceMd,
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: brandPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusMd),
-        ),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: brandPrimary,
-        side: const BorderSide(color: brandPrimary),
-        minimumSize: const Size.fromHeight(48),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusMd),
-        ),
-      ),
-    ),
-  );
-}
-
 
 enum SemanticStatus {
   neutral,
@@ -391,36 +260,12 @@ BoxDecoration softPanelDecoration({
   );
 }
 
-/// Dark-mode aware version: uses dark card color instead of white surface.
-BoxDecoration darkPanelDecoration({
-  Color tone = brandPrimary,
-  double radius = radiusLg,
-}) {
-  return BoxDecoration(
-    color: darkCard,
-    borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: darkCardBorder.withOpacity(0.80)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.22),
-        blurRadius: 18,
-        offset: const Offset(0, 8),
-      ),
-    ],
-  );
-}
-
-/// Returns [softPanelDecoration] for light mode and [darkPanelDecoration] for dark mode.
 BoxDecoration adaptivePanelDecoration(
   BuildContext context, {
   Color tone = brandPrimary,
   double surfaceStrength = 0.55,
   double radius = radiusLg,
 }) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  if (isDark) {
-    return darkPanelDecoration(tone: tone, radius: radius);
-  }
   return softPanelDecoration(
     tone: tone,
     surfaceStrength: surfaceStrength,

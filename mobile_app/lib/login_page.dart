@@ -5,6 +5,7 @@ import "package:flutter/services.dart" show FilteringTextInputFormatter;
 import "api_service.dart";
 import "config.dart";
 import "models.dart";
+import "server_scanner.dart";
 import "theme/app_theme.dart";
 
 DateTime? loginTapStart;
@@ -28,9 +29,33 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _userIdController = TextEditingController();
   final TextEditingController _pinController = TextEditingController();
   bool _isLoading = false;
+  bool _isScanningServer = false;
   bool _obscurePin = true;
   String? _userIdError;
   String? _pinError;
+
+  Future<void> _runAutoScan() async {
+    if (_isScanningServer) return;
+    setState(() {
+      _isScanningServer = true;
+    });
+    showAppSnack(context, "กำลังค้นหาเซิร์ฟเวอร์ในเครือข่าย Wi-Fi อัตโนมัติ...");
+
+    final result = await ServerScanner.autoDiscoverServer(
+      onProgress: (statusMsg) {
+        if (mounted) {
+          showAppSnack(context, statusMsg);
+        }
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isScanningServer = false;
+      });
+      showAppSnack(context, result.message, isError: !result.isSuccess);
+    }
+  }
 
   void _handleUserIdChanged(String value) {
     final normalized = value.toUpperCase().replaceAll(" ", "");
@@ -99,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final session = await widget.api
           .login(userId: userId, pin: pin)
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 6));
       authCompleteTime = DateTime.now();
       debugPrint("DEBUG TIMER: login tap to auth complete = ${authCompleteTime!.difference(loginTapStart!).inMilliseconds} ms");
       await widget.onLogin(session);
@@ -228,6 +253,28 @@ class _LoginPageState extends State<LoginPage> {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                              foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                              minimumSize: const Size.fromHeight(42),
+                            ),
+                            onPressed: _isScanningServer ? null : _runAutoScan,
+                            icon: _isScanningServer
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.wifi_find_rounded, size: 18),
+                            label: Text(
+                              _isScanningServer
+                                  ? "กำลังค้นหาเซิร์ฟเวอร์ใน Wi-Fi..."
+                                  : "🔍 ค้นหาเซิร์ฟเวอร์ใน Wi-Fi อัตโนมัติ",
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           OutlinedButton.icon(
                             onPressed: _showServerConfigDialog,
                             icon: const Icon(Icons.settings_ethernet_rounded, size: 18),
@@ -235,6 +282,14 @@ class _LoginPageState extends State<LoginPage> {
                               "เซิร์ฟเวอร์: ${AppConfig.baseUrl}",
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "v1.0.9",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).colorScheme.outline,
                             ),
                           ),
                         ],
