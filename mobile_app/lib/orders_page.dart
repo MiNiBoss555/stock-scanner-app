@@ -123,18 +123,17 @@ class _OrdersPageState extends State<OrdersPage> {
                   const _ReceiptDivider(),
                   const SizedBox(height: 8),
                   _receiptRow("สถานะ", statusLabel),
-      _receiptRow("ขั้นตอน", _workflowStatusLabel(order.orderWorkflowStatus)),
-      if ((order.orderWorkflowStatus == "rejected_board" || order.orderWorkflowStatus == "rejected_robot") &&
-          order.orderWorkflowNote != null &&
-          order.orderWorkflowNote!.isNotEmpty)
-        _receiptRow("หมายเหตุ QC", order.orderWorkflowNote!, bold: true, valueColor: Colors.redAccent),
                   _receiptRow("ผู้รับออเดอร์", order.createdByName),
                   _receiptRow(
                       "ผู้ส่ง", order.assignedToName ?? "ยังไม่มอบหมาย"),
-                  _receiptRow("ฝ่ายผลิตบอร์ด", _formatUserDisplay(order.boardProductionUserName, order.boardProductionUserId)),
-                  _receiptRow("ฝ่ายผลิตหุ่นยนต์", _formatUserDisplay(order.robotProductionUserName, order.robotProductionUserId)),
-                  _receiptRow("QC", _formatUserDisplay(order.qcUserName, order.qcUserId)),
-                  _receiptRow("จัดส่ง", _formatUserDisplay(order.deliveryUserName, order.deliveryUserId)),
+                  if ((order.boardProductionUserName ?? "").isNotEmpty)
+                    _receiptRow("ฝ่ายผลิตบอร์ด", order.boardProductionUserName!),
+                  if ((order.robotProductionUserName ?? "").isNotEmpty)
+                    _receiptRow("ฝ่ายผลิตหุ่นยนต์", order.robotProductionUserName!),
+                  if ((order.qcUserName ?? "").isNotEmpty)
+                    _receiptRow("QC", order.qcUserName!),
+                  if ((order.deliveryUserName ?? "").isNotEmpty)
+                    _receiptRow("จัดส่ง", order.deliveryUserName!),
                   if (order.customerPhone != null &&
                       order.customerPhone!.isNotEmpty)
                     _receiptRow("โทร", order.customerPhone!),
@@ -3356,43 +3355,21 @@ class _OrderTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                if ((order.orderWorkflowStatus ?? "").isEmpty ||
-                    order.orderWorkflowStatus == "assigned" ||
-                    order.orderWorkflowStatus == "in_production")
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _statusTone().withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      _statusLabel(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _statusTone(),
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: semanticStatusSurface(
-                        _workflowStatusSemantic(order.orderWorkflowStatus),
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      _workflowStatusLabel(order.orderWorkflowStatus),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: semanticStatusTone(
-                              _workflowStatusSemantic(order.orderWorkflowStatus),
-                            ),
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _statusTone().withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
                   ),
+                  child: Text(
+                    _statusLabel(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _statusTone(),
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),

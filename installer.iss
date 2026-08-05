@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Stock Scanner"
-#define MyAppVersion "1.0.12"
+#define MyAppVersion "1.0.16"
 #define MyAppPublisher "PrinceBot.Co.,Ltd"
 #define MyAppExeName "stock_scanner_mobile.exe"
 
@@ -33,7 +33,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\my-api
-OutputBaseFilename=StockScannerSetup-v1.0.11
+OutputBaseFilename=StockScannerSetup-v1.0.16
 SetupIconFile=C:\my-api\mobile_app\windows\runner\resources\app_icon.ico
 SolidCompression=yes
 WizardStyle=classic windows11
