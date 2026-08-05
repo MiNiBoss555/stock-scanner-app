@@ -3094,9 +3094,7 @@ class _OrderTile extends StatelessWidget {
         (order.productionUserName ?? "").trim().isNotEmpty;
     final qcAssigned = (order.qcUserId ?? "").isNotEmpty ||
         (order.qcUserName ?? "").trim().isNotEmpty;
-    // If the team didn't explicitly assign QC, still allow QC-role staff/admin
-    // to see and claim QC steps.
-    final qcEnabled = qcAssigned || currentUser.isAdmin || isQcRole;
+    final qcEnabled = qcAssigned;
     final canMarkDelivered = proofCount > 0;
     final deliveredCount = order.items
         .where((item) => item.deliveredQuantity >= item.quantity)
