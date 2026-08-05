@@ -270,3 +270,35 @@ def test_order_board_robot_production_assignment_persistence(api_context: dict) 
     assert matched["robot_production_user_id"] == "EMP001"
 
 
+def test_delivery_reminders_calculation(api_context: dict) -> None:
+    module = api_context["module"]
+    from datetime import datetime, timezone, timedelta
+
+    # Prepare a test order
+    now = datetime.now(timezone(timedelta(hours=7)))
+    past_delivery = now - timedelta(days=2)
+
+    test_order = module.Order(
+        id="ORD-TEST-REMINDER",
+        customer_name="Test Customer Reminders",
+        scheduled_delivery_at=past_delivery,
+        status=module.OrderStatus.NEW,
+        created_by_id="EMP001",
+        created_by_name="Admin",
+        items=[],
+        created_at=now,
+        updated_at=now
+    )
+
+    module.orders.append(test_order)
+
+    try:
+        reminders = module.check_and_get_delivery_reminders()
+        # Verify function executes properly and returns structured reminder list
+        assert isinstance(reminders, list)
+    finally:
+        if test_order in module.orders:
+            module.orders.remove(test_order)
+
+
+

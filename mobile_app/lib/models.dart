@@ -486,6 +486,27 @@ class DeliveryOrder {
   final String? trackingNumber;
   final String orderWorkflowStatus;
   final String? orderWorkflowNote;
+
+  bool get isOverdue {
+    if (status == "delivered" || status == "cancelled" || scheduledDeliveryAt == null) {
+      return false;
+    }
+    return DateTime.now().isAfter(scheduledDeliveryAt!);
+  }
+
+  int get overdueDays {
+    if (!isOverdue || scheduledDeliveryAt == null) return 0;
+    final now = DateTime.now();
+    final diff = now.difference(scheduledDeliveryAt!).inDays;
+    return diff <= 0 ? 1 : diff;
+  }
+
+  int get daysUntilDelivery {
+    if (scheduledDeliveryAt == null) return 0;
+    final now = DateTime.now();
+    final diff = scheduledDeliveryAt!.difference(now).inDays;
+    return diff;
+  }
 }
 
 class ProductActivityLog {

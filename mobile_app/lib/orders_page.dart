@@ -140,9 +140,64 @@ class _OrdersPageState extends State<OrdersPage> {
                   if (order.customerAddress != null &&
                       order.customerAddress!.isNotEmpty)
                     _receiptRow("ที่อยู่", order.customerAddress!),
-                  if (order.scheduledDeliveryAt != null)
+                  if (order.scheduledDeliveryAt != null) ...[
                     _receiptRow(
                         "กำหนดส่ง", _fmtDateTime(order.scheduledDeliveryAt!)),
+                    if (order.isOverdue)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            border: Border.all(color: Colors.red.shade400),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                "🚨 เกินกำหนดส่งมาแล้ว ${order.overdueDays} วัน!",
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (order.daysUntilDelivery == 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            border: Border.all(color: Colors.orange.shade400),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time_filled_rounded, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              const Text(
+                                "⚠️ เหลือเวลาอีก 1 วันจะถึงกำหนดส่ง",
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: () {
