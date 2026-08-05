@@ -242,6 +242,18 @@ class StockApiService {
     return body["barcode"] as String? ?? "";
   }
 
+  Future<Product?> getProductByBarcode(String barcode) async {
+    final code = barcode.trim();
+    if (code.isEmpty) return null;
+    final allProducts = await getProducts(includeInactive: true);
+    for (final p in allProducts) {
+      if (p.barcode == code || (p.sku != null && p.sku == code)) {
+        return p;
+      }
+    }
+    return null;
+  }
+
   Future<List<AppUser>> getUsers({bool activeOnly = true}) async {
     final response =
         await _get("/users", {"active_only": activeOnly.toString()});

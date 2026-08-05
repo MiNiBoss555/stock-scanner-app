@@ -1092,6 +1092,7 @@ class _StockHomePageState extends State<StockHomePage> {
         "page": (BuildContext context) => ScanPage(
           api: widget.api,
           currentUser: widget.currentUser,
+          isActive: _currentIndex == 1,
           onOpenProductDetails: (context, product) => showProductCodeSheet(context, product),
         )
       },
@@ -1192,7 +1193,13 @@ class _StockHomePageState extends State<StockHomePage> {
     final pages = <Widget>[];
     for (int i = 0; i < menuItems.length; i++) {
       if (i == 0 || _loadedTabs.contains(i)) {
-        pages.add(menuItems[i]["page"](context) as Widget);
+        final widgetChild = menuItems[i]["page"](context) as Widget;
+        pages.add(
+          KeyedSubtree(
+            key: ValueKey("tab_page_$i"),
+            child: widgetChild,
+          ),
+        );
       } else {
         pages.add(const SizedBox.shrink());
       }

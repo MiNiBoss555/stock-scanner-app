@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Stock Scanner"
-#define MyAppVersion "1.0.11"
+#define MyAppVersion "1.0.12"
 #define MyAppPublisher "PrinceBot.Co.,Ltd"
 #define MyAppExeName "stock_scanner_mobile.exe"
 

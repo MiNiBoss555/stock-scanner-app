@@ -3449,21 +3449,27 @@ class _OrderTile extends StatelessWidget {
             Text(
               "ผู้ส่ง (ผู้รับผิดชอบ): ${order.assignedToName ?? "ยังไม่ระบุ"}${(order.assignedToId ?? "").isNotEmpty ? " (${order.assignedToId})" : ""}",
             ),
-            if (order.lastHandoffFrom != null &&
-                order.lastHandoffTo != null &&
+            if ((order.lastHandoffFrom ?? "").isNotEmpty &&
+                (order.lastHandoffTo ?? "").isNotEmpty &&
                 order.lastHandoffAt != null)
               Text(
                 "ล่าสุด: ${order.lastHandoffFrom} -> ${order.lastHandoffTo} • ${_fmtOrderDateTime(order.lastHandoffAt!)}",
               ),
-            Text(
-              "ฝ่ายผลิตบอร์ด: ${(order.boardProductionUserName ?? "-")}${(order.boardProductionUserId ?? "").isNotEmpty ? " (${order.boardProductionUserId})" : ""}",
-            ),
-            Text(
-              "ฝ่ายผลิตหุ่นยนต์: ${(order.robotProductionUserName ?? "-")}${(order.robotProductionUserId ?? "").isNotEmpty ? " (${order.robotProductionUserId})" : ""}",
-            ),
-            Text(
-              "QC: ${(order.qcUserName ?? "-")}${(order.qcUserId ?? "").isNotEmpty ? " (${order.qcUserId})" : ""}",
-            ),
+            if ((order.boardProductionUserName ?? "").isNotEmpty ||
+                (order.boardProductionUserId ?? "").isNotEmpty)
+              Text(
+                "ฝ่ายผลิตบอร์ด: ${(order.boardProductionUserName ?? "-")}${(order.boardProductionUserId ?? "").isNotEmpty ? " (${order.boardProductionUserId})" : ""}",
+              ),
+            if ((order.robotProductionUserName ?? "").isNotEmpty ||
+                (order.robotProductionUserId ?? "").isNotEmpty)
+              Text(
+                "ฝ่ายผลิตหุ่นยนต์: ${(order.robotProductionUserName ?? "-")}${(order.robotProductionUserId ?? "").isNotEmpty ? " (${order.robotProductionUserId})" : ""}",
+              ),
+            if ((order.qcUserName ?? "").isNotEmpty ||
+                (order.qcUserId ?? "").isNotEmpty)
+              Text(
+                "QC: ${(order.qcUserName ?? "-")}${(order.qcUserId ?? "").isNotEmpty ? " (${order.qcUserId})" : ""}",
+              ),
             if ((order.orderWorkflowStatus == "rejected_board" || order.orderWorkflowStatus == "rejected_robot") &&
                 order.orderWorkflowNote != null &&
                 order.orderWorkflowNote!.isNotEmpty)
@@ -3477,9 +3483,11 @@ class _OrderTile extends StatelessWidget {
                       ),
                 ),
               ),
-            Text(
-              "จัดส่ง: ${(order.deliveryUserName ?? "-")}${(order.deliveryUserId ?? "").isNotEmpty ? " (${order.deliveryUserId})" : ""}",
-            ),
+            if ((order.deliveryUserName ?? "").isNotEmpty ||
+                (order.deliveryUserId ?? "").isNotEmpty)
+              Text(
+                "จัดส่ง: ${(order.deliveryUserName ?? "-")}${(order.deliveryUserId ?? "").isNotEmpty ? " (${order.deliveryUserId})" : ""}",
+              ),
             if (order.productionUserName != null && order.productionUserName!.isNotEmpty)
               Text(
                 "ฝ่ายผลิตเดิม: ${order.productionUserName}${(order.productionUserId ?? "").isNotEmpty ? " (${order.productionUserId})" : ""}",
