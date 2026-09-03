@@ -66,7 +66,7 @@ void main() {
     expect(find.byType(BarcodeWidget), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.byIcon(Icons.print_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.ios_share_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.share_rounded), findsOneWidget);
     expect(find.byIcon(Icons.copy_all_outlined), findsOneWidget);
   });
 

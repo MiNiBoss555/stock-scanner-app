@@ -274,7 +274,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap on active order card/listtile to open preview bottom sheet
-      final orderItem = find.text("Alice Smith").first;
+      final orderItem = find.textContaining("Alice Smith").first;
       await tester.tap(orderItem);
       await tester.pump(); // Open sheet
       await tester.pump(const Duration(milliseconds: 200));
@@ -292,8 +292,8 @@ void main() {
       // Verify chat callback triggered
       expect(openOrderChatCalled, isTrue);
 
-      // Verify tapping Action Banner triggers onOpenOrdersTab
-      final actionBanner = find.text("งานค้างส่ง 1 ออเดอร์");
+      // Verify tapping "จัดการ" button triggers onOpenOrdersTab
+      final actionBanner = find.text("จัดการ").first;
       expect(actionBanner, findsOneWidget);
       await tester.tap(actionBanner);
       await tester.pump();

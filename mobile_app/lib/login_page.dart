@@ -286,7 +286,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "v1.0.11",
+                            "v1.0.19",
                             style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context).colorScheme.outline,

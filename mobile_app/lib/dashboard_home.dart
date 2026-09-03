@@ -1,3 +1,4 @@
+import "dart:ui" show PointerDeviceKind;
 import "package:google_fonts/google_fonts.dart";
 import "package:flutter/foundation.dart" show kIsWeb;
 import "package:flutter/material.dart";
@@ -174,18 +175,10 @@ class MobileDashboardHome extends StatelessWidget {
           if (latestOrders.isEmpty)
             const _EmptyTile(message: "ยังไม่มีรายการออเดอร์")
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: latestOrders.map((order) {
-                  return _SharedReceiptBillCard(
-                    order: order,
-                    onOpenOrdersTab: onOpenOrdersTab,
-                  );
-                }).toList(),
-              ),
+            _HorizontalReceiptBillList(
+              orders: latestOrders,
+              onOpenOrdersTab: onOpenOrdersTab,
+              onOpenOrderPreview: onOpenOrderPreview,
             ),
           const SizedBox(height: 18),
         ],
@@ -194,14 +187,113 @@ class MobileDashboardHome extends StatelessWidget {
   }
 }
 
+class _HorizontalReceiptBillList extends StatefulWidget {
+  const _HorizontalReceiptBillList({
+    required this.orders,
+    required this.onOpenOrdersTab,
+    this.onOpenOrderPreview,
+  });
+
+  final List<DeliveryOrder> orders;
+  final VoidCallback onOpenOrdersTab;
+  final Future<void> Function(DeliveryOrder order)? onOpenOrderPreview;
+
+  @override
+  State<_HorizontalReceiptBillList> createState() => _HorizontalReceiptBillListState();
+}
+
+class _HorizontalReceiptBillListState extends State<_HorizontalReceiptBillList> {
+  final ScrollController _scrollController = ScrollController();
+
+  void _scroll(double delta) {
+    if (!_scrollController.hasClients) return;
+    final newOffset = (_scrollController.offset + delta).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    _scrollController.animateTo(
+      newOffset,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.orders.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton.filledTonal(
+                  onPressed: () => _scroll(-320),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  tooltip: "เลื่อนทางซ้าย",
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: () => _scroll(320),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  tooltip: "เลื่อนทางขวา",
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+        ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+            },
+          ),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: widget.orders.map((order) {
+                return _SharedReceiptBillCard(
+                  order: order,
+                  onOpenOrdersTab: widget.onOpenOrdersTab,
+                  onOpenOrderPreview: widget.onOpenOrderPreview,
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SharedReceiptBillCard extends StatelessWidget {
   const _SharedReceiptBillCard({
     required this.order,
     required this.onOpenOrdersTab,
+    this.onOpenOrderPreview,
   });
 
   final DeliveryOrder order;
   final VoidCallback onOpenOrdersTab;
+  final Future<void> Function(DeliveryOrder order)? onOpenOrderPreview;
 
   int? _daysUntilDue(DeliveryOrder order) {
     final dueAt = order.scheduledDeliveryAt;
@@ -423,7 +515,10 @@ class _SharedReceiptBillCard extends StatelessWidget {
       );
     }
 
-    return Container(
+    return InkWell(
+      onTap: onOpenOrderPreview != null ? () => onOpenOrderPreview!(order) : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
       width: 290,
       margin: const EdgeInsets.only(right: 14, bottom: 12, top: 4),
       decoration: BoxDecoration(
@@ -495,11 +590,14 @@ class _SharedReceiptBillCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.access_time_rounded, size: 12, color: Colors.black54),
                         const SizedBox(width: 4),
-                        Text(
-                          "กำหนดส่ง: ${formatDateTime(displayDue)}",
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black87,
+                        Expanded(
+                          child: Text(
+                            "กำหนดส่ง: ${formatDateTime(displayDue)}",
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (dueTone != null) ...[
@@ -564,21 +662,30 @@ class _SharedReceiptBillCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: brandPrimary.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _statusLabel(order.orderWorkflowStatus),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: brandPrimary,
+                (() {
+                  String effectivePillStatus = _statusLabel(order.orderWorkflowStatus);
+                  if (order.orderWorkflowStatus == "pending_board" && assignedSteps.isNotEmpty && activeStep >= 0 && activeStep < steps.length) {
+                    final activeStepIndex = steps[activeStep]["index"] as int;
+                    if (activeStepIndex == 1) effectivePillStatus = "รอผลิตหุ่นยนต์";
+                    if (activeStepIndex == 2) effectivePillStatus = "รอตรวจ QC";
+                    if (activeStepIndex == 3) effectivePillStatus = "รอจัดส่ง";
+                  }
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: brandPrimary.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                  ),
-                ),
+                    child: Text(
+                      effectivePillStatus,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: brandPrimary,
+                      ),
+                    ),
+                  );
+                })(),
                 TextButton.icon(
                   onPressed: () => onOpenOrdersTab(),
                   icon: const Icon(Icons.arrow_forward, size: 12),
@@ -594,6 +701,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -686,18 +794,9 @@ class WebDashboardHome extends StatelessWidget {
         if (data.activeOrders.isEmpty)
           const _EmptyTile(message: "ยังไม่มีออเดอร์ค้างส่ง")
         else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: data.activeOrders.map((order) {
-                return _SharedReceiptBillCard(
-                  order: order,
-                  onOpenOrdersTab: onOpenOrdersTab,
-                );
-              }).toList(),
-            ),
+          _HorizontalReceiptBillList(
+            orders: data.activeOrders,
+            onOpenOrdersTab: onOpenOrdersTab,
           ),
         const SizedBox(height: 28),
         const _DashboardSectionHeader(

@@ -33,6 +33,11 @@ class FakeScanStockApiService extends StockApiService {
   }
 
   @override
+  Future<Product?> getProductByBarcode(String barcode) async {
+    return null;
+  }
+
+  @override
   Future<ScanResult> submitScan({
     required String barcode,
     required String action,
@@ -209,11 +214,27 @@ void main() {
       configureViewport(tester);
       await tester.pumpWidget(buildTestWidget());
 
-      // Populate scanner inputs
-      await tester.enterText(find.widgetWithText(TextField, "Barcode"), "STK123");
-      await tester.enterText(find.widgetWithText(TextField, "จำนวน"), "5");
-      await tester.enterText(find.widgetWithText(TextField, "เลขความปลอดภัย/อ้างอิง"), "REF111");
-      await tester.enterText(find.widgetWithText(TextField, "หมายเหตุ"), "Some note here");
+      // Populate scanner inputs by hintText matching with explicit focus taps
+      final barcodeField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == "เช่น STK000001");
+      final qtyField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == "1");
+      final refField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == "ถ้ามี");
+      final noteField = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == "รายละเอียดเพิ่ม");
+
+      await tester.tap(barcodeField);
+      await tester.pump();
+      await tester.enterText(barcodeField, "STK123");
+
+      await tester.tap(qtyField);
+      await tester.pump();
+      await tester.enterText(qtyField, "5");
+
+      await tester.tap(refField);
+      await tester.pump();
+      await tester.enterText(refField, "REF111");
+
+      await tester.tap(noteField);
+      await tester.pump();
+      await tester.enterText(noteField, "Some note here");
 
       // Verify action segmented buttons and tap Out (จ่ายออก)
       await tester.tap(find.text("จ่ายออก"));

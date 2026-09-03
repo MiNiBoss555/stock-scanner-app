@@ -187,8 +187,10 @@ void main() {
     expect(find.text("เพิ่มผู้ใช้งาน"), findsOneWidget);
     expect(find.text("รายชื่อผู้ใช้งาน"), findsOneWidget);
 
-    // Verify both users are displayed in the list
-    expect(find.text("สมชาย มีสุข"), findsWidgets);
+    // Scroll down to reveal user list section
+    final userFinder = find.text("สมชาย มีสุข");
+    await tester.scrollUntilVisible(userFinder, 100, scrollable: find.byType(Scrollable).first);
+    expect(userFinder, findsWidgets);
   });
 
   testWidgets("ProfilePage triggers logout callback", (WidgetTester tester) async {

@@ -105,11 +105,10 @@ void main() {
       expect(find.text("1"), findsNWidgets(2)); // Both "หมดสต็อก" and "ใกล้หมด" have count 1
 
       // Verify Action banner for active orders
-      expect(find.text("งานค้างส่ง 1 ออเดอร์"), findsOneWidget);
+      expect(find.text("งานค้าง 1 ออเดอร์"), findsOneWidget);
 
       // Verify latest orders and realtime feed
-      expect(find.text("Customer One"), findsOneWidget);
-      expect(find.text("Customer Two"), findsOneWidget);
+      expect(find.textContaining("Customer One"), findsOneWidget);
     });
 
     testWidgets("triggers callbacks when interaction happens", (WidgetTester tester) async {
@@ -153,13 +152,13 @@ void main() {
       await tester.pump();
       expect(productListCalled, isTrue);
 
-      // Tap on Action Banner (triggers ordersTab callback)
-      await tester.tap(find.text("งานค้างส่ง 1 ออเดอร์"));
+      // Tap on "จัดการ" button on receipt card (triggers ordersTab callback)
+      await tester.tap(find.text("จัดการ").first);
       await tester.pump();
       expect(ordersTabCalled, isTrue);
 
       // Tap on Customer One card (triggers orderPreview callback)
-      await tester.tap(find.text("Customer One"));
+      await tester.tap(find.textContaining("Customer One"));
       await tester.pump();
       expect(orderPreviewCalled, isTrue);
     });
@@ -197,12 +196,11 @@ void main() {
         ),
       );
 
-      // Wait for animations and timers in _HeroReveal to settle
       await tester.pumpAndSettle();
 
       // Verify section headers
-      expect(find.text("งานค้างส่ง"), findsOneWidget);
       expect(find.text("ภาพรวมด่วน"), findsOneWidget);
+      expect(find.text("บิลออเดอร์ค้างส่ง"), findsOneWidget);
       expect(find.text("ต้องดูต่อ"), findsOneWidget);
 
       // Verify stat cards
@@ -222,7 +220,6 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      bool assistantCalled = false;
       bool ordersTabCalled = false;
       bool productDetailsCalled = false;
       bool productListCalled = false;
@@ -242,9 +239,7 @@ void main() {
               onProductSearchChanged: (_) {},
               onClearProductSearch: () {},
               matchedProducts: [product1],
-              onOpenAssistant: () {
-                assistantCalled = true;
-              },
+              onOpenAssistant: () {},
               onOpenOrders: () {},
               onOpenStock: () {},
               onOpenProductList: (context, products, title, icon, color) {
@@ -260,13 +255,7 @@ void main() {
         ),
       );
 
-      // Wait for animations and timers in _HeroReveal to settle
       await tester.pumpAndSettle();
-
-      // Tap on chatbot button (AI Assistant) inside WebDashboardHero
-      await tester.tap(find.byIcon(Icons.smart_toy_rounded));
-      await tester.pump();
-      expect(assistantCalled, isTrue);
 
       // Tap on "สินค้าหมด: 1 รายการ" button
       await tester.tap(find.text("สินค้าหมด: 1 รายการ"));

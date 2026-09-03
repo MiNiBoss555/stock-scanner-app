@@ -4048,7 +4048,7 @@ Map<String, String?> parseCustomerOcr(String rawText) {
 String repairThaiMojibakeSafe(String value) {
   var repaired = value;
   bool looksMojibake(String s) {
-    return RegExp(r"(ร ยธ|ร ยน|ร)").hasMatch(s);
+    return RegExp(r"(à¸|à¹|ร ยธ|ร ยน|รƒ)").hasMatch(s);
   }
 
   int cp1252Map(int code) {

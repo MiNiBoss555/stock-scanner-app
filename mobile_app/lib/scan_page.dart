@@ -94,6 +94,11 @@ class _ScanPageState extends State<ScanPage> {
   bool _handleHardwareKey(KeyEvent event) {
     if (!mounted) return false;
     if (event is! KeyDownEvent) return false;
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus != _keyboardFocusNode) {
+      _hardwareScanBuffer = "";
+      return false;
+    }
 
     final now = DateTime.now();
     // Allow up to 300ms between key presses (some scanners sending characters with slight delays)
@@ -104,8 +109,8 @@ class _ScanPageState extends State<ScanPage> {
 
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final scannedCode = _hardwareScanBuffer.trim();
-      if (scannedCode.length >= 2) {
+      if (_hardwareScanBuffer.length >= 2) {
+        final scannedCode = _hardwareScanBuffer;
         _hardwareScanBuffer = "";
         _playScanFeedback();
         setState(() {
