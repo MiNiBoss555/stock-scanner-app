@@ -340,7 +340,9 @@ class _SharedReceiptBillCard extends StatelessWidget {
       case "rejected_robot":
         return "ตก QC หุ่นยนต์";
       case "pending_delivery":
-        return "รอจัดส่ง";
+      case "out_for_delivery":
+      case "delivery":
+        return "กำลังส่ง";
       case "delivered":
         return "ส่งแล้ว";
       default:
@@ -356,6 +358,8 @@ class _SharedReceiptBillCard extends StatelessWidget {
       case "pending_qc":
         return 2;
       case "pending_delivery":
+      case "out_for_delivery":
+      case "delivery":
       case "delivered":
         return 3;
       default:
@@ -415,7 +419,10 @@ class _SharedReceiptBillCard extends StatelessWidget {
     }).toList();
 
     final steps = assignedSteps.isEmpty ? allPossibleSteps : assignedSteps;
-    final originalActiveIndex = _getActiveStep(order.orderWorkflowStatus);
+    final effectiveStatus = (order.status == "out_for_delivery" || order.status == "delivery" || order.status == "delivered")
+        ? order.status
+        : order.orderWorkflowStatus;
+    final originalActiveIndex = _getActiveStep(effectiveStatus);
     
     int activeStep = 0;
     if (assignedSteps.isNotEmpty) {
@@ -663,12 +670,18 @@ class _SharedReceiptBillCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 (() {
-                  String effectivePillStatus = _statusLabel(order.orderWorkflowStatus);
-                  if (order.orderWorkflowStatus == "pending_board" && assignedSteps.isNotEmpty && activeStep >= 0 && activeStep < steps.length) {
+                  String effectivePillStatus = _statusLabel(order.status == "out_for_delivery" || order.status == "delivery" || order.status == "delivered" ? order.status : order.orderWorkflowStatus);
+                  if ((order.orderWorkflowStatus == "pending_board" || order.orderWorkflowStatus.isEmpty) &&
+                      order.status != "out_for_delivery" &&
+                      order.status != "delivery" &&
+                      order.status != "delivered" &&
+                      assignedSteps.isNotEmpty &&
+                      activeStep >= 0 &&
+                      activeStep < steps.length) {
                     final activeStepIndex = steps[activeStep]["index"] as int;
                     if (activeStepIndex == 1) effectivePillStatus = "รอผลิตหุ่นยนต์";
                     if (activeStepIndex == 2) effectivePillStatus = "รอตรวจ QC";
-                    if (activeStepIndex == 3) effectivePillStatus = "รอจัดส่ง";
+                    if (activeStepIndex == 3) effectivePillStatus = "กำลังส่ง";
                   }
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
