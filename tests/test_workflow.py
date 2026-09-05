@@ -169,3 +169,39 @@ def test_workflow_endpoint(api_context: dict) -> None:
     assert res_order["order_workflow_status"] == "pending_delivery"
     assert res_order["status"] == "preparing"  # legacy status synced
     assert res_order["delivery_user_id"] == "EMP_DELIVERY"  # auto-claim
+
+
+def test_cannot_update_workflow_on_cancelled_order(api_context: dict) -> None:
+    client = api_context["client"]
+    admin_token = login_and_get_token(client, user_id="EMP001", pin="1234")
+    
+    create_response = client.post(
+        "/orders",
+        headers=auth_headers(admin_token),
+        json={
+            "customer_name": "Cancelled Customer",
+            "items": [
+                {"barcode": "8850001110012", "quantity": 1},
+            ],
+        },
+    )
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+    
+    # Cancel the order
+    cancel_response = client.post(
+        f"/orders/{order_id}/status",
+        headers=auth_headers(admin_token),
+        json={"status": "cancelled"},
+    )
+    assert cancel_response.status_code == 200
+    
+    # Workflow update should return 400
+    wf_response = client.post(
+        f"/orders/{order_id}/workflow",
+        headers=auth_headers(admin_token),
+        json={"action": "send_to_robot"},
+    )
+    assert wf_response.status_code == 400
+    assert "Cannot update workflow on a cancelled order" in wf_response.json()["detail"]
+
