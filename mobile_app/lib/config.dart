@@ -28,6 +28,7 @@ class AppConfig {
         _customServerUrl = null;
         await prefs.remove(_prefServerUrlKey);
       } else {
+        _validateTransport(trimmed);
         _customServerUrl = trimmed;
         await prefs.setString(_prefServerUrlKey, trimmed);
       }
@@ -36,7 +37,7 @@ class AppConfig {
 
   static String get baseUrl {
     if (_customServerUrl != null && _customServerUrl!.isNotEmpty) {
-      return _customServerUrl!;
+      return _validated(_customServerUrl!);
     }
 
     if (kIsWeb) {
@@ -44,7 +45,7 @@ class AppConfig {
       if (base.scheme.startsWith("http")) {
         return "${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}";
       }
-      return _apiUrl;
+      return _validated(_apiUrl);
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
@@ -67,6 +68,24 @@ class AppConfig {
       }
     }
 
-    return _apiUrl;
+    return _validated(_apiUrl);
+  }
+
+  static String _validated(String value) {
+    _validateTransport(value);
+    return value.replaceFirst(RegExp(r"/+$"), "");
+  }
+
+  static void _validateTransport(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw StateError("API_URL must be an absolute URL.");
+    }
+    if (kReleaseMode && uri.scheme != "https") {
+      throw StateError("Release builds require an HTTPS API_URL.");
+    }
+    if (!kReleaseMode && uri.scheme != "https" && uri.scheme != "http") {
+      throw StateError("Development API_URL must use HTTP or HTTPS.");
+    }
   }
 }

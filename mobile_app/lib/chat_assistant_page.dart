@@ -263,7 +263,7 @@ class _ChatAssistantPageState extends State<ChatAssistantPage> {
                     // on some devices/emulators. DropdownButtonFormField is more stable here.
                     child: DropdownButtonFormField<String>(
                       isExpanded: true,
-                      value: (selectedBarcode != null &&
+                      initialValue: (selectedBarcode != null &&
                               products.any((p) => p.barcode == selectedBarcode))
                           ? selectedBarcode
                           : null,
@@ -661,7 +661,7 @@ class _ChatBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: message.isUser
                     ? null
-                    : Border.all(color: brandPrimary.withOpacity(0.12)),
+                    : Border.all(color: brandPrimary.withValues(alpha: 0.12)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,7 +744,7 @@ class _ChatMetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: tone.withOpacity(0.12),
+        color: tone.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -779,10 +779,10 @@ class _PageHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: BorderRadius.circular(radiusXl),
-        border: Border.all(color: brandPrimary.withOpacity(0.16)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.16)),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.10),
+            color: brandPrimary.withValues(alpha: 0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -797,7 +797,7 @@ class _PageHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back_rounded),
               color: brandDeep,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.82),
+                backgroundColor: Colors.white.withValues(alpha: 0.82),
               ),
             ),
             const SizedBox(height: spaceXs),
@@ -812,7 +812,7 @@ class _PageHeader extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: brandInk.withOpacity(0.82),
+                  color: brandInk.withValues(alpha: 0.82),
                 ),
           ),
           const SizedBox(height: spaceSm),
@@ -865,7 +865,7 @@ class _ProductTile extends StatelessWidget {
         leading: CircleAvatar(
           radius: 18,
           backgroundColor: (product.isLowStock ? brandPrimary : brandDeep)
-              .withOpacity(0.10),
+              .withValues(alpha: 0.10),
           child: Icon(
             product.isLowStock
                 ? Icons.warning_amber_rounded

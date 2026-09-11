@@ -149,7 +149,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
                       borderRadius: BorderRadius.circular(16),
                       border: isMe
                           ? null
-                          : Border.all(color: brandPrimary.withOpacity(0.22)),
+                          : Border.all(color: brandPrimary.withValues(alpha: 0.22)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +158,7 @@ class _OrderChatPageState extends State<OrderChatPage> {
                           item.userName,
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: textColor.withOpacity(0.85),
+                                    color: textColor.withValues(alpha: 0.85),
                                     fontWeight: FontWeight.w700,
                                   ),
                         ),

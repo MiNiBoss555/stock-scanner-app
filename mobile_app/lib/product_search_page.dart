@@ -440,12 +440,12 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
     final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: theme.colorScheme.primary.withOpacity(0.2),
+          color: theme.colorScheme.primary.withValues(alpha: 0.2),
         ),
       ),
       child: Padding(
@@ -505,12 +505,12 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      color: theme.colorScheme.secondaryContainer.withOpacity(0.4),
+      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: theme.colorScheme.secondary.withOpacity(0.2),
+          color: theme.colorScheme.secondary.withValues(alpha: 0.2),
         ),
       ),
       child: Padding(
@@ -880,12 +880,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: brandPrimary.withOpacity(0.10),
+              color: brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: brandPrimary.withOpacity(0.82),
+              color: brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -906,7 +906,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: brandInk.withOpacity(0.60),
+                        color: brandInk.withValues(alpha: 0.60),
                       ),
                 ),
               ],

@@ -245,13 +245,11 @@ class StockApiService {
   Future<Product?> getProductByBarcode(String barcode) async {
     final code = barcode.trim();
     if (code.isEmpty) return null;
-    final allProducts = await getProducts(includeInactive: true);
-    for (final p in allProducts) {
-      if (p.barcode == code || (p.sku != null && p.sku == code)) {
-        return p;
-      }
+    final response = await _get("/products/${Uri.encodeComponent(code)}");
+    if (response.statusCode == 404) {
+      return null;
     }
-    return null;
+    return Product.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<List<AppUser>> getUsers({bool activeOnly = true}) async {
@@ -280,9 +278,7 @@ class StockApiService {
   }
 
   Future<AppUser> getCurrentUser() async {
-    final start = DateTime.now();
     final response = await _get("/auth/me");
-    print("DEBUG TIMER: load current user duration = ${DateTime.now().difference(start).inMilliseconds} ms");
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 

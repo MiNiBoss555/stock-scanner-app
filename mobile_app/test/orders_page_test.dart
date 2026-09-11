@@ -253,9 +253,8 @@ void main() {
     });
 
     testWidgets("Create order team assignment shows board and robot production and not legacy production", (WidgetTester tester) async {
-      final binding = TestWidgetsFlutterBinding.instance;
-      binding.window.physicalSizeTestValue = const Size(800, 2000);
-      binding.window.devicePixelRatioTestValue = 1.0;
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1.0;
 
       await tester.pumpWidget(createTestWidget(OrdersPage(
         api: fakeApi,
@@ -278,8 +277,8 @@ void main() {
       expect(find.text("ฝ่ายผลิต"), findsNothing);
 
       // Reset values
-      binding.window.clearPhysicalSizeTestValue();
-      binding.window.clearDevicePixelRatioTestValue();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
 
     // Test 2: ตรวจสอบว่า Navigation ไปยัง OrdersPage ทำงานปกติ
@@ -419,8 +418,9 @@ void main() {
 
       setUp(() {
         final binding = TestWidgetsFlutterBinding.instance;
-        binding.window.physicalSizeTestValue = const Size(800, 2000);
-        binding.window.devicePixelRatioTestValue = 1.0;
+        final view = binding.platformDispatcher.views.first as TestFlutterView;
+        view.physicalSize = const Size(800, 2000);
+        view.devicePixelRatio = 1.0;
 
         cropShouldFail = false;
         cropShouldCancel = false;
@@ -524,8 +524,9 @@ void main() {
 
       tearDown(() {
         final binding = TestWidgetsFlutterBinding.instance;
-        binding.window.clearPhysicalSizeTestValue();
-        binding.window.clearDevicePixelRatioTestValue();
+        final view = binding.platformDispatcher.views.first as TestFlutterView;
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
 
         try {
           tempDir.deleteSync(recursive: true);

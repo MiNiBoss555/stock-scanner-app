@@ -149,7 +149,7 @@ class _ProductTimelinePageState extends State<ProductTimelinePage> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 border: Border(
                   bottom: BorderSide(
                     color: theme.dividerColor,
@@ -254,7 +254,7 @@ class _ProductTimelinePageState extends State<ProductTimelinePage> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
+                      color: color.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                       border: Border.all(color: color, width: 2),
                     ),

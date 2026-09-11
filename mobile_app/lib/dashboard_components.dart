@@ -188,14 +188,14 @@ class DashboardUpdateCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [
               Colors.white,
-              tone.withOpacity(0.03),
+              tone.withValues(alpha: 0.03),
             ],
           ),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: tone.withOpacity(0.12)),
+          border: Border.all(color: tone.withValues(alpha: 0.12)),
           boxShadow: [
             BoxShadow(
-              color: tone.withOpacity(0.08),
+              color: tone.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 12),
             ),
@@ -214,7 +214,7 @@ class DashboardUpdateCard extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: tone.withOpacity(0.10),
+                      color: tone.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Icon(Icons.receipt_rounded, color: tone),
@@ -254,10 +254,10 @@ class DashboardUpdateCard extends StatelessWidget {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: tone.withOpacity(0.14),
+                                  color: tone.withValues(alpha: 0.14),
                                   borderRadius: BorderRadius.circular(999),
                                   border:
-                                      Border.all(color: tone.withOpacity(0.32)),
+                                      Border.all(color: tone.withValues(alpha: 0.32)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -316,7 +316,7 @@ class DashboardUpdateCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: brandInk.withOpacity(0.74),
+                                    color: brandInk.withValues(alpha: 0.74),
                                     fontSize: 13.4,
                                   ),
                         ),
@@ -329,7 +329,7 @@ class DashboardUpdateCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: brandInk.withOpacity(0.68),
+                                    color: brandInk.withValues(alpha: 0.68),
                                     fontWeight: FontWeight.w600,
                                   ),
                         ),
@@ -340,7 +340,7 @@ class DashboardUpdateCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: tone.withOpacity(0.92),
+                                    color: tone.withValues(alpha: 0.92),
                                     fontWeight: FontWeight.w700,
                                   ),
                         ),
@@ -352,9 +352,9 @@ class DashboardUpdateCard extends StatelessWidget {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: tone.withOpacity(0.10),
+                              color: tone.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: tone.withOpacity(0.28)),
+                              border: Border.all(color: tone.withValues(alpha: 0.28)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -395,7 +395,7 @@ class DashboardUpdateCard extends StatelessWidget {
                                                 .textTheme
                                                 .labelSmall
                                                 ?.copyWith(
-                                                  color: tone.withOpacity(0.92),
+                                                  color: tone.withValues(alpha: 0.92),
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                           ),
@@ -412,7 +412,7 @@ class DashboardUpdateCard extends StatelessWidget {
                                                 .textTheme
                                                 .labelSmall
                                                 ?.copyWith(
-                                                  color: tone.withOpacity(0.92),
+                                                  color: tone.withValues(alpha: 0.92),
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                           ),
@@ -431,10 +431,10 @@ class DashboardUpdateCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.78),
+                                color: Colors.white.withValues(alpha: 0.78),
                                 borderRadius: BorderRadius.circular(999),
                                 border:
-                                    Border.all(color: tone.withOpacity(0.10)),
+                                    Border.all(color: tone.withValues(alpha: 0.10)),
                               ),
                               child: Text(
                                 "แตะเพื่อเปิดออเดอร์",
@@ -456,7 +456,7 @@ class DashboardUpdateCard extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 16,
-                    color: brandInk.withOpacity(0.38),
+                    color: brandInk.withValues(alpha: 0.38),
                   ),
                 ],
               ),
@@ -482,7 +482,7 @@ class _OrderStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: tone.withOpacity(0.10),
+        color: tone.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -524,7 +524,7 @@ class WebDashboardHero extends StatelessWidget {
           ],
         ),
         borderRadius: BorderRadius.circular(radiusLg),
-        border: Border.all(color: brandPrimary.withOpacity(0.10)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.10)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -534,7 +534,7 @@ class WebDashboardHero extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.92),
+                color: Colors.white.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
@@ -573,7 +573,7 @@ class WebDashboardHero extends StatelessWidget {
             Text(
               "หน้าแรกสำหรับใช้งานบน Chrome\nคัดลอกข้อมูลลูกค้าแล้ววางสร้างออเดอร์ได้ทันที",
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: brandInk.withOpacity(0.84),
+                    color: brandInk.withValues(alpha: 0.84),
                     fontSize: subtitleSize,
                     height: 1.5,
                   ),
@@ -630,9 +630,9 @@ class WebDashboardHero extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.70),
+                color: Colors.white.withValues(alpha: 0.70),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: brandPrimary.withOpacity(0.10)),
+                border: Border.all(color: brandPrimary.withValues(alpha: 0.10)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -701,7 +701,7 @@ class WebDashboardHero extends StatelessWidget {
                             "โหมดใช้งานเร็วสำหรับเปิดออเดอร์และสต็อกต่อเนื่อง",
                             style:
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: brandInk.withOpacity(0.76),
+                                      color: brandInk.withValues(alpha: 0.76),
                                       fontWeight: FontWeight.w600,
                                     ),
                           ),
@@ -721,7 +721,7 @@ class WebDashboardHero extends StatelessWidget {
                   Text(
                     "เปิดออเดอร์ เช็กสต็อก หรือเข้า assistant ได้จากทางลัดด้านบนโดยไม่ต้องไล่หาหลายหน้า",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: brandInk.withOpacity(0.76),
+                          color: brandInk.withValues(alpha: 0.76),
                           height: 1.5,
                         ),
                   ),
@@ -760,7 +760,7 @@ class WebDashboardHero extends StatelessWidget {
                           "2026-05-08-dashboard-v1",
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: brandInk.withOpacity(0.55),
+                                    color: brandInk.withValues(alpha: 0.55),
                                   ),
                         ),
                       ],
@@ -799,10 +799,10 @@ class DashboardIdentityCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: brandCard,
         borderRadius: BorderRadius.circular(radiusXl),
-        border: Border.all(color: brandPrimary.withOpacity(0.14)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.14)),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.04),
+            color: brandPrimary.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 10),
           ),
@@ -819,7 +819,7 @@ class DashboardIdentityCard extends StatelessWidget {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: brandPrimary.withOpacity(0.04),
+                  color: brandPrimary.withValues(alpha: 0.04),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -836,7 +836,7 @@ class DashboardIdentityCard extends StatelessWidget {
                       border: Border.all(color: woodTone, width: 2.2),
                       boxShadow: [
                         BoxShadow(
-                          color: brandPrimary.withOpacity(0.08),
+                          color: brandPrimary.withValues(alpha: 0.08),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -877,7 +877,7 @@ class DashboardIdentityCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: woodTone.withOpacity(0.12),
+                                color: woodTone.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -900,7 +900,7 @@ class DashboardIdentityCard extends StatelessWidget {
                                     .textTheme
                                     .bodyMedium
                                     ?.copyWith(
-                                      color: brandInk.withOpacity(0.65),
+                                      color: brandInk.withValues(alpha: 0.65),
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
@@ -922,7 +922,7 @@ class DashboardIdentityCard extends StatelessWidget {
   Widget _fallbackAvatar(String userName, Color color) {
     final initial = userName.trim().isNotEmpty ? userName.trim()[0] : "?";
     return Container(
-      color: color.withOpacity(0.08),
+      color: color.withValues(alpha: 0.08),
       alignment: Alignment.center,
       child: Text(
         initial,
@@ -952,12 +952,12 @@ class _HeroInfoChip extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.70),
-            Colors.white.withOpacity(0.50),
+            Colors.white.withValues(alpha: 0.70),
+            Colors.white.withValues(alpha: 0.50),
           ],
         ),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: brandPrimary.withOpacity(0.10)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.10)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -967,7 +967,7 @@ class _HeroInfoChip extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: brandInk.withOpacity(0.80),
+                  color: brandInk.withValues(alpha: 0.80),
                   fontWeight: FontWeight.w600,
                 ),
           ),
@@ -1010,15 +1010,15 @@ class _HeroQuickTile extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withOpacity(0.94),
-                Color.lerp(Colors.white, accentColor, 0.08)!.withOpacity(0.92),
+                Colors.white.withValues(alpha: 0.94),
+                Color.lerp(Colors.white, accentColor, 0.08)!.withValues(alpha: 0.92),
               ],
             ),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: accentColor.withOpacity(0.16)),
+            border: Border.all(color: accentColor.withValues(alpha: 0.16)),
             boxShadow: [
               BoxShadow(
-                color: accentColor.withOpacity(0.12),
+                color: accentColor.withValues(alpha: 0.12),
                 blurRadius: 20,
                 offset: const Offset(0, 12),
               ),
@@ -1032,9 +1032,9 @@ class _HeroQuickTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      accentColor.withOpacity(0.18),
+                      accentColor.withValues(alpha: 0.18),
                       Color.lerp(brandSurfaceStrong, accentColor, 0.24)!
-                          .withOpacity(0.34),
+                          .withValues(alpha: 0.34),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(16),
@@ -1061,7 +1061,7 @@ class _HeroQuickTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: brandInk.withOpacity(0.72),
+                            color: brandInk.withValues(alpha: 0.72),
                             fontSize: compact ? 12.4 : 13.2,
                             height: 1.32,
                           ),
@@ -1071,7 +1071,7 @@ class _HeroQuickTile extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.10),
+                        color: accentColor.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -1089,7 +1089,7 @@ class _HeroQuickTile extends StatelessWidget {
               const SizedBox(width: 8),
               Icon(
                 Icons.arrow_forward_rounded,
-                color: accentColor.withOpacity(0.82),
+                color: accentColor.withValues(alpha: 0.82),
                 size: 20,
               ),
             ],
