@@ -8,7 +8,7 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     env:
-      STOCK_SCANNER_DB: ${{ runner.temp }}/stock-scanner-test.db
+      STOCK_SCANNER_DB: /tmp/stock-scanner-test.db
       APP_ENV: test
     steps:
       - uses: actions/checkout@v4
