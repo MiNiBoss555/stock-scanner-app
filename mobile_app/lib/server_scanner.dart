@@ -49,10 +49,6 @@ class ServerScanner {
 
     // 2. Test common local IP fallbacks
     final priorityCandidates = [
-      "http://192.168.1.112:8000",
-      "http://192.168.1.108:8000",
-      "http://192.168.1.100:8000",
-      "http://192.168.0.100:8000",
       "http://127.0.0.1:8000",
     ];
 

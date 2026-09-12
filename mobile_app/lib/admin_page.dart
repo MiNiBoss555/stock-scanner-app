@@ -149,9 +149,7 @@ class _AdminPageState extends State<AdminPage> {
       _isRunning = true;
     });
     try {
-      debugPrint("Starting downloadBackup for user: ${widget.currentUser.userId}");
       final bytes = await widget.api.downloadBackup(widget.currentUser.userId);
-      debugPrint("downloadBackup completed, received ${bytes.length} bytes");
 
       final dir = await getTemporaryDirectory();
 
@@ -161,8 +159,6 @@ class _AdminPageState extends State<AdminPage> {
 
       final file = File("${dir.path}/backup_$timestamp.zip");
       await file.writeAsBytes(bytes, flush: true);
-
-      debugPrint("Backup file written to: ${file.path}");
 
       await Share.shareXFiles(
         [XFile(file.path)],
@@ -177,7 +173,6 @@ class _AdminPageState extends State<AdminPage> {
         });
       }
     } catch (error) {
-      debugPrint("Backup failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {
@@ -307,15 +302,12 @@ class _AdminPageState extends State<AdminPage> {
         _isRunning = true;
       });
 
-      debugPrint("Starting restoreBackup for user: ${widget.currentUser.userId}");
       final message = await widget.api.restoreBackup(
         requesterId: widget.currentUser.userId,
         filePath: filePath,
         bytes: bytes,
         filename: filename,
       );
-      debugPrint("restoreBackup completed: $message");
-
       if (!mounted) return;
 
       _showSnack("กู้คืนข้อมูลสำเร็จ");
@@ -324,7 +316,6 @@ class _AdminPageState extends State<AdminPage> {
         _lastMessage = message;
       });
     } catch (error) {
-      debugPrint("Restore failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {

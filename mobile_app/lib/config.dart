@@ -7,7 +7,7 @@ class AppConfig {
 
   static const String _apiUrl = String.fromEnvironment(
     "API_URL",
-    defaultValue: "http://192.168.1.112:8000",
+    defaultValue: "http://127.0.0.1:8000",
   );
 
   static Future<void> loadCustomServerUrl() async {

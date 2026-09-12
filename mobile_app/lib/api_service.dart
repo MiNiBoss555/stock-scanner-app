@@ -436,9 +436,6 @@ class StockApiService {
       ..headers.addAll(_headers())
       ..fields["requester_id"] = requesterId;
 
-    debugPrint("OCR HEADERS HAVE AUTH: ${request.headers.containsKey('Authorization')}");
-    debugPrint("OCR REQUESTER ID PRESENT: ${request.fields.containsKey('requester_id')}");
-
     if (filePath != null) {
       request.files.add(await http.MultipartFile.fromPath("image", filePath));
     } else {
@@ -708,12 +705,6 @@ class StockApiService {
     bool mineOnly = false,
     int limit = 300,
   }) async {
-    assert(() {
-      debugPrint(
-        "[api] getOrders requester=$requesterId token=${_accessToken == null ? 'null' : '${_accessToken!.substring(0, _accessToken!.length.clamp(0, 8))}...'}",
-      );
-      return true;
-    }());
     final response = await _get(
       "/orders",
       {
@@ -1017,8 +1008,6 @@ class StockApiService {
 
   Future<Uint8List> downloadBackup(String requesterId) async {
     final url = _uri("/admin/backup", {"requester_id": requesterId});
-    debugPrint("Backup URL: $url");
-
     try {
       final response = await http
           .get(url, headers: _headers())

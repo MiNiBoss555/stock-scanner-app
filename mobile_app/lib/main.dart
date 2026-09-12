@@ -398,7 +398,6 @@ class _StockScannerAppState extends State<StockScannerApp> {
       });
     }
     unawaited(_registerPushForUser(session.user.userId).catchError((e) {
-      debugPrint("Push token registration error: $e");
     }));
   }
 

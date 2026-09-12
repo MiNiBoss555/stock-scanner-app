@@ -902,7 +902,6 @@ class _OrdersPageState extends State<OrdersPage> {
       );
       return croppedFile?.path;
     } catch (e) {
-      debugPrint("Manual crop failed: $e");
       if (mounted) {
         showAppSnack(context, "การครอบตัดขัดข้อง ใช้รูปภาพต้นฉบับแทน");
       }
@@ -965,7 +964,6 @@ class _OrdersPageState extends State<OrdersPage> {
 
       return croppedFile.path;
     } catch (e) {
-      debugPrint("Auto-crop gallery image failed: $e");
       return null;
     }
   }
@@ -1088,7 +1086,6 @@ class _OrdersPageState extends State<OrdersPage> {
             return;
           }
         } catch (e) {
-          debugPrint("Document scanner failed, falling back to camera: $e");
           final XFile? file = await _proofImagePicker.pickImage(
             source: ImageSource.camera,
             imageQuality: 80,
@@ -1137,8 +1134,6 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (targetPath == null) return;
 
-      debugPrint("SELECTED IMAGE PATH: $selectedImagePath");
-      debugPrint("CROPPED/FINAL OCR IMAGE PATH: $targetPath");
 
       setState(() {
         _isSaving = true;
@@ -1150,12 +1145,10 @@ class _OrdersPageState extends State<OrdersPage> {
       String ocrSource = "Unknown";
 
       try {
-        debugPrint("CALLING AI OCR");
         final geminiParsed = await widget.api.ocrShippingLabel(
           requesterId: widget.currentUser.userId,
           filePath: targetPath,
         );
-        debugPrint("AI OCR RESPONSE MAP: $geminiParsed");
         
         final name = geminiParsed["name"]?.trim() ?? "";
         final phone = geminiParsed["phone"]?.trim() ?? "";
@@ -1169,7 +1162,6 @@ class _OrdersPageState extends State<OrdersPage> {
           };
           isComplete = true;
           ocrSource = "Gemini";
-          debugPrint("USING AI OCR");
         } else {
           parsed = {
             "name": name.isEmpty ? null : name,
@@ -1181,7 +1173,6 @@ class _OrdersPageState extends State<OrdersPage> {
       } catch (e) {
         final errStr = e.toString().toLowerCase();
         isQuotaExceeded = errStr.contains("429") || errStr.contains("quota") || errStr.contains("resource exceeded");
-        debugPrint("Gemini OCR failed or timed out: $e (quota exceeded: $isQuotaExceeded)");
         ocrSource = isQuotaExceeded ? "Gemini Quota Exceeded" : "MLKit fallback";
         if (mounted) {
           showAppSnack(
@@ -1202,7 +1193,6 @@ class _OrdersPageState extends State<OrdersPage> {
       }
 
       if (!isComplete) {
-        debugPrint("USING MLKIT FALLBACK");
         try {
           final inputImage = InputImage.fromFilePath(targetPath);
           final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -1227,7 +1217,6 @@ class _OrdersPageState extends State<OrdersPage> {
             }
           }
         } catch (e) {
-          debugPrint("Local ML Kit OCR failed: $e");
         }
       }
 
@@ -1235,9 +1224,6 @@ class _OrdersPageState extends State<OrdersPage> {
       final finalPhone = parsed["phone"]?.trim() ?? "";
       final finalAddress = parsed["address"]?.trim() ?? "";
 
-      debugPrint("FINAL NAME: $finalName");
-      debugPrint("FINAL PHONE: $finalPhone");
-      debugPrint("FINAL ADDRESS: $finalAddress");
 
       if (finalName.isEmpty && finalPhone.isEmpty && finalAddress.isEmpty) {
         if (mounted) {

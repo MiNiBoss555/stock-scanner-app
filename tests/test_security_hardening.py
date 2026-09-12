@@ -1,7 +1,9 @@
 import csv
 import io
+import logging
 
 import pytest
+from fastapi.testclient import TestClient
 
 
 def test_csv_response_neutralizes_spreadsheet_formulas(api_context: dict) -> None:
@@ -70,3 +72,23 @@ def test_demo_credentials_are_not_seeded_when_disabled(
     with module.db_connection() as connection:
         assert connection.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"] == 0
         assert connection.execute("SELECT COUNT(*) AS count FROM products").fetchone()["count"] == 0
+
+
+def test_export_failures_do_not_log_download_token(
+    api_context: dict, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    module = api_context["module"]
+    secret_token = "sensitive-export-token"
+
+    def fail_export(_token: str):
+        raise RuntimeError("forced export failure")
+
+    monkeypatch.setattr(module, "consume_export_token", fail_export)
+    caplog.set_level(logging.ERROR, logger="stock_scanner_api")
+
+    with TestClient(module.app, raise_server_exceptions=False) as client:
+        response = client.get(f"/exports/download/{secret_token}")
+
+    assert response.status_code == 500
+    assert secret_token not in caplog.text
+    assert "Export download failed (RuntimeError)" in caplog.text

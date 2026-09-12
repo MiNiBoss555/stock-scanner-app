@@ -37,7 +37,6 @@ class AppVersionCheckService {
         }
       }
     } catch (e) {
-      debugPrint("Version check skipped or failed: $e");
     }
   }
 

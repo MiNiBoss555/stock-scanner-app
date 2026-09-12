@@ -164,7 +164,6 @@ class BarTenderPrintService {
         final result = await Process.run(exe, args, runInShell: true);
         return result.exitCode == 0;
       } catch (e) {
-        debugPrint("Error launching BarTender: $e");
         return false;
       }
     }
