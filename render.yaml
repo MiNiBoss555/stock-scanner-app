@@ -1,13 +1,17 @@
-services:
+﻿services:
   - type: web
     name: stock-scanner-api
     env: python
-    plan: free
+    plan: starter
+    disk:
+      name: stock-scanner-data
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: STOCK_SCANNER_DB
-        value: stock_scanner.db
+        value: /var/data/stock_scanner.db
       - key: APP_ENV
         value: production
       - key: ENABLE_DEMO_SEED

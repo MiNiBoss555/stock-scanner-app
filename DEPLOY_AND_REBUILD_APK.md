@@ -1,8 +1,8 @@
-# Deploy Backend And Rebuild APK
+﻿# Deploy Backend And Rebuild APK
 
 ## 1. Deploy the API
 
-This repo now includes `render.yaml` for a simple Render deployment.
+This repo includes `render.yaml` for Render deployment with persistent disk support.
 
 Steps:
 
@@ -11,18 +11,21 @@ Steps:
 3. Confirm the service uses:
    - Build command: `pip install -r requirements.txt`
    - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Set environment variables as needed:
-   - `STOCK_SCANNER_DB`
-   - `ALLOWED_ORIGINS`
+4. Set environment variables:
+   - `STOCK_SCANNER_DB` (e.g. `/var/data/stock_scanner.db` on mounted disk)
+   - `ALLOWED_ORIGINS` (explicit HTTPS web origin, e.g. `https://stock.example.com`)
+   - `APP_ENV=production`
+   - `ENABLE_DEMO_SEED=false`
    - `WEBHOOK_SECRET`
-   - `GOOGLE_SHEETS_SPREADSHEET_ID`
-   - `GOOGLE_SERVICE_ACCOUNT_FILE`
+   - `GOOGLE_SHEETS_SPREADSHEET_ID` (optional)
+   - `GOOGLE_SERVICE_ACCOUNT_FILE` (optional)
 
 Notes:
 
-- `render.yaml` points `STOCK_SCANNER_DB` at `/var/data/stock_scanner.db`.
-- For real production, prefer PostgreSQL over SQLite if many users will write at the same time.
-- If you upload files, make sure your hosting setup provides persistent storage.
+- `render.yaml` configures a Starter service with a persistent disk mounted at `/var/data` and `STOCK_SCANNER_DB=/var/data/stock_scanner.db`.
+- **Caution**: Do not deploy production with `STOCK_SCANNER_DB=stock_scanner.db` on Render Free. Render Free instances use an ephemeral filesystem without persistent disk support, which causes SQLite databases to be lost on container restart or spin-down.
+- For high-concurrency production, PostgreSQL can be configured with `DATABASE_URL` (see `docs/database-migration-plan.md`).
+- If you upload files locally, make sure your hosting setup provides persistent storage (or configure S3 bucket via environment variables).
 
 ## 2. Verify the public API
 
