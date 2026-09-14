@@ -1,6 +1,7 @@
-import csv
+﻿import csv
 import io
 import logging
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -60,7 +61,7 @@ def test_production_requires_explicit_non_wildcard_cors(
 
 
 def test_demo_credentials_are_not_seeded_when_disabled(
-    api_context: dict, monkeypatch: pytest.MonkeyPatch, tmp_path
+    api_context: dict, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     module = api_context["module"]
     isolated_db = tmp_path / "production-empty.db"
@@ -92,3 +93,35 @@ def test_export_failures_do_not_log_download_token(
     assert response.status_code == 500
     assert secret_token not in caplog.text
     assert "Export download failed (RuntimeError)" in caplog.text
+
+
+def test_production_sqlite_requires_explicit_persistent_path(
+    api_context: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = api_context["module"]
+
+    # In development, unset STOCK_SCANNER_DB defaults to local SQLite file
+    monkeypatch.setattr(module, "APP_ENV", "development")
+    monkeypatch.delenv("STOCK_SCANNER_DB", raising=False)
+    monkeypatch.setattr(module, "DATABASE_URL", "")
+    assert module._database_path() == Path("stock_scanner.db")
+
+    # In production, unset STOCK_SCANNER_DB raises RuntimeError
+    monkeypatch.setattr(module, "APP_ENV", "production")
+    monkeypatch.delenv("STOCK_SCANNER_DB", raising=False)
+    with pytest.raises(RuntimeError, match="explicit persistent STOCK_SCANNER_DB path"):
+        module._database_path()
+
+    # In production, unsafe default 'stock_scanner.db' raises RuntimeError
+    monkeypatch.setenv("STOCK_SCANNER_DB", "stock_scanner.db")
+    with pytest.raises(RuntimeError, match="ephemeral 'stock_scanner.db'"):
+        module._database_path()
+
+    # In production, explicit persistent path is accepted
+    monkeypatch.setenv("STOCK_SCANNER_DB", "/var/data/stock_scanner.db")
+    assert module._database_path() == Path("/var/data/stock_scanner.db")
+
+    # When DATABASE_URL is set (PostgreSQL), database path check does not block
+    monkeypatch.setattr(module, "DATABASE_URL", "postgresql://user:pass@host/db")
+    monkeypatch.delenv("STOCK_SCANNER_DB", raising=False)
+    assert module._database_path() == Path("stock_scanner.db")

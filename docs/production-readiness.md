@@ -4,7 +4,11 @@ This document details the configuration requirements, verification checklists, s
 
 > [!IMPORTANT]
 > **PostgreSQL migration is NOT part of this release.**
-> This release hardens application security, API transport, authentication session lifecycles, and build configurations on the existing database architecture.
+> This release hardens application security, API transport, authentication session lifecycles, and build configurations on the existing SQLite database architecture.
+
+> [!CAUTION]
+> **Do not deploy production with `STOCK_SCANNER_DB=stock_scanner.db` on Render Free.**
+> Render Free web services utilize an ephemeral filesystem and do not support persistent disks. Any database file stored in the local working directory will be lost on container restart, redeploy, or idle spin-down.
 
 ---
 
@@ -15,10 +19,10 @@ Only environment variable names are documented below. **Never commit secret valu
 ### Backend Environment Variables
 | Variable Name | Required | Default / Expected | Purpose |
 |---|---|---|---|
-| `APP_ENV` | Yes | `production` | Enables production security constraints (e.g. strict CORS validation, disabling demo seeds). |
+| `APP_ENV` | Yes | `production` | Enables production security constraints (e.g. strict CORS validation, disabling demo seeds, requiring persistent SQLite paths). |
 | `ALLOWED_ORIGINS` | Yes | Explicit HTTPS URLs (comma-separated) | Whitelist of allowed web clients for CORS. Wildcard `*` is strictly rejected in production. |
 | `ENABLE_DEMO_SEED` | Yes | `false` | Disables automated demo user/product creation on clean databases. |
-| `STOCK_SCANNER_DB` | Yes | `stock_scanner.db` | Path to persistent SQLite database file (unless PostgreSQL is configured via `DATABASE_URL`). |
+| `STOCK_SCANNER_DB` | Yes | `/var/data/stock_scanner.db` | Absolute path to persistent SQLite database file on an attached persistent disk (unless PostgreSQL is configured via `DATABASE_URL`). Unsafe default `stock_scanner.db` is rejected in production. |
 | `AUTH_TOKEN_TTL_HOURS` | Optional | `12` | Token time-to-live in hours. |
 | `PIN_HASH_ITERATIONS` | Optional | `120000` | PBKDF2 iterations for password/PIN hashing. |
 | `EXPORT_LINK_TTL_MINUTES` | Optional | `10` | Single-use export token expiration time in minutes. |
@@ -34,14 +38,36 @@ Only environment variable names are documented below. **Never commit secret valu
 
 ---
 
-## 2. Pre-Release Checklists
+## 2. Production SQLite Storage Requirements
+
+If deploying the SQLite backend on Render:
+
+1. **Compute Plan**:
+   - Must use a paid Render Web Service plan (e.g., `Starter`) that supports persistent disks. The Free plan is ephemeral and cannot preserve data.
+2. **Attach Persistent Disk**:
+   - Attach a persistent disk in the Render Dashboard (or via `render.yaml` with `plan: starter`).
+   - Disk name: `stock-scanner-data`
+   - Mount path: `/var/data`
+   - Size: Minimum 1 GB
+3. **Environment Variable Configuration**:
+   - Set `STOCK_SCANNER_DB=/var/data/stock_scanner.db`
+   - In `APP_ENV=production`, the backend enforces that `STOCK_SCANNER_DB` is explicitly set to a non-ephemeral path and rejects the default relative `stock_scanner.db`.
+4. **Pre-Deployment Backup**:
+   - Always download/backup the existing `.db` file and sidecars (`-wal`, `-shm`) prior to running deployments or schema updates.
+5. **Persistence Restart Verification**:
+   - After initial setup, create a test record, restart/redeploy the Render service, and verify the record persists after container recreation.
+
+---
+
+## 3. Pre-Release Checklists
 
 ### Backend Checklist
 - [ ] Set `APP_ENV=production` in the hosting environment (e.g. Render).
 - [ ] Verify `ENABLE_DEMO_SEED=false` so test credentials are not seeded.
 - [ ] Configure `ALLOWED_ORIGINS` with explicit HTTPS origins (e.g. `https://stock.example.com`).
+- [ ] Verify persistent disk is attached and mounted to `/var/data`.
+- [ ] Set `STOCK_SCANNER_DB=/var/data/stock_scanner.db`.
 - [ ] Verify no secrets or private keys are stored in source code or Git history.
-- [ ] Confirm persistent disk attachment for SQLite database file if hosting on ephemeral containers.
 - [ ] Perform a full SQLite database backup (`.db`, `-wal`, `-shm`) and verify integrity before deploying.
 - [ ] Verify HTTPS endpoint connectivity and check `/health` returns `{ "status": "ok" }`.
 
@@ -72,7 +98,7 @@ Only environment variable names are documented below. **Never commit secret valu
 
 ---
 
-## 3. Smoke Test Checklist
+## 4. Smoke Test Checklist
 
 Execute these validation tests on the release build connected to the production staging/live backend:
 
@@ -105,7 +131,7 @@ Execute these validation tests on the release build connected to the production 
 
 ---
 
-## 4. Rollback Procedure
+## 5. Rollback Procedure
 
 If unexpected issues occur post-deployment:
 
@@ -114,7 +140,7 @@ If unexpected issues occur post-deployment:
    - If an issue is detected on client devices, distribute the previous stable APK or submit a rapid hotfix build to app stores.
 2. **Backend Rollback**:
    - Redeploy the previous Git release tag / commit on Render / web hosting.
-   - Point the backend service to the existing database.
+   - Point the backend service to the existing persistent database file.
    - Because no destructive database schema migrations or PostgreSQL cutover occurred, rollback requires no database restore unless corrupt writes occurred.
 3. **Database Restore (Emergency only)**:
-   - In case of database file corruption, restore the verified pre-deployment SQLite backup file along with any WAL files.
+   - In case of database file corruption, restore the verified pre-deployment SQLite backup file along with any WAL files to `/var/data/stock_scanner.db`.
