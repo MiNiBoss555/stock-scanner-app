@@ -84,7 +84,7 @@ Future<void> showProductListSheet({
             Text(
               "แตะสินค้าเพื่อดู barcode/QR และพิมพ์ป้ายได้ทันที",
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: brandInk.withOpacity(0.72),
+                    color: brandInk.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -100,7 +100,7 @@ Future<void> showProductListSheet({
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
-                        backgroundColor: color.withOpacity(0.10),
+                        backgroundColor: color.withValues(alpha: 0.10),
                         child: Icon(
                           product.currentStock <= 0
                               ? Icons.error_outline
@@ -476,10 +476,10 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: brandPrimary.withOpacity(0.12)),
+                        border: Border.all(color: brandPrimary.withValues(alpha: 0.12)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -550,7 +550,7 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
                             "สแกนได้ทั้ง Barcode และ QR",
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: brandInk.withOpacity(0.7),
+                                  color: brandInk.withValues(alpha: 0.7),
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),
@@ -778,7 +778,7 @@ class _CustomLabelSheetState extends State<_CustomLabelSheet> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
                       border:
-                          Border.all(color: brandPrimary.withOpacity(0.10)),
+                          Border.all(color: brandPrimary.withValues(alpha: 0.10)),
                     ),
                     child: Center(
                       child: Text(

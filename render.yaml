@@ -8,6 +8,10 @@ services:
     envVars:
       - key: STOCK_SCANNER_DB
         value: stock_scanner.db
+      - key: APP_ENV
+        value: production
+      - key: ENABLE_DEMO_SEED
+        value: "false"
       - key: AUTH_TOKEN_TTL_HOURS
         value: "12"
       - key: PIN_HASH_ITERATIONS
@@ -15,4 +19,4 @@ services:
       - key: EXPORT_LINK_TTL_MINUTES
         value: "10"
       - key: ALLOWED_ORIGINS
-        value: "*"
+        sync: false

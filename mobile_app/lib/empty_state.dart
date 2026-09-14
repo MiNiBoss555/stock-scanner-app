@@ -31,7 +31,7 @@ class EmptyState extends StatelessWidget {
             Icon(
               icon,
               size: 72,
-              color: theme.colorScheme.primary.withOpacity(0.35),
+              color: theme.colorScheme.primary.withValues(alpha: 0.35),
             ),
             const SizedBox(height: 20),
             Text(
@@ -39,7 +39,7 @@ class EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onBackground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),

@@ -100,7 +100,6 @@ ThemeData buildLightThemeData() {
     ),
     scaffoldBackgroundColor: const Color(0xFFF8FAFC),
     cardColor: brandCard,
-    dialogBackgroundColor: Colors.white,
     fontFamily: GoogleFonts.prompt().fontFamily,
     textTheme: GoogleFonts.promptTextTheme(
       ThemeData.light().textTheme.copyWith(
@@ -118,7 +117,7 @@ ThemeData buildLightThemeData() {
           fontSize: 14, height: 1.4, color: brandInk,
         ),
         bodySmall: TextStyle(
-          fontSize: 12, height: 1.35, color: brandInk.withOpacity(0.72),
+          fontSize: 12, height: 1.35, color: brandInk.withValues(alpha: 0.72),
         ),
       ),
     ),
@@ -129,10 +128,10 @@ ThemeData buildLightThemeData() {
     cardTheme: CardThemeData(
       color: brandCard,
       elevation: 0,
-      shadowColor: brandPrimary.withOpacity(0.10),
+      shadowColor: brandPrimary.withValues(alpha: 0.10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radiusLg),
-        side: BorderSide(color: brandPrimary.withOpacity(0.10)),
+        side: BorderSide(color: brandPrimary.withValues(alpha: 0.10)),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -150,11 +149,11 @@ ThemeData buildLightThemeData() {
       fillColor: Color.lerp(brandSurface, Colors.white, 0.58)!,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: brandPrimary.withOpacity(0.12)),
+        borderSide: BorderSide(color: brandPrimary.withValues(alpha: 0.12)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radiusMd),
-        borderSide: BorderSide(color: brandPrimary.withOpacity(0.12)),
+        borderSide: BorderSide(color: brandPrimary.withValues(alpha: 0.12)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(radiusMd)),
@@ -184,7 +183,7 @@ ThemeData buildLightThemeData() {
           borderRadius: BorderRadius.circular(radiusMd),
         ),
       ),
-    ),
+    ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
   );
 }
 
@@ -245,14 +244,14 @@ BoxDecoration softPanelDecoration({
 }) {
   final tint = (surfaceStrength * 0.17).clamp(0.08, 0.20);
   final panelColor = Color.lerp(brandSurface, tone, tint)!;
-  final borderColor = Color.lerp(panelColor, tone, 0.30)!.withOpacity(0.70);
+  final borderColor = Color.lerp(panelColor, tone, 0.30)!.withValues(alpha: 0.70);
   return BoxDecoration(
     color: panelColor,
     borderRadius: BorderRadius.circular(radius),
     border: Border.all(color: borderColor),
     boxShadow: [
       BoxShadow(
-        color: tone.withOpacity(0.06),
+        color: tone.withValues(alpha: 0.06),
         blurRadius: 16,
         offset: const Offset(0, 10),
       ),
@@ -370,7 +369,7 @@ class BrandLogoIcon extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.25),
+            color: brandPrimary.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -381,7 +380,7 @@ class BrandLogoIcon extends StatelessWidget {
         children: [
           Icon(
             Icons.inventory_2_rounded,
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.white.withValues(alpha: 0.95),
             size: size * 0.54,
           ),
           Positioned(

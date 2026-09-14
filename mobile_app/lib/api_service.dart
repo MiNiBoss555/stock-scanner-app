@@ -245,13 +245,11 @@ class StockApiService {
   Future<Product?> getProductByBarcode(String barcode) async {
     final code = barcode.trim();
     if (code.isEmpty) return null;
-    final allProducts = await getProducts(includeInactive: true);
-    for (final p in allProducts) {
-      if (p.barcode == code || (p.sku != null && p.sku == code)) {
-        return p;
-      }
+    final response = await _get("/products/${Uri.encodeComponent(code)}");
+    if (response.statusCode == 404) {
+      return null;
     }
-    return null;
+    return Product.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<List<AppUser>> getUsers({bool activeOnly = true}) async {
@@ -280,9 +278,7 @@ class StockApiService {
   }
 
   Future<AppUser> getCurrentUser() async {
-    final start = DateTime.now();
     final response = await _get("/auth/me");
-    print("DEBUG TIMER: load current user duration = ${DateTime.now().difference(start).inMilliseconds} ms");
     return AppUser.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
@@ -439,9 +435,6 @@ class StockApiService {
     final request = http.MultipartRequest("POST", uri)
       ..headers.addAll(_headers())
       ..fields["requester_id"] = requesterId;
-
-    debugPrint("OCR HEADERS HAVE AUTH: ${request.headers.containsKey('Authorization')}");
-    debugPrint("OCR REQUESTER ID PRESENT: ${request.fields.containsKey('requester_id')}");
 
     if (filePath != null) {
       request.files.add(await http.MultipartFile.fromPath("image", filePath));
@@ -712,12 +705,6 @@ class StockApiService {
     bool mineOnly = false,
     int limit = 300,
   }) async {
-    assert(() {
-      debugPrint(
-        "[api] getOrders requester=$requesterId token=${_accessToken == null ? 'null' : '${_accessToken!.substring(0, _accessToken!.length.clamp(0, 8))}...'}",
-      );
-      return true;
-    }());
     final response = await _get(
       "/orders",
       {
@@ -1021,8 +1008,6 @@ class StockApiService {
 
   Future<Uint8List> downloadBackup(String requesterId) async {
     final url = _uri("/admin/backup", {"requester_id": requesterId});
-    debugPrint("Backup URL: $url");
-
     try {
       final response = await http
           .get(url, headers: _headers())

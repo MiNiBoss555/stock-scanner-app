@@ -149,9 +149,7 @@ class _AdminPageState extends State<AdminPage> {
       _isRunning = true;
     });
     try {
-      debugPrint("Starting downloadBackup for user: ${widget.currentUser.userId}");
       final bytes = await widget.api.downloadBackup(widget.currentUser.userId);
-      debugPrint("downloadBackup completed, received ${bytes.length} bytes");
 
       final dir = await getTemporaryDirectory();
 
@@ -161,8 +159,6 @@ class _AdminPageState extends State<AdminPage> {
 
       final file = File("${dir.path}/backup_$timestamp.zip");
       await file.writeAsBytes(bytes, flush: true);
-
-      debugPrint("Backup file written to: ${file.path}");
 
       await Share.shareXFiles(
         [XFile(file.path)],
@@ -177,7 +173,6 @@ class _AdminPageState extends State<AdminPage> {
         });
       }
     } catch (error) {
-      debugPrint("Backup failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {
@@ -307,15 +302,12 @@ class _AdminPageState extends State<AdminPage> {
         _isRunning = true;
       });
 
-      debugPrint("Starting restoreBackup for user: ${widget.currentUser.userId}");
       final message = await widget.api.restoreBackup(
         requesterId: widget.currentUser.userId,
         filePath: filePath,
         bytes: bytes,
         filename: filename,
       );
-      debugPrint("restoreBackup completed: $message");
-
       if (!mounted) return;
 
       _showSnack("กู้คืนข้อมูลสำเร็จ");
@@ -324,7 +316,6 @@ class _AdminPageState extends State<AdminPage> {
         _lastMessage = message;
       });
     } catch (error) {
-      debugPrint("Restore failed: $error");
       _showSnack(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) {
@@ -804,7 +795,7 @@ class _ExportGroupCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: brandPrimary.withOpacity(0.10),
+                backgroundColor: brandPrimary.withValues(alpha: 0.10),
                 child: Icon(icon, color: brandPrimary, size: 18),
               ),
               const SizedBox(width: 10),
@@ -937,10 +928,10 @@ class _PageHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: BorderRadius.circular(radiusXl),
-        border: Border.all(color: brandPrimary.withOpacity(0.16)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.16)),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.10),
+            color: brandPrimary.withValues(alpha: 0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -955,7 +946,7 @@ class _PageHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back_rounded),
               color: brandDeep,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.82),
+                backgroundColor: Colors.white.withValues(alpha: 0.82),
               ),
             ),
             const SizedBox(height: spaceXs),
@@ -970,7 +961,7 @@ class _PageHeader extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: brandInk.withOpacity(0.82),
+                  color: brandInk.withValues(alpha: 0.82),
                 ),
           ),
           const SizedBox(height: spaceSm),
@@ -1004,12 +995,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: brandPrimary.withOpacity(0.10),
+              color: brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: brandPrimary.withOpacity(0.82),
+              color: brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -1030,7 +1021,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: brandInk.withOpacity(0.70),
+                        color: brandInk.withValues(alpha: 0.70),
                         height: 1.35,
                       ),
                 ),

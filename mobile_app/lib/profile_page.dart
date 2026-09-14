@@ -485,15 +485,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       borderRadius: BorderRadius.circular(radiusXl),
-                      border: Border.all(color: profileTeal.withOpacity(0.10)),
+                      border: Border.all(color: profileTeal.withValues(alpha: 0.10)),
                       boxShadow: [
                         BoxShadow(
-                          color: profileTeal.withOpacity(0.12),
+                          color: profileTeal.withValues(alpha: 0.12),
                           blurRadius: 30,
                           offset: const Offset(0, 16),
                         ),
                         BoxShadow(
-                          color: profileAccent.withOpacity(0.10),
+                          color: profileAccent.withValues(alpha: 0.10),
                           blurRadius: 26,
                           offset: const Offset(0, 10),
                         ),
@@ -512,9 +512,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    profileTeal.withOpacity(0.92),
-                                    brandPrimary.withOpacity(0.88),
-                                    profileTeal.withOpacity(0.96),
+                                    profileTeal.withValues(alpha: 0.92),
+                                    brandPrimary.withValues(alpha: 0.88),
+                                    profileTeal.withValues(alpha: 0.96),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.vertical(
@@ -529,7 +529,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Container(
                                 height: 5,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.34),
+                                  color: Colors.white.withValues(alpha: 0.34),
                                   borderRadius: const BorderRadius.only(
                                     bottomLeft: Radius.circular(999),
                                     bottomRight: Radius.circular(999),
@@ -544,7 +544,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 width: 72,
                                 height: 72,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.10),
+                                  color: Colors.white.withValues(alpha: 0.10),
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -556,7 +556,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 width: 18,
                                 height: 18,
                                 decoration: BoxDecoration(
-                                  color: brandPrimary.withOpacity(0.42),
+                                  color: brandPrimary.withValues(alpha: 0.42),
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -573,8 +573,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
-                                            profileAccent.withOpacity(0.95),
-                                            profileAccent.withOpacity(0.72),
+                                            profileAccent.withValues(alpha: 0.95),
+                                            profileAccent.withValues(alpha: 0.72),
                                           ],
                                         ),
                                       ),
@@ -587,8 +587,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
-                                            profileAccent.withOpacity(0.72),
-                                            profileAccent.withOpacity(0.95),
+                                            profileAccent.withValues(alpha: 0.72),
+                                            profileAccent.withValues(alpha: 0.95),
                                           ],
                                         ),
                                       ),
@@ -613,7 +613,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: profileTeal.withOpacity(0.18),
+                                      color: profileTeal.withValues(alpha: 0.18),
                                       blurRadius: 22,
                                       offset: const Offset(0, 10),
                                     ),
@@ -625,7 +625,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     shape: BoxShape.circle,
                                     color: Colors.white,
                                     border: Border.all(
-                                        color: profileTeal.withOpacity(0.08)),
+                                        color: profileTeal.withValues(alpha: 0.08)),
                                   ),
                                   child: UserAvatar(
                                     imageUrl: (() {
@@ -680,7 +680,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   borderRadius: BorderRadius.circular(999),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: brandPrimary.withOpacity(0.22),
+                                      color: brandPrimary.withValues(alpha: 0.22),
                                       blurRadius: 12,
                                       offset: const Offset(0, 6),
                                     ),
@@ -702,7 +702,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 height: 1,
                                 margin:
                                     const EdgeInsets.symmetric(horizontal: 12),
-                                color: profileTeal.withOpacity(0.08),
+                                color: profileTeal.withValues(alpha: 0.08),
                               ),
                               const SizedBox(height: 14),
                               Row(
@@ -711,7 +711,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: Container(
                                       height: 5,
                                       decoration: BoxDecoration(
-                                        color: profileAccent.withOpacity(0.55),
+                                        color: profileAccent.withValues(alpha: 0.55),
                                         borderRadius:
                                             BorderRadius.circular(999),
                                       ),
@@ -723,7 +723,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: Container(
                                       height: 5,
                                       decoration: BoxDecoration(
-                                        color: brandPrimary.withOpacity(0.28),
+                                        color: brandPrimary.withValues(alpha: 0.28),
                                         borderRadius:
                                             BorderRadius.circular(999),
                                       ),
@@ -734,7 +734,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: Container(
                                       height: 5,
                                       decoration: BoxDecoration(
-                                        color: profileAccent.withOpacity(0.55),
+                                        color: profileAccent.withValues(alpha: 0.55),
                                         borderRadius:
                                             BorderRadius.circular(999),
                                       ),
@@ -763,12 +763,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             foregroundColor: brandDeep,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(
-                                color: brandPrimary.withOpacity(0.44)),
+                                color: brandPrimary.withValues(alpha: 0.44)),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(radiusMd),
                             ),
-                            shadowColor: brandPrimary.withOpacity(0.10),
+                            shadowColor: brandPrimary.withValues(alpha: 0.10),
                           ),
                           icon: Icon(
                             _isEditingDisplayName
@@ -793,12 +793,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             foregroundColor: brandDeep,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(
-                                color: profileTeal.withOpacity(0.36)),
+                                color: profileTeal.withValues(alpha: 0.36)),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(radiusMd),
                             ),
-                            shadowColor: profileTeal.withOpacity(0.10),
+                            shadowColor: profileTeal.withValues(alpha: 0.10),
                           ),
                           icon: _isUploadingProfileImage
                               ? const SizedBox(
@@ -824,10 +824,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(radiusLg),
                           border: Border.all(
-                              color: brandPrimary.withOpacity(0.16)),
+                              color: brandPrimary.withValues(alpha: 0.16)),
                           boxShadow: [
                             BoxShadow(
-                              color: profileTeal.withOpacity(0.08),
+                              color: profileTeal.withValues(alpha: 0.08),
                               blurRadius: 18,
                               offset: const Offset(0, 10),
                             ),
@@ -889,7 +889,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: brandDeep,
                       backgroundColor: brandSurface,
-                      side: BorderSide(color: brandPrimary.withOpacity(0.34)),
+                      side: BorderSide(color: brandPrimary.withValues(alpha: 0.34)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(radiusMd),
@@ -911,10 +911,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       borderRadius: BorderRadius.circular(radiusXl),
-                      border: Border.all(color: profileTeal.withOpacity(0.12)),
+                      border: Border.all(color: profileTeal.withValues(alpha: 0.12)),
                       boxShadow: [
                         BoxShadow(
-                          color: profileTeal.withOpacity(0.08),
+                          color: profileTeal.withValues(alpha: 0.08),
                           blurRadius: 22,
                           offset: const Offset(0, 12),
                         ),
@@ -931,18 +931,18 @@ class _ProfilePageState extends State<ProfilePage> {
                               fillColor: Color.lerp(
                                   brandSurface, brandSurfaceStrong, 0.14)!,
                               labelStyle: TextStyle(
-                                color: profileTeal.withOpacity(0.78),
+                                color: profileTeal.withValues(alpha: 0.78),
                                 fontWeight: FontWeight.w700,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(radiusMd),
                                 borderSide: BorderSide(
-                                    color: profileTeal.withOpacity(0.12)),
+                                    color: profileTeal.withValues(alpha: 0.12)),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(radiusMd),
                                 borderSide: BorderSide(
-                                    color: profileTeal.withOpacity(0.12)),
+                                    color: profileTeal.withValues(alpha: 0.12)),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(radiusMd),
@@ -997,7 +997,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                               .bodySmall
                                               ?.copyWith(
                                                 color:
-                                                    brandInk.withOpacity(0.72),
+                                                    brandInk.withValues(alpha: 0.72),
                                               ),
                                         ),
                                       ],
@@ -1008,7 +1008,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               const SizedBox(height: 14),
                               Container(
                                 height: 1,
-                                color: profileTeal.withOpacity(0.08),
+                                color: profileTeal.withValues(alpha: 0.08),
                               ),
                               const SizedBox(height: 14),
                               Text(
@@ -1017,7 +1017,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(
-                                      color: brandInk.withOpacity(0.70),
+                                      color: brandInk.withValues(alpha: 0.70),
                                       height: 1.4,
                                     ),
                               ),
@@ -1101,7 +1101,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         BorderRadius.circular(radiusMd),
                                   ),
                                   elevation: 0,
-                                  shadowColor: profileTeal.withOpacity(0.18),
+                                  shadowColor: profileTeal.withValues(alpha: 0.18),
                                 ),
                                 icon: _isChangingPin
                                     ? const SizedBox(
@@ -1197,7 +1197,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
-                              value: _role,
+                              initialValue: _role,
                               decoration: const InputDecoration(
                                 labelText:
                                     "\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c",
@@ -1260,10 +1260,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(radiusMd),
                         border:
-                            Border.all(color: brandPrimary.withOpacity(0.16)),
+                            Border.all(color: brandPrimary.withValues(alpha: 0.16)),
                         boxShadow: [
                           BoxShadow(
-                            color: brandPrimary.withOpacity(0.08),
+                            color: brandPrimary.withValues(alpha: 0.08),
                             blurRadius: 16,
                             offset: const Offset(0, 8),
                           ),
@@ -1276,10 +1276,10 @@ class _ProfilePageState extends State<ProfilePage> {
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
-                              color: brandSurfaceStrong.withOpacity(0.55),
+                              color: brandSurfaceStrong.withValues(alpha: 0.55),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                  color: brandPrimary.withOpacity(0.10)),
+                                  color: brandPrimary.withValues(alpha: 0.10)),
                             ),
                             child: const Icon(
                               Icons.info_outline_rounded,
@@ -1336,8 +1336,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               user.role.trim().toLowerCase() == "admin";
                           final badgeColor = isAdmin ? brandDeep : brandInk;
                           final badgeBackground = isAdmin
-                              ? brandPrimary.withOpacity(0.24)
-                              : brandSurfaceStrong.withOpacity(0.26);
+                              ? brandPrimary.withValues(alpha: 0.24)
+                              : brandSurfaceStrong.withValues(alpha: 0.26);
                           return Card(
                             child: Padding(
                               padding:
@@ -1399,7 +1399,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                               .bodyMedium
                                               ?.copyWith(
                                                 color:
-                                                    brandInk.withOpacity(0.72),
+                                                    brandInk.withValues(alpha: 0.72),
                                               ),
                                         ),
                                         if (isCurrentUser) ...[
@@ -1409,7 +1409,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                                 horizontal: 10, vertical: 5),
                                             decoration: BoxDecoration(
                                               color: brandSurfaceStrong
-                                                  .withOpacity(0.26),
+                                                  .withValues(alpha: 0.26),
                                               borderRadius:
                                                   BorderRadius.circular(999),
                                             ),
@@ -1468,7 +1468,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                           height: 34,
                                           decoration: BoxDecoration(
                                             color:
-                                                Colors.white.withOpacity(0.78),
+                                                Colors.white.withValues(alpha: 0.78),
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                           ),
@@ -1545,10 +1545,10 @@ class _PageHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: BorderRadius.circular(radiusXl),
-        border: Border.all(color: brandPrimary.withOpacity(0.16)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.16)),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.10),
+            color: brandPrimary.withValues(alpha: 0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -1563,7 +1563,7 @@ class _PageHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back_rounded),
               color: brandDeep,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.82),
+                backgroundColor: Colors.white.withValues(alpha: 0.82),
               ),
             ),
             const SizedBox(height: spaceXs),
@@ -1578,7 +1578,7 @@ class _PageHeader extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: brandInk.withOpacity(0.82),
+                  color: brandInk.withValues(alpha: 0.82),
                 ),
           ),
           const SizedBox(height: spaceSm),
@@ -1669,12 +1669,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: brandPrimary.withOpacity(0.10),
+              color: brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: brandPrimary.withOpacity(0.82),
+              color: brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -1695,7 +1695,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: brandInk.withOpacity(0.70),
+                        color: brandInk.withValues(alpha: 0.70),
                         height: 1.35,
                       ),
                 ),
@@ -1732,7 +1732,7 @@ class _ErrorState extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: profileAccent.withOpacity(0.28),
+                  color: profileAccent.withValues(alpha: 0.28),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
@@ -1752,7 +1752,7 @@ class _ErrorState extends StatelessWidget {
                 message.replaceFirst("Exception: ", ""),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: brandInk.withOpacity(0.72),
+                      color: brandInk.withValues(alpha: 0.72),
                     ),
               ),
             ],
@@ -1781,11 +1781,11 @@ class _AppSettingsCard extends StatelessWidget {
           color: cardBg,
           borderRadius: BorderRadius.circular(radiusLg),
           border: Border.all(
-            color: brandPrimary.withOpacity(0.16),
+            color: brandPrimary.withValues(alpha: 0.16),
           ),
           boxShadow: [
             BoxShadow(
-              color: profileTeal.withOpacity(0.08),
+              color: profileTeal.withValues(alpha: 0.08),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -1875,7 +1875,7 @@ class _SettingsSwitchRow extends StatelessWidget {
                   subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    color: textColor.withOpacity(0.65),
+                    color: textColor.withValues(alpha: 0.65),
                   ),
                 ),
               ],
@@ -1885,7 +1885,7 @@ class _SettingsSwitchRow extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: brandPrimary,
+            activeThumbColor: brandPrimary,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],

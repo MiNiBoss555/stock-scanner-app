@@ -1,15 +1,12 @@
 import "dart:async" show TimeoutException;
 import "package:flutter/material.dart";
-import "package:flutter/services.dart" show FilteringTextInputFormatter;
 
 import "api_service.dart";
 import "config.dart";
 import "models.dart";
 import "server_scanner.dart";
 import "theme/app_theme.dart";
-
-DateTime? loginTapStart;
-DateTime? authCompleteTime;
+import "services/version_check_service.dart";
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -88,7 +85,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    loginTapStart = DateTime.now();
     final userId = _userIdController.text.trim().toUpperCase();
     final pin = _pinController.text.trim();
 
@@ -125,8 +121,6 @@ class _LoginPageState extends State<LoginPage> {
       final session = await widget.api
           .login(userId: userId, pin: pin)
           .timeout(const Duration(seconds: 6));
-      authCompleteTime = DateTime.now();
-      debugPrint("DEBUG TIMER: login tap to auth complete = ${authCompleteTime!.difference(loginTapStart!).inMilliseconds} ms");
       await widget.onLogin(session);
     } catch (error) {
       final message = error.toString().replaceFirst("Exception: ", "");
@@ -285,8 +279,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            "v1.0.19",
+                          AppVersionText(
                             style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context).colorScheme.outline,

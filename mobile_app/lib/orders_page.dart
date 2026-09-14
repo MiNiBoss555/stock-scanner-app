@@ -365,7 +365,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         Text(
                           "จัดการขั้นตอนงาน",
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.black.withOpacity(0.60),
+                                color: Colors.black.withValues(alpha: 0.60),
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -408,7 +408,7 @@ class _OrdersPageState extends State<OrdersPage> {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black.withOpacity(0.60),
+                    color: Colors.black.withValues(alpha: 0.60),
                     fontWeight: FontWeight.w700,
                   ),
             ),
@@ -778,13 +778,13 @@ class _OrdersPageState extends State<OrdersPage> {
 
     // Pattern: "ส่ง" then name, then multi-line address, then phone.
     if (sendIndex != null) {
-      if (sendIndex! + 1 < lines.length && name.isEmpty) {
-        name = lines[sendIndex! + 1];
+      if (sendIndex + 1 < lines.length && name.isEmpty) {
+        name = lines[sendIndex + 1];
       }
-      final startAddr = (sendIndex! + 2).clamp(0, lines.length);
+      final startAddr = (sendIndex + 2).clamp(0, lines.length);
       final endAddr = phoneIndex == null
           ? lines.length
-          : phoneIndex!.clamp(0, lines.length);
+          : phoneIndex.clamp(0, lines.length);
       if (startAddr < endAddr) {
         final addrLines =
             lines.sublist(startAddr, endAddr).where((l) => l != "ส่ง").toList();
@@ -793,8 +793,8 @@ class _OrdersPageState extends State<OrdersPage> {
         }
       }
       // Everything before "ส่ง" is usually items; keep in note if note not provided.
-      if (note.isEmpty && sendIndex! > 0) {
-        note = lines.sublist(0, sendIndex!).join(" | ");
+      if (note.isEmpty && sendIndex > 0) {
+        note = lines.sublist(0, sendIndex).join(" | ");
       }
     }
 
@@ -902,7 +902,6 @@ class _OrdersPageState extends State<OrdersPage> {
       );
       return croppedFile?.path;
     } catch (e) {
-      debugPrint("Manual crop failed: $e");
       if (mounted) {
         showAppSnack(context, "การครอบตัดขัดข้อง ใช้รูปภาพต้นฉบับแทน");
       }
@@ -965,7 +964,6 @@ class _OrdersPageState extends State<OrdersPage> {
 
       return croppedFile.path;
     } catch (e) {
-      debugPrint("Auto-crop gallery image failed: $e");
       return null;
     }
   }
@@ -1088,7 +1086,6 @@ class _OrdersPageState extends State<OrdersPage> {
             return;
           }
         } catch (e) {
-          debugPrint("Document scanner failed, falling back to camera: $e");
           final XFile? file = await _proofImagePicker.pickImage(
             source: ImageSource.camera,
             imageQuality: 80,
@@ -1137,8 +1134,6 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (targetPath == null) return;
 
-      debugPrint("SELECTED IMAGE PATH: $selectedImagePath");
-      debugPrint("CROPPED/FINAL OCR IMAGE PATH: $targetPath");
 
       setState(() {
         _isSaving = true;
@@ -1150,12 +1145,10 @@ class _OrdersPageState extends State<OrdersPage> {
       String ocrSource = "Unknown";
 
       try {
-        debugPrint("CALLING AI OCR");
         final geminiParsed = await widget.api.ocrShippingLabel(
           requesterId: widget.currentUser.userId,
           filePath: targetPath,
         );
-        debugPrint("AI OCR RESPONSE MAP: $geminiParsed");
         
         final name = geminiParsed["name"]?.trim() ?? "";
         final phone = geminiParsed["phone"]?.trim() ?? "";
@@ -1169,7 +1162,6 @@ class _OrdersPageState extends State<OrdersPage> {
           };
           isComplete = true;
           ocrSource = "Gemini";
-          debugPrint("USING AI OCR");
         } else {
           parsed = {
             "name": name.isEmpty ? null : name,
@@ -1181,7 +1173,6 @@ class _OrdersPageState extends State<OrdersPage> {
       } catch (e) {
         final errStr = e.toString().toLowerCase();
         isQuotaExceeded = errStr.contains("429") || errStr.contains("quota") || errStr.contains("resource exceeded");
-        debugPrint("Gemini OCR failed or timed out: $e (quota exceeded: $isQuotaExceeded)");
         ocrSource = isQuotaExceeded ? "Gemini Quota Exceeded" : "MLKit fallback";
         if (mounted) {
           showAppSnack(
@@ -1202,7 +1193,6 @@ class _OrdersPageState extends State<OrdersPage> {
       }
 
       if (!isComplete) {
-        debugPrint("USING MLKIT FALLBACK");
         try {
           final inputImage = InputImage.fromFilePath(targetPath);
           final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -1227,7 +1217,6 @@ class _OrdersPageState extends State<OrdersPage> {
             }
           }
         } catch (e) {
-          debugPrint("Local ML Kit OCR failed: $e");
         }
       }
 
@@ -1235,9 +1224,6 @@ class _OrdersPageState extends State<OrdersPage> {
       final finalPhone = parsed["phone"]?.trim() ?? "";
       final finalAddress = parsed["address"]?.trim() ?? "";
 
-      debugPrint("FINAL NAME: $finalName");
-      debugPrint("FINAL PHONE: $finalPhone");
-      debugPrint("FINAL ADDRESS: $finalAddress");
 
       if (finalName.isEmpty && finalPhone.isEmpty && finalAddress.isEmpty) {
         if (mounted) {
@@ -1652,7 +1638,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
                               color:
-                                  brandSurfaceStrong.withOpacity(0.35),
+                                  brandSurfaceStrong.withValues(alpha: 0.35),
                               alignment: Alignment.center,
                               padding: const EdgeInsets.all(12),
                               child: const Text(
@@ -1691,7 +1677,7 @@ class _OrdersPageState extends State<OrdersPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String?>(
-                      value: boardProduction,
+                      initialValue: boardProduction,
                       decoration: const InputDecoration(labelText: "ฝ่ายผลิตบอร์ด"),
                       items: [
                         const DropdownMenuItem<String?>(
@@ -1705,7 +1691,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String?>(
-                      value: robotProduction,
+                      initialValue: robotProduction,
                       decoration: const InputDecoration(labelText: "ฝ่ายผลิตหุ่นยนต์"),
                       items: [
                         const DropdownMenuItem<String?>(
@@ -1719,7 +1705,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String?>(
-                      value: qc,
+                      initialValue: qc,
                       decoration: const InputDecoration(labelText: "QC"),
                       items: [
                         const DropdownMenuItem<String?>(
@@ -1732,7 +1718,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String?>(
-                      value: delivery,
+                      initialValue: delivery,
                       decoration: const InputDecoration(labelText: "จัดส่ง"),
                       items: [
                         const DropdownMenuItem<String?>(
@@ -1887,7 +1873,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Card(
-                            color: Colors.red.withOpacity(0.05),
+                            color: Colors.red.withValues(alpha: 0.05),
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
@@ -2111,7 +2097,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                     BorderRadius.circular(16),
                                                 border: Border.all(
                                                     color: brandPrimary
-                                                        .withOpacity(0.16)),
+                                                        .withValues(alpha: 0.16)),
                                               ),
                                               child: Column(
                                                 children: matchedProducts
@@ -2157,7 +2143,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                   .bodySmall
                                                   ?.copyWith(
                                                     color: brandInk
-                                                        .withOpacity(0.72),
+                                                        .withValues(alpha: 0.72),
                                                   ),
                                             ),
                                           ],
@@ -2220,7 +2206,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                   ),
                                   if (_showAdvancedTeam) ...[
                                     DropdownButtonFormField<String?>(
-                                      value: _selectedBoardProductionUserId,
+                                      initialValue: _selectedBoardProductionUserId,
                                       decoration: const InputDecoration(
                                           labelText: "ฝ่ายผลิตบอร์ด"),
                                       items: [
@@ -2242,7 +2228,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String?>(
-                                      value: _selectedRobotProductionUserId,
+                                      initialValue: _selectedRobotProductionUserId,
                                       decoration: const InputDecoration(
                                           labelText: "ฝ่ายผลิตหุ่นยนต์"),
                                       items: [
@@ -2264,7 +2250,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String?>(
-                                      value: _selectedQcUserId,
+                                      initialValue: _selectedQcUserId,
                                       decoration: const InputDecoration(
                                           labelText: "QC"),
                                       items: [
@@ -2285,7 +2271,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String?>(
-                                      value: _selectedDeliveryUserId ??
+                                      initialValue: _selectedDeliveryUserId ??
                                           _selectedAssigneeId,
                                       decoration: const InputDecoration(
                                           labelText: "จัดส่ง"),
@@ -2413,11 +2399,11 @@ class _OrdersPageState extends State<OrdersPage> {
                                     color: Theme.of(context).colorScheme.surface,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Theme.of(context).colorScheme.outline.withOpacity(0.08),
+                                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.08),
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.03),
+                                        color: Colors.black.withValues(alpha: 0.03),
                                         blurRadius: 10,
                                         offset: const Offset(0, 4),
                                       ),
@@ -2445,7 +2431,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                 )
                                               : null,
                                           filled: true,
-                                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(24),
@@ -2454,7 +2440,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                           enabledBorder: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(24),
                                             borderSide: BorderSide(
-                                              color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
                                             ),
                                           ),
                                           focusedBorder: OutlineInputBorder(
@@ -2720,7 +2706,7 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
             Expanded(
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
-                value: _assigneeFilter,
+                initialValue: _assigneeFilter,
                 decoration: const InputDecoration(labelText: "พนักงานส่ง"),
                 items: [
                   const DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
@@ -2737,7 +2723,7 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
             Expanded(
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
-                value: _dateFilter,
+                initialValue: _dateFilter,
                 decoration: const InputDecoration(labelText: "ช่วงวันที่"),
                 items: const [
                   DropdownMenuItem(value: "all", child: Text("ทั้งหมด")),
@@ -3398,7 +3384,7 @@ class _OrderTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
                         color: semanticStatusTone(SemanticStatus.rejected)
-                            .withOpacity(0.35),
+                            .withValues(alpha: 0.35),
                       ),
                     ),
                     child: const Text(
@@ -3414,7 +3400,7 @@ class _OrderTile extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _statusTone().withOpacity(0.12),
+                    color: _statusTone().withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -3449,7 +3435,7 @@ class _OrderTile extends StatelessWidget {
                       color:
                           isDone
                               ? semanticStatusTone(SemanticStatus.completed)
-                              : brandInk.withOpacity(0.55),
+                              : brandInk.withValues(alpha: 0.55),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -3661,7 +3647,7 @@ class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
                 height: 170,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: brandPrimary.withOpacity(0.06),
+                  color: brandPrimary.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Stack(
@@ -3672,7 +3658,7 @@ class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
                         width: 220,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: brandPrimary.withOpacity(0.2),
+                          color: brandPrimary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -3688,7 +3674,7 @@ class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
                       child: Icon(
                         Icons.local_shipping_rounded,
                         size: 34,
-                        color: brandPrimary.withOpacity(0.85),
+                        color: brandPrimary.withValues(alpha: 0.85),
                       ),
                     ),
                     TweenAnimationBuilder<double>(
@@ -3702,7 +3688,7 @@ class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
                       child: Icon(
                         Icons.inventory_2_rounded,
                         size: 46,
-                        color: brandDeep.withOpacity(0.88),
+                        color: brandDeep.withValues(alpha: 0.88),
                       ),
                     ),
                     TweenAnimationBuilder<double>(
@@ -3716,7 +3702,7 @@ class _DeliverySuccessOverlayState extends State<_DeliverySuccessOverlay> {
                       child: Icon(
                         Icons.all_inbox_rounded,
                         size: 42,
-                        color: profileAccent.withOpacity(0.92),
+                        color: profileAccent.withValues(alpha: 0.92),
                       ),
                     ),
                   ],
@@ -3754,12 +3740,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: brandPrimary.withOpacity(0.10),
+              color: brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: brandPrimary.withOpacity(0.82),
+              color: brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -3780,7 +3766,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: brandInk.withOpacity(0.70),
+                        color: brandInk.withValues(alpha: 0.70),
                         height: 1.35,
                       ),
                 ),
@@ -3816,7 +3802,7 @@ class _ErrorState extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: profileAccent.withOpacity(0.28),
+                  color: profileAccent.withValues(alpha: 0.28),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
@@ -3836,7 +3822,7 @@ class _ErrorState extends StatelessWidget {
                 message.replaceFirst("Exception: ", ""),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: brandInk.withOpacity(0.72),
+                      color: brandInk.withValues(alpha: 0.72),
                     ),
               ),
             ],
@@ -3867,10 +3853,10 @@ class _PageHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: BorderRadius.circular(radiusXl),
-        border: Border.all(color: brandPrimary.withOpacity(0.16)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.16)),
         boxShadow: [
           BoxShadow(
-            color: brandPrimary.withOpacity(0.10),
+            color: brandPrimary.withValues(alpha: 0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -3885,7 +3871,7 @@ class _PageHeader extends StatelessWidget {
               icon: const Icon(Icons.arrow_back_rounded),
               color: brandDeep,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.82),
+                backgroundColor: Colors.white.withValues(alpha: 0.82),
               ),
             ),
             const SizedBox(height: spaceXs),
@@ -3900,7 +3886,7 @@ class _PageHeader extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: brandInk.withOpacity(0.82),
+                  color: brandInk.withValues(alpha: 0.82),
                 ),
           ),
           const SizedBox(height: spaceSm),
@@ -3933,7 +3919,7 @@ class _ReceiptDivider extends StatelessWidget {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 1.5),
                 height: 1.4,
-                color: brandPrimary.withOpacity(0.35),
+                color: brandPrimary.withValues(alpha: 0.35),
               ),
             ),
           ),

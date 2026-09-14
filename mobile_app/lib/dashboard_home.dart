@@ -138,7 +138,7 @@ class MobileDashboardHome extends StatelessWidget {
                   Text(
                     "เช็กงานที่ต้องตามต่อวันนี้ได้ในหน้าเดียว",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
+                          color: isDark ? darkTextSecondary : brandInk.withValues(alpha: 0.72),
                         ),
                   ),
                   const SizedBox(height: 14),
@@ -481,7 +481,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                     color: indicatorColor,
                     shape: BoxShape.circle,
                     border: isActive 
-                        ? Border.all(color: brandPrimary.withOpacity(0.3), width: 2) 
+                        ? Border.all(color: brandPrimary.withValues(alpha: 0.3), width: 2)
                         : null,
                   ),
                 ),
@@ -534,7 +534,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -617,7 +617,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: dueTone.withOpacity(0.6),
+                                  color: dueTone.withValues(alpha: 0.6),
                                   blurRadius: 4,
                                   spreadRadius: 1,
                                 ),
@@ -686,7 +686,7 @@ class _SharedReceiptBillCard extends StatelessWidget {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: brandPrimary.withOpacity(0.10),
+                      color: brandPrimary.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -876,12 +876,12 @@ class _StockHealthCard extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: color.withOpacity(onTap != null ? 0.24 : 0.12),
+                color: color.withValues(alpha: onTap != null ? 0.24 : 0.12),
                 width: onTap != null ? 1.5 : 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.06),
+                  color: color.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -892,7 +892,7 @@ class _StockHealthCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.10),
+                    color: color.withValues(alpha: 0.10),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: color, size: 18),
@@ -911,7 +911,7 @@ class _StockHealthCard extends StatelessWidget {
                   label,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: brandInk.withOpacity(0.8),
+                        color: brandInk.withValues(alpha: 0.8),
                         fontWeight: FontWeight.w700,
                         fontSize: 11,
                       ),
@@ -1023,12 +1023,12 @@ class _HeroInfoChip extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.70),
-            Colors.white.withOpacity(0.50),
+            Colors.white.withValues(alpha: 0.70),
+            Colors.white.withValues(alpha: 0.50),
           ],
         ),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: brandPrimary.withOpacity(0.10)),
+        border: Border.all(color: brandPrimary.withValues(alpha: 0.10)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1085,7 +1085,7 @@ class _DashboardSectionHeader extends StatelessWidget {
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
+                color: isDark ? darkTextSecondary : brandInk.withValues(alpha: 0.72),
               ),
         ),
       ],
@@ -1123,16 +1123,16 @@ class _ActionBanner extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  accent.withOpacity(0.12),
-                  Color.lerp(accent, profileTeal, 0.35)!.withOpacity(0.10),
-                  brandSurfaceStrong.withOpacity(0.34),
+                  accent.withValues(alpha: 0.12),
+                  Color.lerp(accent, profileTeal, 0.35)!.withValues(alpha: 0.10),
+                  brandSurfaceStrong.withValues(alpha: 0.34),
                 ],
               ),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: accent.withOpacity(0.14)),
+              border: Border.all(color: accent.withValues(alpha: 0.14)),
               boxShadow: [
                 BoxShadow(
-                  color: accent.withOpacity(0.08),
+                  color: accent.withValues(alpha: 0.08),
                   blurRadius: 18,
                   offset: const Offset(0, 10),
                 ),
@@ -1146,8 +1146,8 @@ class _ActionBanner extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.white.withOpacity(0.86),
-                        Colors.white.withOpacity(0.68),
+                        Colors.white.withValues(alpha: 0.86),
+                        Colors.white.withValues(alpha: 0.68),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(18),
@@ -1171,7 +1171,7 @@ class _ActionBanner extends StatelessWidget {
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: brandInk.withOpacity(0.72),
+                              color: brandInk.withValues(alpha: 0.72),
                               height: 1.35,
                             ),
                       ),
@@ -1223,10 +1223,10 @@ class _QuickStatCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? darkCard : Colors.white,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: isDark ? darkCardBorder.withOpacity(0.8) : tone.withOpacity(0.12)),
+              border: Border.all(color: isDark ? darkCardBorder.withValues(alpha: 0.8) : tone.withValues(alpha: 0.12)),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? Colors.black.withOpacity(0.25) : tone.withOpacity(0.08),
+                  color: isDark ? Colors.black.withValues(alpha: 0.25) : tone.withValues(alpha: 0.08),
                   blurRadius: 18,
                   offset: const Offset(0, 12),
                 ),
@@ -1239,7 +1239,7 @@ class _QuickStatCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: tone.withOpacity(0.10),
+                    color: tone.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(icon, color: tone),
@@ -1264,7 +1264,7 @@ class _QuickStatCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark ? darkTextSecondary : brandInk.withOpacity(0.72),
+                        color: isDark ? darkTextSecondary : brandInk.withValues(alpha: 0.72),
                         height: 1.35,
                       ),
                 ),
@@ -1300,7 +1300,7 @@ class _LowStockFocusCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: isDark ? darkCard : Colors.white,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: isDark ? darkCardBorder.withOpacity(0.8) : brandPrimary.withOpacity(0.12)),
+            border: Border.all(color: isDark ? darkCardBorder.withValues(alpha: 0.8) : brandPrimary.withValues(alpha: 0.12)),
           ),
           child: Row(
             children: [
@@ -1308,7 +1308,7 @@ class _LowStockFocusCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: brandPrimary.withOpacity(0.10),
+                  color: brandPrimary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(Icons.warning_amber_rounded,
@@ -1332,7 +1332,7 @@ class _LowStockFocusCard extends StatelessWidget {
                     Text(
                       "${product.barcode} · คงเหลือ ${product.currentStock} ${product.unit}",
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: isDark ? darkTextSecondary : brandInk.withOpacity(0.74),
+                            color: isDark ? darkTextSecondary : brandInk.withValues(alpha: 0.74),
                           ),
                     ),
                   ],
@@ -1346,7 +1346,7 @@ class _LowStockFocusCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: brandPrimary.withOpacity(0.10),
+                      color: brandPrimary.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
@@ -1361,7 +1361,7 @@ class _LowStockFocusCard extends StatelessWidget {
                   Text(
                     "เปิดบาร์โค้ด",
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: brandInk.withOpacity(0.62),
+                          color: brandInk.withValues(alpha: 0.62),
                           fontWeight: FontWeight.w700,
                         ),
                   ),
@@ -1389,7 +1389,7 @@ class _OrderStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: tone.withOpacity(0.10),
+        color: tone.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1419,12 +1419,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: brandPrimary.withOpacity(0.10),
+              color: brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: brandPrimary.withOpacity(0.82),
+              color: brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -1445,7 +1445,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).brightness == Brightness.dark ? darkTextSecondary : brandInk.withOpacity(0.70),
+                        color: Theme.of(context).brightness == Brightness.dark ? darkTextSecondary : brandInk.withValues(alpha: 0.70),
                         height: 1.35,
                       ),
                 ),

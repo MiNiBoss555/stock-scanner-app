@@ -246,7 +246,7 @@ class DashboardPageState extends State<DashboardPage> with RouteAware {
             child: Text(
               label,
               style: TextStyle(
-                color: brandInk.withOpacity(0.85),
+                color: brandInk.withValues(alpha: 0.85),
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
@@ -267,17 +267,11 @@ class DashboardPageState extends State<DashboardPage> with RouteAware {
   }
 
   Future<DashboardData> _load() async {
-    final start = DateTime.now();
     final results = await Future.wait([
       widget.api.getSummary(),
       widget.api.getProducts(),
       widget.api.getOrders(requesterId: widget.currentUser.userId, limit: 300),
     ]);
-    debugPrint("DEBUG TIMER: load initial dashboard duration = ${DateTime.now().difference(start).inMilliseconds} ms");
-    if (loginTapStart != null) {
-      debugPrint("DEBUG TIMER: total time from login tap to first screen = ${DateTime.now().difference(loginTapStart!).inMilliseconds} ms");
-      loginTapStart = null;
-    }
     final allOrders = results[2] as List<DeliveryOrder>;
     int duePriority(DeliveryOrder order) {
       final dueAt = order.scheduledDeliveryAt;
@@ -425,7 +419,7 @@ class _ReceiptDivider extends StatelessWidget {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 1.5),
                 height: 1.4,
-                color: brandPrimary.withOpacity(0.35),
+                color: brandPrimary.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -491,7 +485,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: brandInk.withOpacity(0.9),
+                  color: brandInk.withValues(alpha: 0.9),
                   fontSize: 12,
                   height: 1.1,
                 ),
@@ -539,7 +533,7 @@ class _ProductTile extends StatelessWidget {
         leading: CircleAvatar(
           radius: 18,
           backgroundColor: (product.isLowStock ? brandPrimary : brandDeep)
-              .withOpacity(0.10),
+              .withValues(alpha: 0.10),
           child: Icon(
             product.isLowStock
                 ? Icons.warning_amber_rounded
@@ -612,7 +606,7 @@ class _EmptyTile extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: brandInk.withOpacity(0.62),
+              color: brandInk.withValues(alpha: 0.62),
               fontWeight: FontWeight.w500,
             ),
           ),

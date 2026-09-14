@@ -37,13 +37,13 @@ import "dashboard_page.dart";
 import "help_center_page.dart";
 import "models.dart";
 import "theme/app_theme.dart";
+import "services/secure_session_store.dart";
+import "services/version_check_service.dart";
 import "package:google_fonts/google_fonts.dart";
 
 
 
 const _sessionUserIdKey = "session_user_id";
-const _sessionPinKey = "session_pin";
-const _sessionAccessTokenKey = "session_access_token";
 const _sessionUserJsonKey = "session_user_json";
 const _brandPrimary = Color(0xFF005AA7);
 const _brandSurface = Colors.white;
@@ -59,7 +59,6 @@ const double _spaceSm = 12;
 const double _spaceMd = 16;
 const double _spaceLg = 20;
 const double _spaceXl = 24;
-const String _webBuildTag = "v1.0.11";
 const double _radiusSm = 12;
 const double _radiusMd = 18;
 const double _radiusLg = 24;
@@ -318,6 +317,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
   static final RouteObserver<ModalRoute<void>> _routeObserver =
       RouteObserver<ModalRoute<void>>();
   final StockApiService _api = StockApiService();
+  final SecureSessionStore _sessionStore = SecureSessionStore();
   late final AppSettings _appSettings;
   static const Duration _minSplashDuration = Duration(milliseconds: 900);
   static const Duration _restoreTimeout = Duration(seconds: 4);
@@ -339,10 +339,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
   Future<void> _restoreSession() async {
     final startedAt = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
-    final savedToken = prefs.getString(_sessionAccessTokenKey);
-    final savedUserId = prefs.getString(_sessionUserIdKey);
-    final savedPin = prefs.getString(_sessionPinKey);
-    final savedUserJson = prefs.getString(_sessionUserJsonKey);
+    await _sessionStore.migrateLegacyCredentials();
+    final savedToken = await _sessionStore.readAccessToken();
 
     if (!kIsWeb && !Platform.isWindows) {
       unawaited(Future(() async {
@@ -350,32 +348,6 @@ class _StockScannerAppState extends State<StockScannerApp> {
           await ServerScanner.autoDiscoverServer();
         }
       }));
-    }
-
-    if (savedToken != null &&
-        savedToken.isNotEmpty &&
-        savedUserJson != null &&
-        savedUserJson.isNotEmpty) {
-      try {
-        final cachedUser = AppUser.fromJson(
-          jsonDecode(savedUserJson) as Map<String, dynamic>,
-        );
-        _api.setAccessToken(savedToken);
-        final elapsed = DateTime.now().difference(startedAt);
-        if (elapsed < _minSplashDuration) {
-          await Future<void>.delayed(_minSplashDuration - elapsed);
-        }
-        if (mounted) {
-          setState(() {
-            _currentUser = cachedUser;
-            _isRestoring = false;
-          });
-        }
-        unawaited(_refreshRestoredSession(prefs));
-        return;
-      } catch (_) {
-        await prefs.remove(_sessionUserJsonKey);
-      }
     }
 
     if (savedToken != null && savedToken.isNotEmpty) {
@@ -397,38 +369,7 @@ class _StockScannerAppState extends State<StockScannerApp> {
         return;
       } catch (_) {
         _api.clearAccessToken();
-        await prefs.remove(_sessionAccessTokenKey);
-        await prefs.remove(_sessionUserJsonKey);
-      }
-    }
-
-    if (savedUserId != null && savedPin != null) {
-      try {
-        final session = await _api
-            .login(userId: savedUserId, pin: savedPin)
-            .timeout(_restoreTimeout);
-        await prefs.setString(_sessionAccessTokenKey, session.accessToken);
-        await prefs.setString(
-            _sessionUserJsonKey, jsonEncode(session.user.toJson()));
-        await prefs.remove(_sessionPinKey);
-        final elapsed = DateTime.now().difference(startedAt);
-        if (elapsed < _minSplashDuration) {
-          await Future<void>.delayed(_minSplashDuration - elapsed);
-        }
-        if (mounted) {
-          setState(() {
-            _currentUser = session.user;
-            _isRestoring = false;
-          });
-        }
-        _api.setAccessToken(session.accessToken);
-        await _registerPushForUser(session.user.userId);
-        return;
-      } catch (_) {
-        _api.clearAccessToken();
-        await prefs.remove(_sessionAccessTokenKey);
-        await prefs.remove(_sessionUserIdKey);
-        await prefs.remove(_sessionPinKey);
+        await _sessionStore.clearCredentials();
         await prefs.remove(_sessionUserJsonKey);
       }
     }
@@ -444,47 +385,19 @@ class _StockScannerAppState extends State<StockScannerApp> {
     }
   }
 
-  Future<void> _refreshRestoredSession(SharedPreferences prefs) async {
-    try {
-      final user = await _api.getCurrentUser().timeout(_restoreTimeout);
-      await prefs.setString(_sessionUserJsonKey, jsonEncode(user.toJson()));
-      if (mounted) {
-        setState(() {
-          _currentUser = user;
-        });
-      }
-      await _registerPushForUser(user.userId);
-    } catch (_) {
-      _api.clearAccessToken();
-      await prefs.remove(_sessionAccessTokenKey);
-      await prefs.remove(_sessionUserIdKey);
-      await prefs.remove(_sessionPinKey);
-      await prefs.remove(_sessionUserJsonKey);
-      if (mounted) {
-        setState(() {
-          _currentUser = null;
-        });
-      }
-    }
-  }
-
   Future<void> _handleLogin(LoginSession session) async {
-    final saveSessionStart = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
     _api.setAccessToken(session.accessToken);
     await prefs.setString(_sessionUserIdKey, session.user.userId);
-    await prefs.setString(_sessionAccessTokenKey, session.accessToken);
+    await _sessionStore.writeAccessToken(session.accessToken);
     await prefs.setString(
         _sessionUserJsonKey, jsonEncode(session.user.toJson()));
-    await prefs.remove(_sessionPinKey);
-    debugPrint("DEBUG TIMER: save session duration = ${DateTime.now().difference(saveSessionStart).inMilliseconds} ms");
     if (mounted) {
       setState(() {
         _currentUser = session.user;
       });
     }
     unawaited(_registerPushForUser(session.user.userId).catchError((e) {
-      debugPrint("Push token registration error: $e");
     }));
   }
 
@@ -513,9 +426,8 @@ class _StockScannerAppState extends State<StockScannerApp> {
     } catch (_) {
       _api.clearAccessToken();
     }
-    await prefs.remove(_sessionAccessTokenKey);
+    await _sessionStore.clearCredentials();
     await prefs.remove(_sessionUserIdKey);
-    await prefs.remove(_sessionPinKey);
     await prefs.remove(_sessionUserJsonKey);
     if (mounted) {
       setState(() {
@@ -761,8 +673,7 @@ class _WebLandingPage extends StatelessWidget {
                   const Spacer(),
                   Align(
                     alignment: Alignment.bottomRight,
-                    child: Text(
-                      _webBuildTag,
+                    child: AppVersionText(
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Colors.white.withOpacity(0.55),
                           ),
@@ -1024,10 +935,6 @@ class _StockHomePageState extends State<StockHomePage> {
         defaultTargetPlatform == TargetPlatform.linux ||
         MediaQuery.sizeOf(context).width > 700;
 
-    if (authCompleteTime != null) {
-      debugPrint("DEBUG TIMER: auth complete to home visible = ${DateTime.now().difference(authCompleteTime!).inMilliseconds} ms");
-      authCompleteTime = null;
-    }
     menuItems = [
       {
         "icon": Icons.dashboard_outlined,
@@ -1443,20 +1350,12 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  static bool _firstHistoryLoadLogged = false;
   late Future<List<MovementRecord>> _future;
 
   @override
   void initState() {
     super.initState();
-    final start = DateTime.now();
-    _future = widget.api.getMovements().then((val) {
-      if (!_firstHistoryLoadLogged) {
-        debugPrint("DEBUG TIMER: first HistoryPage load duration = ${DateTime.now().difference(start).inMilliseconds} ms");
-        _firstHistoryLoadLogged = true;
-      }
-      return val;
-    });
+    _future = widget.api.getMovements();
     widget.refreshSignal.addListener(_handleRealtimeRefresh);
   }
 
