@@ -1,0 +1,36 @@
+{
+  "manifest_schema_version": "1.0",
+  "generated_at_utc": "2026-09-15T08:35:00Z",
+  "package_id": "com.scanproduct.stockscanner",
+  "version_name": "1.0.23",
+  "version_code": 24,
+  "version": "1.0.23+24",
+  "signing_certificate": {
+    "subject_dn": "CN=Scan Product, OU=Mobile, O=Scan Product, L=Bangkok, ST=Bangkok, C=TH",
+    "sha256_fingerprint": "150bff6c5e8f09e18c91e6cec9d5a31e03a00b6b976dd2faadc37db3d8f8659e",
+    "sha1_fingerprint": "2ab0d2cde9aed50851aff0059588416ab77f9fad",
+    "valid_until": "2053-09-12T06:07:34Z"
+  },
+  "artifacts": [
+    {
+      "type": "APK",
+      "filename": "app-release.apk",
+      "path": "mobile_app/build/app/outputs/flutter-apk/app-release.apk",
+      "size_bytes": 208642553,
+      "sha256": "80d4d9069e807a1c3e02f00448ac26f75921318fc7c4a4623c70b2d7ec5406a0",
+      "build_timestamp": "2026-09-14T16:37:51",
+      "verified_v2_scheme": true,
+      "min_sdk_version": 24,
+      "target_sdk_version": 36
+    },
+    {
+      "type": "AAB",
+      "filename": "app-release.aab",
+      "path": "mobile_app/build/app/outputs/bundle/release/app-release.aab",
+      "size_bytes": 182499860,
+      "sha256": "400e52b441dae8dcd9e6e36de4c1ccd7c2785c666011400b6d62992984a18af9",
+      "build_timestamp": "2026-09-14T16:40:27",
+      "verified_jar_scheme": true
+    }
+  ]
+}
