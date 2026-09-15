@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -14,10 +14,15 @@ stock_scanner.db
 *.db
 uploads/
 backups/
+production_backups/
+*.sha256
+backup_verification_*.json
 
 # Python test/cache artifacts
 .pytest_cache/
 .coverage
+tmp_pytest/
+pytest_temp/
 
 # Flutter / Dart
 mobile_app/.dart_tool/
@@ -36,9 +41,13 @@ secrets/
 
 # Android / Gradle
 mobile_app/android/.gradle/
-mobile_app/android/key.properties
-mobile_app/android/*.jks
-mobile_app/android/*.keystore
+key.properties
+**/key.properties
+!mobile_app/android/key.properties.example
+*.jks
+**/*.jks
+*.keystore
+**/*.keystore
 
 # Local editor/system files
 .vscode/
