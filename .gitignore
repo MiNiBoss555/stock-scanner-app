@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -15,8 +15,6 @@ stock_scanner.db
 uploads/
 backups/
 production_backups/
-*.sha256
-backup_verification_*.json
 
 # Python test/cache artifacts
 .pytest_cache/

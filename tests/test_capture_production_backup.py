@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import io
 import json
 import os
@@ -14,11 +14,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tools.capture_production_backup import (
+    SafeRedirectHandler,
     preflight_health_check,
     resolve_admin_token,
     run_backup_capture,
     stream_backup_download,
     validate_base_url,
+    validate_zip_members_safety,
     verify_zip_and_database,
 )
 
@@ -56,28 +58,115 @@ def _create_valid_test_zip(zip_path: Path) -> str:
     return hasher.hexdigest().lower()
 
 
-def test_validate_base_url_https_enforced():
+def test_validate_base_url_remote_https_and_loopback_http():
+    # HTTPS accepted for remote and local
     assert validate_base_url("https://api.example.com") == "https://api.example.com"
-    with pytest.raises(ValueError, match="HTTPS is strictly required"):
-        validate_base_url("http://api.example.com")
-    # Localhost allowed with http
+    assert validate_base_url("https://localhost:8000") == "https://localhost:8000"
+
+    # HTTP accepted ONLY for loopback
     assert validate_base_url("http://localhost:8000") == "http://localhost:8000"
     assert validate_base_url("http://127.0.0.1:8000") == "http://127.0.0.1:8000"
-    # Remote allowed with --allow-insecure
-    assert validate_base_url("http://api.example.com", allow_insecure=True) == "http://api.example.com"
+    assert validate_base_url("http://[::1]:8000") == "http://[::1]:8000"
+
+    # Remote HTTP strictly rejected
+    with pytest.raises(ValueError, match="Plain HTTP is strictly forbidden for remote host"):
+        validate_base_url("http://api.example.com")
+
+    with pytest.raises(ValueError, match="Plain HTTP is strictly forbidden for remote host"):
+        validate_base_url("http://192.168.1.50:8000")
 
 
-def test_resolve_admin_token(monkeypatch):
+def test_validate_base_url_cli_no_allow_insecure():
+    # Ensure CLI parser does not expose --allow-insecure or accept remote http
+    from tools.capture_production_backup import main
+    with patch("sys.argv", ["capture_production_backup.py", "--allow-insecure"]):
+        with pytest.raises(SystemExit):
+            main()
+
+
+def test_resolve_admin_token_sources_and_no_cli(monkeypatch):
     monkeypatch.delenv("STOCK_SCANNER_ADMIN_TOKEN", raising=False)
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
-    assert resolve_admin_token("direct_token") == "direct_token"
 
-    monkeypatch.setenv("STOCK_SCANNER_ADMIN_TOKEN", "env_token")
-    assert resolve_admin_token() == "env_token"
+    # CLI does not have --token
+    from tools.capture_production_backup import main
+    with patch("sys.argv", ["capture_production_backup.py", "--token", "secret"]):
+        with pytest.raises(SystemExit):
+            main()
 
+    # Environment variable 1
+    monkeypatch.setenv("STOCK_SCANNER_ADMIN_TOKEN", "env_token_primary")
+    assert resolve_admin_token() == "env_token_primary"
+
+    # Environment variable 2 fallback
     monkeypatch.delenv("STOCK_SCANNER_ADMIN_TOKEN")
-    monkeypatch.setenv("ADMIN_TOKEN", "fallback_env_token")
-    assert resolve_admin_token() == "fallback_env_token"
+    monkeypatch.setenv("ADMIN_TOKEN", "env_token_fallback")
+    assert resolve_admin_token() == "env_token_fallback"
+
+    # Interactive getpass fallback
+    monkeypatch.delenv("ADMIN_TOKEN")
+    with patch("sys.stdin.isatty", return_value=True):
+        with patch("getpass.getpass", return_value="interactive_token"):
+            assert resolve_admin_token() == "interactive_token"
+
+    # Missing token error
+    with patch("sys.stdin.isatty", return_value=False):
+        with pytest.raises(ValueError, match="Admin token is required"):
+            resolve_admin_token()
+
+
+def test_safe_redirect_handler_same_origin():
+    handler = SafeRedirectHandler(expected_scheme="https", expected_host="api.example.com", expected_port=443)
+    req = urllib.request.Request("https://api.example.com/admin/backup")
+    req.headers["Authorization"] = "Bearer secret_token_xyz"
+
+    new_req = handler.redirect_request(
+        req=req,
+        fp=io.BytesIO(),
+        code=302,
+        msg="Found",
+        headers={},
+        newurl="https://api.example.com/admin/backup/v2",
+    )
+    assert new_req.get_full_url() == "https://api.example.com/admin/backup/v2"
+
+
+def test_safe_redirect_handler_cross_host_blocked():
+    handler = SafeRedirectHandler(expected_scheme="https", expected_host="api.example.com", expected_port=443)
+    req = urllib.request.Request("https://api.example.com/admin/backup")
+    req.headers["Authorization"] = "Bearer secret_token_xyz"
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        handler.redirect_request(
+            req=req,
+            fp=io.BytesIO(),
+            code=302,
+            msg="Found",
+            headers={},
+            newurl="https://attacker.com/admin/backup",
+        )
+    assert exc_info.value.code == 302
+    assert "Cross-origin redirect" in str(exc_info.value.reason)
+    assert "secret_token_xyz" not in str(exc_info.value)
+
+
+def test_safe_redirect_handler_https_to_http_downgrade_blocked():
+    handler = SafeRedirectHandler(expected_scheme="https", expected_host="api.example.com", expected_port=443)
+    req = urllib.request.Request("https://api.example.com/admin/backup")
+    req.headers["Authorization"] = "Bearer secret_token_xyz"
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        handler.redirect_request(
+            req=req,
+            fp=io.BytesIO(),
+            code=302,
+            msg="Found",
+            headers={},
+            newurl="http://api.example.com/admin/backup",
+        )
+    assert exc_info.value.code == 302
+    assert "Insecure redirect from HTTPS to HTTP blocked" in str(exc_info.value.reason)
+    assert "secret_token_xyz" not in str(exc_info.value)
 
 
 def test_preflight_suspended_503_detected():
@@ -120,11 +209,10 @@ def test_stream_backup_download_and_sha256(tmp_path):
     mock_response = MagicMock()
     mock_response.status = 200
     mock_response.headers = {"Content-Type": "application/zip"}
-    # Return in 2 chunks then empty
     mock_response.read.side_effect = [dummy_content[:15], dummy_content[15:], b""]
     mock_response.__enter__.return_value = mock_response
 
-    with patch("urllib.request.urlopen", return_value=mock_response):
+    with patch("urllib.request.OpenerDirector.open", return_value=mock_response):
         sha256, size = stream_backup_download(
             base_url="https://api.example.com",
             token="secret_token_123",
@@ -176,8 +264,41 @@ def test_verify_corrupted_sqlite(tmp_path):
     import hashlib
 
     sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-    with pytest.raises(ValueError, match="integrity_check failed|file is not a database"):
+    with pytest.raises(ValueError, match="SQLite database error / corruption detected"):
         verify_zip_and_database(zip_path, sha)
+
+
+def test_malicious_zip_path_traversal_rejected(tmp_path):
+    # Test path traversal with ..
+    traversal_zip = tmp_path / "traversal.zip"
+    with zipfile.ZipFile(traversal_zip, "w") as zf:
+        zf.writestr("../escaped.txt", b"evil contents")
+        zf.writestr("stock_scanner.db", b"dummy")
+    import hashlib
+    sha = hashlib.sha256(traversal_zip.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="path traversal rejected"):
+        verify_zip_and_database(traversal_zip, sha)
+
+    # Test absolute path starting with /
+    abs_zip = tmp_path / "abs.zip"
+    with zipfile.ZipFile(abs_zip, "w") as zf:
+        zf.writestr("/etc/passwd", b"evil contents")
+        zf.writestr("stock_scanner.db", b"dummy")
+    sha_abs = hashlib.sha256(abs_zip.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="absolute path rejected"):
+        verify_zip_and_database(abs_zip, sha_abs)
+
+    # Test Windows drive letter
+    drive_zip = tmp_path / "drive.zip"
+    with zipfile.ZipFile(drive_zip, "w") as zf:
+        zf.writestr("C:evil.dll", b"evil contents")
+        zf.writestr("stock_scanner.db", b"dummy")
+    sha_drive = hashlib.sha256(drive_zip.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="drive letter rejected"):
+        verify_zip_and_database(drive_zip, sha_drive)
 
 
 def test_run_backup_capture_full_flow_no_token_leak(tmp_path, capsys):
@@ -195,7 +316,11 @@ def test_run_backup_capture_full_flow_no_token_leak(tmp_path, capsys):
             resp.read.return_value = b'{"status":"healthy"}'
             resp.__enter__.return_value = resp
             return resp
-        elif url.endswith("/admin/backup"):
+        raise RuntimeError(f"Unexpected URL: {url}")
+
+    def mock_opener_open(self, req, timeout=120):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if url.endswith("/admin/backup"):
             auth = req.headers.get("Authorization")
             assert auth == f"Bearer {secret_token}"
             resp = MagicMock()
@@ -204,16 +329,17 @@ def test_run_backup_capture_full_flow_no_token_leak(tmp_path, capsys):
             resp.read.side_effect = [zip_bytes, b""]
             resp.__enter__.return_value = resp
             return resp
-        raise RuntimeError(f"Unexpected URL: {url}")
+        raise RuntimeError(f"Unexpected Opener URL: {url}")
 
     out_dir = tmp_path / "output_backups"
     with patch("urllib.request.urlopen", side_effect=mock_urlopen):
-        exit_code = run_backup_capture(
-            base_url="https://api.test.com",
-            token=secret_token,
-            output_dir=out_dir,
-        )
-        assert exit_code == 0
+        with patch("urllib.request.OpenerDirector.open", mock_opener_open):
+            exit_code = run_backup_capture(
+                base_url="https://api.test.com",
+                token=secret_token,
+                output_dir=out_dir,
+            )
+            assert exit_code == 0
 
     captured = capsys.readouterr()
     stdout_text = captured.out

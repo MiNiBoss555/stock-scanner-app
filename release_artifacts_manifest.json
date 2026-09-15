@@ -1,4 +1,4 @@
-﻿{
+{
   "manifest_schema_version": "1.0",
   "generated_at_utc": "2026-09-15T08:35:00Z",
   "package_id": "com.scanproduct.stockscanner",
@@ -15,7 +15,7 @@
     {
       "type": "APK",
       "filename": "app-release.apk",
-      "path": "mobile_app/build/app/outputs/apk/release/app-release.apk",
+      "path": "mobile_app/build/app/outputs/flutter-apk/app-release.apk",
       "size_bytes": 208642553,
       "sha256": "80d4d9069e807a1c3e02f00448ac26f75921318fc7c4a4623c70b2d7ec5406a0",
       "build_timestamp": "2026-09-14T16:37:51",
