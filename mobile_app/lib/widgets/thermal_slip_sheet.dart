@@ -114,9 +114,11 @@ class __ThermalReceiptSlipSheetState extends State<_ThermalReceiptSlipSheet> {
       final file = File("${tempDir.path}/slip-${widget.order.id}.png");
       await file.writeAsBytes(bytes, flush: true);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: "ใบส่งของ ออเดอร์ ${widget.order.customerName} (${widget.order.id})",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: "ใบส่งของ ออเดอร์ ${widget.order.customerName} (${widget.order.id})",
+        ),
       );
     } catch (error) {
       if (mounted) {

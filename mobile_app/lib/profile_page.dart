@@ -378,7 +378,6 @@ class _ProfilePageState extends State<ProfilePage> {
       if (kIsWeb) {
         final picked = await FilePicker.pickFiles(
           type: FileType.image,
-          withData: true,
         );
         final platformFile =
             picked?.files.isNotEmpty == true ? picked!.files.first : null;
@@ -386,12 +385,13 @@ class _ProfilePageState extends State<ProfilePage> {
           _showSnack("ยังไม่ได้เลือกไฟล์รูป");
           return;
         }
-        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+        final selectedBytes = await platformFile.readAsBytes();
+        if (selectedBytes.isEmpty) {
           _showSnack(
               "ไม่สามารถอ่านไฟล์รูปจากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
           return;
         }
-        bytes = platformFile.bytes!;
+        bytes = selectedBytes;
         filename = platformFile.name;
       } else {
         final file = await _imagePicker.pickImage(

@@ -1,11 +1,9 @@
 import "dart:ui" show PointerDeviceKind;
-import "package:google_fonts/google_fonts.dart";
 import "package:flutter/foundation.dart" show kIsWeb;
 import "package:flutter/material.dart";
 
 import "models.dart";
 import "theme/app_theme.dart";
-import "dashboard_components.dart" show WebDashboardHero, DashboardUpdateCard;
 
 class DashboardData {
   DashboardData({
