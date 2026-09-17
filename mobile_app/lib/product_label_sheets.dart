@@ -1,5 +1,4 @@
 import "dart:io";
-import "dart:typed_data";
 import "dart:ui" as ui;
 
 import "package:barcode_widget/barcode_widget.dart";
@@ -180,7 +179,9 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
 
       if (kIsWeb) {
         final xFile = XFile.fromData(bytes, name: fileName, mimeType: "image/png");
-        await Share.shareXFiles([xFile], text: "${widget.product.name} ($fileName)");
+        await SharePlus.instance.share(
+          ShareParams(files: [xFile], text: "${widget.product.name} ($fileName)"),
+        );
       } else {
         Directory? targetDir;
         try {
@@ -207,7 +208,9 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
           );
         }
 
-        await Share.shareXFiles([XFile(file.path)], text: "${widget.product.name} ($fileName)");
+        await SharePlus.instance.share(
+          ShareParams(files: [XFile(file.path)], text: "${widget.product.name} ($fileName)"),
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -291,9 +294,11 @@ class _ProductCodeSheetState extends State<_ProductCodeSheet> {
       final tempDir = await getTemporaryDirectory();
       final file = File("${tempDir.path}/${widget.product.barcode}-label.png");
       await file.writeAsBytes(bytes, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: "${widget.product.name} (${widget.product.barcode})",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: "${widget.product.name} (${widget.product.barcode})",
+        ),
       );
     } catch (error) {
       if (mounted) {
@@ -673,9 +678,11 @@ class _CustomLabelSheetState extends State<_CustomLabelSheet> {
           widget.label.trim().replaceAll(RegExp(r"[^a-zA-Z0-9ก-๙_-]+"), "_");
       final file = File("${tempDir.path}/$safeName-custom-label.png");
       await file.writeAsBytes(bytes, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: widget.label,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: widget.label,
+        ),
       );
     } catch (error) {
       if (mounted) {

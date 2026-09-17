@@ -5,7 +5,7 @@ import "package:flutter/foundation.dart" show kIsWeb;
 import "package:flutter/material.dart";
 import "package:flutter/services.dart" show Clipboard, ClipboardData;
 import "package:path_provider/path_provider.dart" show getTemporaryDirectory;
-import "package:share_plus/share_plus.dart" show Share, XFile;
+import "package:share_plus/share_plus.dart" show ShareParams, SharePlus, XFile;
 import "package:url_launcher/url_launcher.dart" show launchUrl, LaunchMode;
 
 import "api_service.dart";
@@ -49,7 +49,7 @@ class _AdminPageState extends State<AdminPage> {
           .where((i) => i.deliveredQuantity < i.quantity)
           .map((i) => "${i.productName}:${i.quantity - i.deliveredQuantity}")
           .join("|");
-      final esc = (String v) => "\"${v.replaceAll("\"", "\"\"")}\"";
+      String esc(String v) => "\"${v.replaceAll("\"", "\"\"")}\"";
       buffer.writeln([
         esc(order.id),
         esc(order.customerName),
@@ -64,9 +64,11 @@ class _AdminPageState extends State<AdminPage> {
     final dir = await getTemporaryDirectory();
     final file = File("${dir.path}/orders_backorder_report.csv");
     await file.writeAsString(buffer.toString(), flush: true);
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: "รายงานออเดอร์และค้างจ่าย",
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path)],
+        text: "รายงานออเดอร์และค้างจ่าย",
+      ),
     );
   }
 
@@ -160,9 +162,11 @@ class _AdminPageState extends State<AdminPage> {
       final file = File("${dir.path}/backup_$timestamp.zip");
       await file.writeAsBytes(bytes, flush: true);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: "Backup System Data",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: "Backup System Data",
+        ),
       );
 
       _showSnack("ดาวน์โหลดไฟล์สำรองแล้ว");
@@ -273,7 +277,6 @@ class _AdminPageState extends State<AdminPage> {
       final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ["zip"],
-        withData: kIsWeb,
       );
       final platformFile =
           picked?.files.isNotEmpty == true ? picked!.files.first : null;
@@ -284,11 +287,12 @@ class _AdminPageState extends State<AdminPage> {
 
       filename = platformFile.name;
       if (kIsWeb) {
-        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+        final selectedBytes = await platformFile.readAsBytes();
+        if (selectedBytes.isEmpty) {
           _showSnack("Unable to read the selected backup ZIP.");
           return;
         }
-        bytes = platformFile.bytes!;
+        bytes = selectedBytes;
       } else {
         filePath = platformFile.path;
         if (filePath == null || filePath.isEmpty) {
@@ -340,7 +344,6 @@ class _AdminPageState extends State<AdminPage> {
       final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ["xlsx", "xlsm"],
-        withData: kIsWeb,
       );
       final platformFile =
           picked?.files.isNotEmpty == true ? picked!.files.first : null;
@@ -351,12 +354,13 @@ class _AdminPageState extends State<AdminPage> {
 
       filename = platformFile.name;
       if (kIsWeb) {
-        if (platformFile.bytes == null || platformFile.bytes!.isEmpty) {
+        final selectedBytes = await platformFile.readAsBytes();
+        if (selectedBytes.isEmpty) {
           _showSnack(
               "ไม่สามารถอ่านไฟล์ Excel จากเบราว์เซอร์ได้ ลองเลือกใหม่อีกครั้ง");
           return;
         }
-        bytes = platformFile.bytes!;
+        bytes = selectedBytes;
       } else {
         filePath = platformFile.path;
         if (filePath == null || filePath.isEmpty) {

@@ -3,19 +3,11 @@ import "dart:io";
 import "dart:math";
 
 import "dart:convert";
-import "package:file_picker/file_picker.dart";
 import "package:firebase_core/firebase_core.dart";
 import "package:firebase_messaging/firebase_messaging.dart";
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
-import "package:flutter/services.dart";
-import "package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart";
-import "package:image_picker/image_picker.dart";
-import "package:mobile_scanner/mobile_scanner.dart" hide Barcode;
-import "package:path_provider/path_provider.dart";
-import "package:share_plus/share_plus.dart";
 import "package:shared_preferences/shared_preferences.dart";
-import "package:url_launcher/url_launcher.dart";
 
 import "api_service.dart";
 import "config.dart";
@@ -29,8 +21,6 @@ import "product_label_sheets.dart";
 import "product_search_page.dart";
 import "chat_assistant_page.dart";
 import "profile_page.dart";
-import "dashboard_components.dart";
-import "dashboard_home.dart";
 import "login_page.dart";
 import "scan_page.dart";
 import "dashboard_page.dart";
@@ -39,7 +29,6 @@ import "models.dart";
 import "theme/app_theme.dart";
 import "services/secure_session_store.dart";
 import "services/version_check_service.dart";
-import "package:google_fonts/google_fonts.dart";
 
 
 
