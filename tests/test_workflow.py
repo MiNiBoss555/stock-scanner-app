@@ -1,4 +1,4 @@
-﻿"""
+"""
 tests/test_workflow.py
 
 Comprehensive tests for the strict sequential order workflow:
@@ -364,4 +364,138 @@ def test_auto_claim_board_user(api_context):
     data = r.json()
     assert data["board_production_user_id"] == "AUTOCLAIM"
     assert data["production_user_id"] == "AUTOCLAIM"
+
+def test_same_display_name_attacker_blocked_board(api_context):
+    client = api_context["client"]
+    admin_token = login_and_get_token(client)
+    _upsert_user(client, admin_token, user_id="BOARD_LEGIT", user_name="Somchai", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="ATTACKER_BOARD", user_name="Somchai", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="ROBOT1", user_name="Robot User", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="QC1", user_name="QC User", role="qc")
+    _upsert_user(client, admin_token, user_id="DEL1", user_name="Deliv User", role="delivery")
+    legit_token = login_and_get_token(client, user_id="BOARD_LEGIT")
+    attacker_token = login_and_get_token(client, user_id="ATTACKER_BOARD")
+    order = _create_structured_order(
+        client, admin_token,
+        board_id="BOARD_LEGIT", robot_id="ROBOT1", qc_id="QC1", delivery_id="DEL1"
+    )
+    # Attacker with same display name must receive 403
+    r = _workflow(client, attacker_token, order["id"], "send_to_robot")
+    assert r.status_code == 403, r.text
+    # Legit user with matching ID must succeed
+    r_ok = _workflow(client, legit_token, order["id"], "send_to_robot")
+    assert r_ok.status_code == 200, r_ok.text
+
+
+def test_same_display_name_attacker_blocked_robot(api_context):
+    client = api_context["client"]
+    admin_token = login_and_get_token(client)
+    _upsert_user(client, admin_token, user_id="B_USER", user_name="Board User", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="ROBOT_LEGIT", user_name="Somsri", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="ATTACKER_ROBOT", user_name="Somsri", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="QC1", user_name="QC User", role="qc")
+    _upsert_user(client, admin_token, user_id="DEL1", user_name="Deliv User", role="delivery")
+    b_token = login_and_get_token(client, user_id="B_USER")
+    legit_token = login_and_get_token(client, user_id="ROBOT_LEGIT")
+    attacker_token = login_and_get_token(client, user_id="ATTACKER_ROBOT")
+    order = _create_structured_order(
+        client, admin_token,
+        board_id="B_USER", robot_id="ROBOT_LEGIT", qc_id="QC1", delivery_id="DEL1"
+    )
+    _workflow(client, b_token, order["id"], "send_to_robot")
+    # Attacker with same display name as robot user must receive 403
+    r = _workflow(client, attacker_token, order["id"], "send_to_qc")
+    assert r.status_code == 403, r.text
+    # Legit robot user must succeed
+    r_ok = _workflow(client, legit_token, order["id"], "send_to_qc")
+    assert r_ok.status_code == 200, r_ok.text
+
+
+def test_same_display_name_attacker_blocked_qc(api_context):
+    client = api_context["client"]
+    admin_token = login_and_get_token(client)
+    _upsert_user(client, admin_token, user_id="B_USER2", user_name="Board User 2", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="R_USER2", user_name="Robot User 2", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="QC_LEGIT", user_name="Wichai", role="qc")
+    _upsert_user(client, admin_token, user_id="ATTACKER_QC", user_name="Wichai", role="qc")
+    _upsert_user(client, admin_token, user_id="DEL1", user_name="Deliv User", role="delivery")
+    b_token = login_and_get_token(client, user_id="B_USER2")
+    r_token = login_and_get_token(client, user_id="R_USER2")
+    legit_token = login_and_get_token(client, user_id="QC_LEGIT")
+    attacker_token = login_and_get_token(client, user_id="ATTACKER_QC")
+    order = _create_structured_order(
+        client, admin_token,
+        board_id="B_USER2", robot_id="R_USER2", qc_id="QC_LEGIT", delivery_id="DEL1"
+    )
+    _workflow(client, b_token, order["id"], "send_to_robot")
+    _workflow(client, r_token, order["id"], "send_to_qc")
+    # Attacker with same display name as QC user must receive 403
+    r = _workflow(client, attacker_token, order["id"], "qc_pass")
+    assert r.status_code == 403, r.text
+    # Legit QC user must succeed
+    r_ok = _workflow(client, legit_token, order["id"], "qc_pass")
+    assert r_ok.status_code == 200, r_ok.text
+
+
+def test_same_display_name_attacker_blocked_delivery(api_context):
+    client = api_context["client"]
+    admin_token = login_and_get_token(client)
+    _upsert_user(client, admin_token, user_id="B_USER3", user_name="Board User 3", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="R_USER3", user_name="Robot User 3", role="staff", position="ฝ่ายผลิต")
+    _upsert_user(client, admin_token, user_id="Q_USER3", user_name="QC User 3", role="qc")
+    _upsert_user(client, admin_token, user_id="DELIV_LEGIT", user_name="Prasert", role="delivery")
+    _upsert_user(client, admin_token, user_id="ATTACKER_DELIV", user_name="Prasert", role="delivery")
+    b_token = login_and_get_token(client, user_id="B_USER3")
+    r_token = login_and_get_token(client, user_id="R_USER3")
+    q_token = login_and_get_token(client, user_id="Q_USER3")
+    legit_token = login_and_get_token(client, user_id="DELIV_LEGIT")
+    attacker_token = login_and_get_token(client, user_id="ATTACKER_DELIV")
+    order = _create_structured_order(
+        client, admin_token,
+        board_id="B_USER3", robot_id="R_USER3", qc_id="Q_USER3", delivery_id="DELIV_LEGIT"
+    )
+    _workflow(client, b_token, order["id"], "send_to_robot")
+    _workflow(client, r_token, order["id"], "send_to_qc")
+    _workflow(client, q_token, order["id"], "qc_pass")
+    # Attacker with same display name as Delivery user must receive 403
+    r = _status(client, attacker_token, order["id"], "preparing")
+    assert r.status_code == 403, r.text
+    # Legit delivery user must succeed
+    r_ok = _status(client, legit_token, order["id"], "preparing")
+    assert r_ok.status_code == 200, r_ok.text
+
+
+def test_legacy_non_structured_order_compatibility(api_context):
+    client = api_context["client"]
+    admin_token = login_and_get_token(client)
+    _upsert_user(client, admin_token, user_id="PROD_LEGACY", user_name="Legacy Producer", role="staff", position="ฝ่ายผลิต")
+    prod_token = login_and_get_token(client, user_id="PROD_LEGACY")
+
+    resp = client.post(
+        "/orders",
+        headers=auth_headers(admin_token),
+        json={
+            "customer_name": "Legacy Customer",
+            "items": [{"barcode": "8850001110012", "quantity": 1}],
+            "production_user_id": "PROD_LEGACY",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    order = resp.json()
+    order_id = order["id"]
+
+    main_mod = api_context["module"]
+    db_order = main_mod.get_order_or_404(order_id)
+    assert main_mod._order_is_structured(db_order) is False
+
+    # In legacy branch, historical action assembling is preserved
+    r = _workflow(client, prod_token, order_id, "assembling")
+    assert r.status_code == 200, r.text
+    assert r.json()["order_workflow_status"] == "assembling"
+    assert r.json()["status"] == "in_production"
+
+    # And legacy send_to_qc action
+    r_qc = _workflow(client, prod_token, order_id, "send_to_qc")
+    assert r_qc.status_code == 200, r_qc.text
+    assert r_qc.json()["order_workflow_status"] == "pending_qc"
 

@@ -389,7 +389,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         if (showDelivery) {
                           // Delivery operational buttons call updateOrderStatus (NOT workflow)
                           final orderStatus = order.status;
-                          if (orderStatus == "qc_passed" || orderStatus == "new" || orderStatus == "assigned") {
+                          if (orderStatus == "qc_passed") {
                             actionButtons.add(
                               _statusButton("เริ่มจัดสินค้า", "preparing", "status_action_preparing"),
                             );
@@ -3424,7 +3424,7 @@ class _OrderTile extends StatelessWidget {
         }
       } else if (wfStatus == "pending_delivery") {
         if (showDelivery) {
-          if (order.status == "qc_passed" || order.status == "new" || order.status == "assigned") {
+          if (order.status == "qc_passed") {
             primaryWorkflowAction = buildPrimaryAction(
               onPressed: () => onStatusChanged("preparing"),
               icon: Icons.inventory_2_outlined,

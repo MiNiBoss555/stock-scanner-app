@@ -422,4 +422,64 @@ void main() {
     expect(find.text("ใบสรุปออเดอร์"), findsNothing);
     expect(api.getOrdersCallCount, greaterThan(1));
   });
+
+  testWidgets("Delivery button state drift guard: pending_delivery with status new hides start delivery", (tester) async {
+    final order = buildOrder(
+      id: "order-drift-new",
+      customerName: "Drift New",
+      workflowStatus: "pending_delivery",
+      status: "new",
+      deliveryUserId: "tester-delivery",
+    );
+    final api = FakeWorkflowApi(orders: [order]);
+    await tester.pumpWidget(createTestWidget(api, user: deliveryUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text("เริ่มจัดสินค้า"), findsNothing);
+
+    final cardFinder = find.byKey(const Key("dismissible_order-drift-new"));
+    await tester.drag(cardFinder, const Offset(500, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key("status_action_preparing")), findsNothing);
+  });
+
+  testWidgets("Delivery button state drift guard: pending_delivery with status assigned hides start delivery", (tester) async {
+    final order = buildOrder(
+      id: "order-drift-assigned",
+      customerName: "Drift Assigned",
+      workflowStatus: "pending_delivery",
+      status: "assigned",
+      deliveryUserId: "tester-delivery",
+    );
+    final api = FakeWorkflowApi(orders: [order]);
+    await tester.pumpWidget(createTestWidget(api, user: deliveryUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text("เริ่มจัดสินค้า"), findsNothing);
+
+    final cardFinder = find.byKey(const Key("dismissible_order-drift-assigned"));
+    await tester.drag(cardFinder, const Offset(500, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key("status_action_preparing")), findsNothing);
+  });
+
+  testWidgets("Delivery button state drift guard: pending_delivery with status qc_passed shows start delivery", (tester) async {
+    final order = buildOrder(
+      id: "order-drift-ok",
+      customerName: "Drift Ok",
+      workflowStatus: "pending_delivery",
+      status: "qc_passed",
+      deliveryUserId: "tester-delivery",
+    );
+    final api = FakeWorkflowApi(orders: [order]);
+    await tester.pumpWidget(createTestWidget(api, user: deliveryUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text("เริ่มจัดสินค้า"), findsOneWidget);
+
+    final cardFinder = find.byKey(const Key("dismissible_order-drift-ok"));
+    await tester.drag(cardFinder, const Offset(500, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key("status_action_preparing")), findsOneWidget);
+  });
 }
