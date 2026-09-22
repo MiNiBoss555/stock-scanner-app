@@ -198,15 +198,17 @@ class _OrdersPageState extends State<OrdersPage> {
                         ),
                       ),
                   ],
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _openOrder(order);
-                    },
-                    icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text("เปิดออเดอร์นี้"),
-                  ),
+                  if (order.status != "cancelled") ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _openOrder(order);
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text("เปิดออเดอร์นี้"),
+                    ),
+                  ],
                   
                   // Workflow action buttons
                   (() {
@@ -3853,6 +3855,7 @@ class _OrderTile extends StatelessWidget {
                             api: api,
                             currentUser: currentUser,
                             order: order,
+                            readOnly: true,
                           ),
                         ),
                       );

@@ -12,11 +12,13 @@ class OrderChatPage extends StatefulWidget {
     required this.api,
     required this.currentUser,
     required this.order,
+    this.readOnly = false,
   });
 
   final StockApiService api;
   final AppUser currentUser;
   final DeliveryOrder order;
+  final bool readOnly;
 
   @override
   State<OrderChatPage> createState() => _OrderChatPageState();
@@ -87,7 +89,11 @@ class _OrderChatPageState extends State<OrderChatPage> {
     }
   }
 
+  bool get _isReadOnly =>
+      widget.readOnly || widget.order.status == "cancelled";
+
   Future<void> _send() async {
+    if (_isReadOnly) return;
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     setState(() {
@@ -177,38 +183,39 @@ class _OrderChatPageState extends State<OrderChatPage> {
               },
             ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: "พิมพ์ข้อความติดตามงาน...",
+          if (!_isReadOnly)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: const InputDecoration(
+                          hintText: "พิมพ์ข้อความติดตามงาน...",
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _isSending ? null : _send,
-                    icon: _isSending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
-                    tooltip: "ส่ง",
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _isSending ? null : _send,
+                      icon: _isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
+                      tooltip: "ส่ง",
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

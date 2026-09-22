@@ -1044,6 +1044,7 @@ void main() {
 
         // In preview sheet: customer details visible, but no workflow or status buttons
         expect(find.text("ใบสรุปออเดอร์"), findsOneWidget);
+        expect(find.text("เปิดออเดอร์นี้"), findsNothing);
         expect(find.text("จัดการขั้นตอนงาน"), findsNothing);
         expect(find.byKey(const Key("workflow_action_send_to_robot")), findsNothing);
         expect(find.byKey(const Key("workflow_action_send_to_qc")), findsNothing);

@@ -976,6 +976,7 @@ class _StockHomePageState extends State<StockHomePage> {
                 api: widget.api,
                 currentUser: widget.currentUser,
                 order: order,
+                readOnly: order.status == "cancelled",
               ),
             ),
           ),

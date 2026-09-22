@@ -163,4 +163,94 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets("cancelled order chat is strictly read-only", (tester) async {
+    final cancelledOrder = DeliveryOrder(
+      id: "CANCELLED1",
+      customerName: "Cancelled Customer",
+      createdById: "CREATOR1",
+      createdByName: "Creator",
+      status: "cancelled",
+      items: const [],
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+
+    fakeApi.messages = [
+      OrderMessageModel(
+        id: "msg_cancelled_1",
+        orderId: cancelledOrder.id,
+        userId: "OTHER",
+        userName: "Support Agent",
+        message: "This order was cancelled previously.",
+        createdAt: DateTime(2026, 1, 1, 9),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: OrderChatPage(
+        api: fakeApi,
+        currentUser: currentUser,
+        order: cancelledOrder,
+        readOnly: true,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Chat opens and existing messages are visible
+    expect(find.textContaining("Cancelled Customer"), findsOneWidget);
+    expect(find.text("Support Agent"), findsOneWidget);
+    expect(find.text("This order was cancelled previously."), findsOneWidget);
+
+    // No TextField composer and no Send button
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byIcon(Icons.send), findsNothing);
+
+    // Never calls postOrderMessage
+    expect(fakeApi.postOrderMessageCount, 0);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets("order with status cancelled defaults to read-only composer hidden", (tester) async {
+    final cancelledOrder = DeliveryOrder(
+      id: "CANCELLED2",
+      customerName: "Auto Cancelled Customer",
+      createdById: "CREATOR1",
+      createdByName: "Creator",
+      status: "cancelled",
+      items: const [],
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+
+    fakeApi.messages = [
+      OrderMessageModel(
+        id: "msg_cancelled_2",
+        orderId: cancelledOrder.id,
+        userId: "OTHER",
+        userName: "System",
+        message: "Historical note",
+        createdAt: DateTime(2026, 1, 1, 9),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: OrderChatPage(
+        api: fakeApi,
+        currentUser: currentUser,
+        order: cancelledOrder,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text("Historical note"), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byIcon(Icons.send), findsNothing);
+    expect(fakeApi.postOrderMessageCount, 0);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
