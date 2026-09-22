@@ -11,6 +11,8 @@ class FakeWorkflowApi extends StockApiService {
   String? lastActionCalled;
   String? lastNoteCalled;
   String? lastOrderIdCalled;
+  String? lastStatusCalled;
+  String? lastStatusOrderIdCalled;
   int getOrdersCallCount = 0;
 
   @override
@@ -42,40 +44,83 @@ class FakeWorkflowApi extends StockApiService {
       [];
 
   @override
+  Future<DeliveryOrder> updateOrderStatus({
+    required String requesterId,
+    required String orderId,
+    required String status,
+  }) async {
+    lastStatusCalled = status;
+    lastStatusOrderIdCalled = orderId;
+    final idx = orders.indexWhere((o) => o.id == orderId);
+    if (idx != -1) {
+      final old = orders[idx];
+      orders[idx] = DeliveryOrder(
+        id: old.id,
+        customerName: old.customerName,
+        createdById: old.createdById,
+        createdByName: old.createdByName,
+        status: status,
+        items: old.items,
+        createdAt: old.createdAt,
+        updatedAt: old.updatedAt,
+        orderWorkflowStatus: status == "delivered" ? "delivered" : old.orderWorkflowStatus,
+        orderWorkflowNote: old.orderWorkflowNote,
+        boardProductionUserId: old.boardProductionUserId,
+        robotProductionUserId: old.robotProductionUserId,
+        qcUserId: old.qcUserId,
+        deliveryUserId: old.deliveryUserId,
+      );
+      return orders[idx];
+    }
+    return orders.firstWhere((o) => o.id == orderId);
+  }
+
+  @override
   Future<DeliveryOrder> updateOrderWorkflow(String orderId, String action, String? note) async {
     lastActionCalled = action;
     lastNoteCalled = note;
     lastOrderIdCalled = orderId;
 
-    // update order status locally
     final idx = orders.indexWhere((o) => o.id == orderId);
     if (idx != -1) {
       final old = orders[idx];
 
-      String nextWorkflowStatus = "pending_board";
-      if (action == "send_to_qc") nextWorkflowStatus = "pending_qc";
-      else if (action == "send_to_robot") nextWorkflowStatus = "pending_robot";
-      else if (action == "send_to_delivery") nextWorkflowStatus = "pending_delivery";
-      else if (action == "wait_for_board") nextWorkflowStatus = "waiting_board";
-      else if (action == "assembling") nextWorkflowStatus = "assembling";
-      else if (action == "qc_pass") nextWorkflowStatus = "pending_delivery";
-      else if (action == "reject_to_board") nextWorkflowStatus = "rejected_board";
-      else if (action == "reject_to_robot") nextWorkflowStatus = "rejected_robot";
-      else if (action == "wait_delivery") nextWorkflowStatus = "pending_delivery";
-      else if (action == "delivered") nextWorkflowStatus = "delivered";
+      String nextWorkflowStatus = old.orderWorkflowStatus;
+      String nextStatus = old.status;
+      if (action == "send_to_robot") {
+        nextWorkflowStatus = "pending_robot";
+        nextStatus = "in_production";
+      } else if (action == "send_to_qc") {
+        nextWorkflowStatus = "pending_qc";
+        nextStatus = "qc_pending";
+      } else if (action == "qc_pass") {
+        nextWorkflowStatus = "pending_delivery";
+        nextStatus = "qc_passed";
+      } else if (action == "reject_to_board") {
+        nextWorkflowStatus = "rejected_board";
+        nextStatus = "rework_required";
+      } else if (action == "reject_to_robot") {
+        nextWorkflowStatus = "rejected_robot";
+        nextStatus = "rework_required";
+      }
 
       orders[idx] = DeliveryOrder(
         id: old.id,
         customerName: old.customerName,
         createdById: old.createdById,
         createdByName: old.createdByName,
-        status: old.status,
+        status: nextStatus,
         items: old.items,
         createdAt: old.createdAt,
         updatedAt: old.updatedAt,
         orderWorkflowStatus: nextWorkflowStatus,
         orderWorkflowNote: note,
+        boardProductionUserId: old.boardProductionUserId,
+        robotProductionUserId: old.robotProductionUserId,
+        qcUserId: old.qcUserId,
+        deliveryUserId: old.deliveryUserId,
       );
+      return orders[idx];
     }
 
     return orders.firstWhere((o) => o.id == orderId);
@@ -86,17 +131,26 @@ DeliveryOrder buildOrder({
   required String id,
   required String customerName,
   required String workflowStatus,
+  String status = "new",
+  String? boardUserId,
+  String? robotUserId,
+  String? qcUserId,
+  String? deliveryUserId,
 }) {
   return DeliveryOrder(
     id: id,
     customerName: customerName,
     createdById: "creator-id",
     createdByName: "Creator",
-    status: "pending",
+    status: status,
     items: const [],
     createdAt: DateTime(2026, 6, 26, 9, 0),
     updatedAt: DateTime(2026, 6, 26, 9, 0),
     orderWorkflowStatus: workflowStatus,
+    boardProductionUserId: boardUserId,
+    robotProductionUserId: robotUserId,
+    qcUserId: qcUserId,
+    deliveryUserId: deliveryUserId,
   );
 }
 
@@ -125,16 +179,17 @@ void main() {
     view.resetDevicePixelRatio();
   });
 
-  final adminUser = AppUser(
-    userId: "tester-admin",
-    userName: "Admin User",
-    role: "admin",
-    active: true,
-  );
-
   final boardUser = AppUser(
     userId: "tester-board",
     userName: "Board User",
+    role: "staff",
+    position: "ฝ่ายผลิตบอร์ด",
+    active: true,
+  );
+
+  final otherBoardUser = AppUser(
+    userId: "tester-board-2",
+    userName: "Other Board User",
     role: "staff",
     position: "ฝ่ายผลิตบอร์ด",
     active: true,
@@ -170,12 +225,17 @@ void main() {
     active: true,
   );
 
-  testWidgets("Board user sees board buttons when status is pending_board", (tester) async {
+  testWidgets("Board user sees only board buttons when status is pending_board", (tester) async {
     final order = buildOrder(id: "order-1", customerName: "Alice", workflowStatus: "pending_board");
     final api = FakeWorkflowApi(orders: [order]);
 
     await tester.pumpWidget(createTestWidget(api, user: boardUser));
     await tester.pumpAndSettle();
+
+    // In card tile:
+    expect(find.text("ส่งให้ฝ่ายผลิตหุ่นยนต์"), findsOneWidget);
+    expect(find.text("เริ่มผลิต"), findsNothing);
+    expect(find.text("ส่ง QC"), findsNothing);
 
     // Swipe right to open preview bottom sheet
     final cardFinder = find.byKey(const Key("dismissible_order-1"));
@@ -185,35 +245,43 @@ void main() {
     // Verify preview opens
     expect(find.text("ใบสรุปออเดอร์"), findsOneWidget);
 
-    // Verify board action buttons are visible
-    expect(find.byKey(const Key("workflow_action_send_to_qc")), findsOneWidget);
+    // Verify only board action button is visible (no skip to QC or Delivery)
     expect(find.byKey(const Key("workflow_action_send_to_robot")), findsOneWidget);
-    expect(find.byKey(const Key("workflow_action_send_to_delivery")), findsOneWidget);
+    expect(find.byKey(const Key("workflow_action_send_to_qc")), findsNothing);
+    expect(find.byKey(const Key("workflow_action_send_to_delivery")), findsNothing);
   });
 
-  testWidgets("Robot user sees robot buttons when status is pending_robot", (tester) async {
+  testWidgets("Robot user sees only robot buttons when status is pending_robot", (tester) async {
     final order = buildOrder(id: "order-1", customerName: "Alice", workflowStatus: "pending_robot");
     final api = FakeWorkflowApi(orders: [order]);
 
     await tester.pumpWidget(createTestWidget(api, user: robotUser));
     await tester.pumpAndSettle();
 
+    // In card tile:
+    expect(find.text("ส่งให้ QC"), findsOneWidget);
+
     final cardFinder = find.byKey(const Key("dismissible_order-1"));
     await tester.drag(cardFinder, const Offset(500, 0));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key("workflow_action_wait_for_board")), findsOneWidget);
-    expect(find.byKey(const Key("workflow_action_assembling")), findsOneWidget);
     expect(find.byKey(const Key("workflow_action_send_to_qc")), findsOneWidget);
-    expect(find.byKey(const Key("workflow_action_send_to_delivery")), findsOneWidget);
+    expect(find.byKey(const Key("workflow_action_wait_for_board")), findsNothing);
+    expect(find.byKey(const Key("workflow_action_assembling")), findsNothing);
+    expect(find.byKey(const Key("workflow_action_send_to_delivery")), findsNothing);
   });
 
-  testWidgets("QC user sees QC buttons when status is pending_qc", (tester) async {
+  testWidgets("QC user sees QC pass and reject buttons when status is pending_qc", (tester) async {
     final order = buildOrder(id: "order-1", customerName: "Alice", workflowStatus: "pending_qc");
     final api = FakeWorkflowApi(orders: [order]);
 
     await tester.pumpWidget(createTestWidget(api, user: qcUser));
     await tester.pumpAndSettle();
+
+    // In card tile:
+    expect(find.text("ผ่าน"), findsOneWidget);
+    expect(find.text("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด"), findsOneWidget);
+    expect(find.text("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์"), findsOneWidget);
 
     final cardFinder = find.byKey(const Key("dismissible_order-1"));
     await tester.drag(cardFinder, const Offset(500, 0));
@@ -224,19 +292,78 @@ void main() {
     expect(find.byKey(const Key("workflow_action_reject_to_robot")), findsOneWidget);
   });
 
-  testWidgets("Delivery user sees delivery buttons when status is pending_delivery", (tester) async {
-    final order = buildOrder(id: "order-1", customerName: "Alice", workflowStatus: "pending_delivery");
+  testWidgets("Delivery user sees status-based delivery buttons when pending_delivery", (tester) async {
+    final order = buildOrder(
+      id: "order-1",
+      customerName: "Alice",
+      workflowStatus: "pending_delivery",
+      status: "qc_passed",
+    );
     final api = FakeWorkflowApi(orders: [order]);
 
     await tester.pumpWidget(createTestWidget(api, user: deliveryUser));
     await tester.pumpAndSettle();
 
+    // In card tile:
+    expect(find.text("เริ่มจัดสินค้า"), findsOneWidget);
+
     final cardFinder = find.byKey(const Key("dismissible_order-1"));
     await tester.drag(cardFinder, const Offset(500, 0));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key("workflow_action_wait_delivery")), findsOneWidget);
-    expect(find.byKey(const Key("workflow_action_delivered")), findsOneWidget);
+    // In preview sheet: uses status_action_preparing, not workflow_action_wait_delivery
+    expect(find.byKey(const Key("status_action_preparing")), findsOneWidget);
+    expect(find.byKey(const Key("workflow_action_wait_delivery")), findsNothing);
+    expect(find.byKey(const Key("workflow_action_delivered")), findsNothing);
+
+    // Tap preparing button
+    await tester.tap(find.byKey(const Key("status_action_preparing")));
+    await tester.pumpAndSettle();
+
+    // Verify updateOrderStatus was called, NOT updateOrderWorkflow
+    expect(api.lastStatusCalled, "preparing");
+    expect(api.lastActionCalled, isNull);
+  });
+
+  testWidgets("Delivery user does not see buttons during board, robot, or qc stages", (tester) async {
+    final order = buildOrder(id: "order-1", customerName: "Alice", workflowStatus: "pending_board");
+    final api = FakeWorkflowApi(orders: [order]);
+
+    await tester.pumpWidget(createTestWidget(api, user: deliveryUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text("เริ่มจัดสินค้า"), findsNothing);
+    expect(find.text("ออกจัดส่ง"), findsNothing);
+    expect(find.text("ส่งสำเร็จ"), findsNothing);
+
+    final cardFinder = find.byKey(const Key("dismissible_order-1"));
+    await tester.drag(cardFinder, const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key("status_action_preparing")), findsNothing);
+    expect(find.byKey(const Key("status_action_out_for_delivery")), findsNothing);
+    expect(find.byKey(const Key("status_action_delivered")), findsNothing);
+  });
+
+  testWidgets("Exact assignment permission: other board staff blocked when exact board user is assigned", (tester) async {
+    final order = buildOrder(
+      id: "order-1",
+      customerName: "Alice",
+      workflowStatus: "pending_board",
+      boardUserId: "tester-board",
+    );
+    final api = FakeWorkflowApi(orders: [order]);
+
+    await tester.pumpWidget(createTestWidget(api, user: otherBoardUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text("ส่งให้ฝ่ายผลิตหุ่นยนต์"), findsNothing);
+
+    final cardFinder = find.byKey(const Key("dismissible_order-1"));
+    await tester.drag(cardFinder, const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key("workflow_action_send_to_robot")), findsNothing);
   });
 
   testWidgets("Generic staff (no permission) does not see unrelated buttons", (tester) async {
