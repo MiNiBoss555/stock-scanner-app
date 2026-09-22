@@ -38,11 +38,17 @@ class FakeStockApiService extends StockApiService {
     return productsList;
   }
 
+  int getOrderProofPhotosCallCount = 0;
+  Map<String, int> proofPhotosCallsByOrderId = {};
+
   @override
   Future<List<String>> getOrderProofPhotos({
     required String requesterId,
     required String orderId,
   }) async {
+    getOrderProofPhotosCallCount++;
+    proofPhotosCallsByOrderId[orderId] =
+        (proofPhotosCallsByOrderId[orderId] ?? 0) + 1;
     return proofPhotosList;
   }
 
@@ -951,6 +957,180 @@ void main() {
         // Check that dropdown selection is not pointing to cancelled order
         final dropdown = tester.widget<DropdownMenu<String>>(find.byType(DropdownMenu<String>));
         expect(dropdown.initialSelection, isNull);
+      });
+
+      testWidgets("Cancelled orders are read-only and expose no operational controls for admin", (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final cancelledOrder = DeliveryOrder(
+          id: "cancelled_order_readonly_id",
+          customerName: "Cancelled Customer",
+          createdById: testUser.userId,
+          createdByName: testUser.userName,
+          status: "cancelled",
+          orderWorkflowStatus: "pending_board",
+          note: "มีค้างจ่าย",
+          items: [
+            OrderItemModel(
+              barcode: "barcode1",
+              productName: "Product 1",
+              quantity: 5,
+              unit: "pcs",
+              deliveredQuantity: 2,
+            )
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        fakeApi.ordersList = [cancelledOrder];
+
+        await tester.pumpWidget(createTestWidget(OrdersPage(
+          api: fakeApi,
+          currentUser: testUser,
+        )));
+        await tester.pumpAndSettle();
+
+        // Switch to "ยกเลิก" tab
+        final horizontalScrollable = find.descendant(
+          of: find.byKey(const Key("orders_status_tabs_scroll")),
+          matching: find.byType(Scrollable),
+        );
+        final cancelledTab = find.byKey(const Key("tab_ยกเลิก"));
+        await tester.scrollUntilVisible(
+          cancelledTab,
+          100,
+          scrollable: horizontalScrollable,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(cancelledTab);
+        await tester.pumpAndSettle();
+
+        // Cancelled order tile is shown
+        expect(find.text("Cancelled Customer"), findsOneWidget);
+
+        // Verify operational controls are NOT present
+        expect(find.text("ส่งบางส่วน"), findsNothing);
+        expect(find.text("แก้ไขจำนวนส่ง"), findsNothing);
+        expect(find.text("ปิดค้างจ่าย"), findsNothing);
+        expect(find.text("ยกเลิกออเดอร์"), findsNothing);
+        expect(find.text("เริ่มผลิต"), findsNothing);
+        expect(find.text("ส่งให้ฝ่ายผลิตหุ่นยนต์"), findsNothing);
+        expect(find.text("ส่งให้ QC"), findsNothing);
+        expect(find.text("ผ่าน"), findsNothing);
+        expect(find.text("เริ่มจัดสินค้า"), findsNothing);
+        expect(find.text("ออกจัดส่ง"), findsNothing);
+        expect(find.text("ส่งสำเร็จ"), findsNothing);
+        expect(find.text("ถ่ายรูปหลักฐาน"), findsNothing);
+
+        // Left swipe action menu is disabled (secondaryBackground is null)
+        expect(find.byKey(const Key("order_swipe_menu_cancelled_order_readonly_id")), findsNothing);
+
+        // Safe read-only controls ARE present
+        expect(find.text("พิมพ์เอกสาร"), findsOneWidget);
+        expect(find.text("แชตติดตามงาน"), findsOneWidget);
+        expect(find.textContaining("รูปหลักฐาน"), findsOneWidget);
+
+        // Right swipe to open details preview
+        final dismissible = find.byKey(const Key("dismissible_cancelled_order_readonly_id"));
+        expect(dismissible, findsOneWidget);
+        await tester.drag(dismissible, const Offset(500, 0));
+        await tester.pumpAndSettle();
+
+        // In preview sheet: customer details visible, but no workflow or status buttons
+        expect(find.text("ใบสรุปออเดอร์"), findsOneWidget);
+        expect(find.text("จัดการขั้นตอนงาน"), findsNothing);
+        expect(find.byKey(const Key("workflow_action_send_to_robot")), findsNothing);
+        expect(find.byKey(const Key("workflow_action_send_to_qc")), findsNothing);
+        expect(find.byKey(const Key("workflow_action_qc_pass")), findsNothing);
+        expect(find.byKey(const Key("status_action_preparing")), findsNothing);
+        expect(find.byKey(const Key("status_action_out_for_delivery")), findsNothing);
+        expect(find.byKey(const Key("status_action_delivered")), findsNothing);
+      });
+
+      testWidgets("Proof photo lazy-loading race prevention on cancelled orders", (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final cancelledOrder = DeliveryOrder(
+          id: "cancelled_proof_order_id",
+          customerName: "Proof Customer",
+          createdById: testUser.userId,
+          createdByName: testUser.userName,
+          status: "cancelled",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        final activeOrder = DeliveryOrder(
+          id: "active_proof_order_id",
+          customerName: "Active Customer",
+          createdById: testUser.userId,
+          createdByName: testUser.userName,
+          status: "pending",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        fakeApi.ordersList = [activeOrder, cancelledOrder];
+        fakeApi.proofPhotosList = ["https://example.com/proof1.jpg"];
+
+        await tester.pumpWidget(createTestWidget(OrdersPage(
+          api: fakeApi,
+          currentUser: testUser,
+        )));
+        await tester.pumpAndSettle();
+
+        // 1. Startup / list rendering: 0 proof photo requests for cancelled order
+        expect(fakeApi.proofPhotosCallsByOrderId["cancelled_proof_order_id"] ?? 0, 0);
+
+        // 2. Switch to 'ยกเลิก' tab: still 0 proof requests
+        final horizontalScrollable = find.descendant(
+          of: find.byKey(const Key("orders_status_tabs_scroll")),
+          matching: find.byType(Scrollable),
+        );
+        final cancelledTab = find.byKey(const Key("tab_ยกเลิก"));
+        await tester.scrollUntilVisible(
+          cancelledTab,
+          100,
+          scrollable: horizontalScrollable,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(cancelledTab);
+        await tester.pumpAndSettle();
+        expect(fakeApi.proofPhotosCallsByOrderId["cancelled_proof_order_id"] ?? 0, 0);
+
+        // 3. Open proof gallery for cancelled order: exactly 1 request and sheet opens with photo
+        final proofButton = find.widgetWithText(OutlinedButton, "รูปหลักฐาน (0)");
+        expect(proofButton, findsOneWidget);
+        await tester.tap(proofButton);
+        await tester.pumpAndSettle();
+
+        expect(fakeApi.proofPhotosCallsByOrderId["cancelled_proof_order_id"], 1);
+        expect(find.text("รูปหลักฐานการส่ง"), findsOneWidget);
+
+        // Close the sheet
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+
+        // 4. Reopen the gallery for the same order: cached, 0 additional requests
+        final proofButtonReopen = find.byIcon(Icons.photo_library_outlined);
+        expect(proofButtonReopen, findsOneWidget);
+        await tester.tap(proofButtonReopen);
+        await tester.pumpAndSettle();
+
+        expect(fakeApi.proofPhotosCallsByOrderId["cancelled_proof_order_id"], 1);
       });
     });
   });

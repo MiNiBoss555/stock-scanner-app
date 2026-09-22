@@ -363,7 +363,9 @@ class _OrdersPageState extends State<OrdersPage> {
                     List<Widget> actionButtons = [];
                     final wfStatus = order.orderWorkflowStatus;
 
-                    if (isStructured) {
+                    if (order.status == "cancelled") {
+                      // Cancelled orders are strictly read-only history; no workflow or status actions
+                    } else if (isStructured) {
                       // ── Strict sequential buttons (structured 4-dept orders) ─
                       if (wfStatus == "pending_board" || wfStatus == "rejected_board") {
                         if (showBoard) {
@@ -1422,11 +1424,6 @@ class _OrdersPageState extends State<OrdersPage> {
     List<AppUser> activeStaff,
     _OrdersPageData data,
   ) async {
-    for (final order in cancelled) {
-      if (!_orderProofPhotos.containsKey(order.id)) {
-        unawaited(_loadProofPhotosForOrder(order.id));
-      }
-    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _CancelledOrdersPage(
@@ -1438,6 +1435,7 @@ class _OrdersPageState extends State<OrdersPage> {
           staff: activeStaff,
           onAssign: _assignOrder,
           onOpenProofGallery: _openProofGallery,
+          onOpenDetails: _showOrderPreview,
         ),
       ),
     );
@@ -1727,10 +1725,11 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
-  void _openProofGallery(DeliveryOrder order) {
+  Future<void> _openProofGallery(DeliveryOrder order) async {
     if (!_orderProofPhotos.containsKey(order.id)) {
-      unawaited(_loadProofPhotosForOrder(order.id));
+      await _loadProofPhotosForOrder(order.id);
     }
+    if (!mounted) return;
     final photos = _orderProofPhotos[order.id] ?? const <String>[];
     showModalBottomSheet<void>(
       context: context,
@@ -2667,6 +2666,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                         order: order,
                                         api: widget.api,
                                         currentUser: widget.currentUser,
+                                        readOnly: true,
                                         onOpenDetails: () => _showOrderPreview(order),
                                         printUrl: widget.api.orderPrintUrl(
                                           orderId: order.id,
@@ -2761,6 +2761,7 @@ class _CancelledOrdersPage extends StatelessWidget {
     required this.staff,
     required this.onAssign,
     required this.onOpenProofGallery,
+    this.onOpenDetails,
   });
 
   final List<DeliveryOrder> orders;
@@ -2772,6 +2773,7 @@ class _CancelledOrdersPage extends StatelessWidget {
   final Future<void> Function(DeliveryOrder order, List<AppUser> users)
       onAssign;
   final void Function(DeliveryOrder order) onOpenProofGallery;
+  final void Function(DeliveryOrder order)? onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -2792,7 +2794,8 @@ class _CancelledOrdersPage extends StatelessWidget {
                 order: order,
                 api: api,
                 currentUser: currentUser,
-                onOpenDetails: () {},
+                readOnly: true,
+                onOpenDetails: () => onOpenDetails?.call(order),
                 printUrl: api.orderPrintUrl(
                     orderId: order.id, requesterId: currentUser.userId),
                 packingSlipUrl: api.orderPackingSlipUrl(
@@ -2997,6 +3000,7 @@ class _OrderTile extends StatelessWidget {
     required this.onFixDeliveryStatus,
     required this.onStatusChanged,
     required this.onChatUpdated,
+    this.readOnly = false,
   });
 
   final DeliveryOrder order;
@@ -3015,6 +3019,7 @@ class _OrderTile extends StatelessWidget {
   final VoidCallback onFixDeliveryStatus;
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onChatUpdated;
+  final bool readOnly;
 
   void _showPrintMenu(BuildContext context) {
     showModalBottomSheet<void>(
@@ -3086,6 +3091,9 @@ class _OrderTile extends StatelessWidget {
   }
 
   void _showActionBottomSheet(BuildContext context) {
+    if (readOnly || order.status == "cancelled") {
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) {
@@ -3145,6 +3153,9 @@ class _OrderTile extends StatelessWidget {
   }
 
   bool canOperate(AppUser user, DeliveryOrder o) {
+    if (readOnly || o.status == "cancelled") {
+      return false;
+    }
     String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
     bool _hasThaiWord(String haystack, String needle) =>
         haystack.contains(needle);
@@ -3187,6 +3198,9 @@ class _OrderTile extends StatelessWidget {
   }
 
   bool canCancel(AppUser user, DeliveryOrder o) {
+    if (readOnly || o.status == "cancelled") {
+      return false;
+    }
     return (user.isAdmin || user.userId == o.createdById) &&
         o.status != "delivered" &&
         o.status != "cancelled";
@@ -3263,6 +3277,9 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCancelled = order.status == "cancelled";
+    final isEffectivelyReadOnly = readOnly || isCancelled;
+
     String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
     bool _hasThaiWord(String haystack, String needle) =>
         haystack.contains(needle);
@@ -3312,12 +3329,12 @@ class _OrderTile extends StatelessWidget {
     final deliveredCount = order.items
         .where((item) => item.deliveredQuantity >= item.quantity)
         .length;
-    final hasBackorder = (order.note ?? "").contains("ค้างจ่าย");
-    final canCancel =
+    final hasBackorder = !isEffectivelyReadOnly &&
+        (order.note ?? "").contains("ค้างจ่าย");
+    final canCancel = !isEffectivelyReadOnly &&
         (currentUser.isAdmin || currentUser.userId == order.createdById) &&
-            order.status != "delivered" &&
-            order.status != "cancelled";
-    final isCancelled = order.status == "cancelled";
+        order.status != "delivered" &&
+        order.status != "cancelled";
     Widget buildPrimaryAction({
       required VoidCallback? onPressed,
       required IconData icon,
@@ -3427,6 +3444,7 @@ class _OrderTile extends StatelessWidget {
       }
     }
 
+    if (!isEffectivelyReadOnly) {
     if (_orderIsStructured(order)) {
       final assignedBoard = order.boardProductionUserId ?? "";
       final assignedRobot = order.robotProductionUserId ?? "";
@@ -3599,8 +3617,12 @@ class _OrderTile extends StatelessWidget {
         ),
       );
     }
+    }
     return Dismissible(
       key: Key("dismissible_${order.id}"),
+      direction: isEffectivelyReadOnly
+          ? DismissDirection.startToEnd
+          : DismissDirection.horizontal,
       background: Container(
         key: Key("order_swipe_open_${order.id}"),
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -3617,27 +3639,29 @@ class _OrderTile extends StatelessWidget {
           ],
         ),
       ),
-      secondaryBackground: Container(
-        key: Key("order_swipe_menu_${order.id}"),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.centerRight,
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text("เมนู", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-            SizedBox(width: 8),
-            Icon(Icons.more_horiz, color: Colors.orange),
-          ],
-        ),
-      ),
+      secondaryBackground: isEffectivelyReadOnly
+          ? null
+          : Container(
+              key: Key("order_swipe_menu_${order.id}"),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.centerRight,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text("เมนู", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                  SizedBox(width: 8),
+                  Icon(Icons.more_horiz, color: Colors.orange),
+                ],
+              ),
+            ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
           onOpenDetails();
-        } else if (direction == DismissDirection.endToStart) {
+        } else if (direction == DismissDirection.endToStart && !isEffectivelyReadOnly) {
           _showActionBottomSheet(context);
         }
         return false;
@@ -3816,13 +3840,7 @@ class _OrderTile extends StatelessWidget {
             if (order.note != null && order.note!.isNotEmpty)
               Text("หมายเหตุ: ${order.note}"),
             const SizedBox(height: 10),
-            if (order.status == "delivered")
-              OutlinedButton.icon(
-                onPressed: onOpenProofGallery,
-                icon: const Icon(Icons.photo_library_outlined),
-                label: Text("รูปหลักฐาน ($proofCount)"),
-              )
-            else if (isCancelled)
+            if (isEffectivelyReadOnly)
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -3854,6 +3872,12 @@ class _OrderTile extends StatelessWidget {
                     label: Text("รูปหลักฐาน ($proofCount)"),
                   ),
                 ],
+              )
+            else if (order.status == "delivered")
+              OutlinedButton.icon(
+                onPressed: onOpenProofGallery,
+                icon: const Icon(Icons.photo_library_outlined),
+                label: Text("รูปหลักฐาน ($proofCount)"),
               )
             else
               Wrap(
