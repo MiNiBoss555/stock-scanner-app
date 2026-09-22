@@ -223,10 +223,33 @@ class _OrdersPageState extends State<OrdersPage> {
                     final isRobot = isProducerRole && (position.contains("หุ่นยนต์") || position.contains("robot"));
                     final isGenericProd = isProducerRole && !isBoard && !isRobot;
 
-                    final showBoard = widget.currentUser.isAdmin || isBoard || isGenericProd;
-                    final showRobot = widget.currentUser.isAdmin || isRobot || isGenericProd;
-                    final showQc = widget.currentUser.isAdmin || isQcRole;
-                    final showDelivery = widget.currentUser.isAdmin || isDeliveryRole;
+                    final isStructured = _orderIsStructured(order);
+
+                    final String assignedBoard = order.boardProductionUserId ?? "";
+                    final String assignedRobot = order.robotProductionUserId ?? "";
+                    final String assignedQc    = order.qcUserId ?? "";
+                    final String assignedDeliv = order.deliveryUserId ?? "";
+                    final String uid           = widget.currentUser.userId;
+
+                    final bool showBoard;
+                    final bool showRobot;
+                    final bool showQc;
+                    final bool showDelivery;
+                    if (isStructured) {
+                      // Exact assignment first; role fallback when no assignment.
+                      showBoard    = widget.currentUser.isAdmin || (assignedBoard.isNotEmpty ? assignedBoard == uid : isProducerRole);
+                      showRobot    = widget.currentUser.isAdmin || (assignedRobot.isNotEmpty ? assignedRobot == uid : isProducerRole);
+                      showQc       = widget.currentUser.isAdmin || (assignedQc.isNotEmpty    ? assignedQc == uid    : isQcRole);
+                      showDelivery = widget.currentUser.isAdmin || (assignedDeliv.isNotEmpty  ? assignedDeliv == uid  : isDeliveryRole);
+                    } else {
+                      final isBoard = isProducerRole && (position.contains("บอร์ด") || position.contains("board"));
+                      final isRobot = isProducerRole && (position.contains("หุ่นยนต์") || position.contains("robot"));
+                      final isGenericProd = isProducerRole && !isBoard && !isRobot;
+                      showBoard    = widget.currentUser.isAdmin || isBoard || isGenericProd;
+                      showRobot    = widget.currentUser.isAdmin || isRobot || isGenericProd;
+                      showQc       = widget.currentUser.isAdmin || isQcRole;
+                      showDelivery = widget.currentUser.isAdmin || isDeliveryRole;
+                    }
 
                     Future<void> handleWorkflowAction(String action) async {
                       String? note;
@@ -284,6 +307,27 @@ class _OrdersPageState extends State<OrdersPage> {
                       }
                     }
 
+                    Future<void> handleStatusAction(String status) async {
+                      try {
+                        await widget.api.updateOrderStatus(
+                          requesterId: widget.currentUser.userId,
+                          orderId: order.id,
+                          status: status,
+                        );
+                        if (mounted) {
+                          Navigator.of(context).pop();
+                          showAppSnack(context, "อัปเดตสถานะแล้ว");
+                          setState(() {
+                            _future = _load();
+                          });
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          showAppSnack(context, "เกิดข้อผิดพลาด: $e");
+                        }
+                      }
+                    }
+
                     Widget _actionButton(String label, String action, String keyStr) {
                       return ElevatedButton(
                         key: Key(keyStr),
@@ -300,55 +344,128 @@ class _OrdersPageState extends State<OrdersPage> {
                       );
                     }
 
-                    List<Widget> actionButtons = [];
-                    final status = order.orderWorkflowStatus;
+                    Widget _statusButton(String label, String status, String keyStr) {
+                      return ElevatedButton(
+                        key: Key(keyStr),
+                        onPressed: () => handleStatusAction(status),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          label,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      );
+                    }
 
-                    if (status == "pending_board" || status == "rejected_board") {
-                      if (showBoard) {
-                        actionButtons.addAll([
-                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                          _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
-                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
-                        ]);
+                    List<Widget> actionButtons = [];
+                    final wfStatus = order.orderWorkflowStatus;
+
+                    if (isStructured) {
+                      // ── Strict sequential buttons (structured 4-dept orders) ─
+                      if (wfStatus == "pending_board" || wfStatus == "rejected_board") {
+                        if (showBoard) {
+                          actionButtons.add(
+                            _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                          );
+                        }
+                      } else if (wfStatus == "pending_robot" || wfStatus == "rejected_robot") {
+                        if (showRobot) {
+                          actionButtons.add(
+                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                          );
+                        }
+                      } else if (wfStatus == "pending_qc") {
+                        if (showQc) {
+                          actionButtons.addAll([
+                            _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
+                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                          ]);
+                        }
+                      } else if (wfStatus == "pending_delivery") {
+                        if (showDelivery) {
+                          // Delivery operational buttons call updateOrderStatus (NOT workflow)
+                          final orderStatus = order.status;
+                          if (orderStatus == "qc_passed") {
+                            actionButtons.add(
+                              _statusButton("เริ่มจัดสินค้า", "preparing", "status_action_preparing"),
+                            );
+                          } else if (orderStatus == "preparing") {
+                            actionButtons.add(
+                              _statusButton("ออกจัดส่ง", "out_for_delivery", "status_action_out_for_delivery"),
+                            );
+                          } else if (orderStatus == "out_for_delivery") {
+                            final bool hasProof =
+                                (_orderProofPhotos[order.id] ?? const <String>[])
+                                    .isNotEmpty;
+                            actionButtons.add(ElevatedButton(
+                              key: const Key("status_action_delivered"),
+                              onPressed: hasProof ? () => handleStatusAction("delivered") : null,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                "ส่งสำเร็จ",
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ));
+                          }
+                        }
                       }
-                    } else if (status == "pending_robot" || status == "rejected_robot") {
-                      if (showRobot) {
-                        actionButtons.addAll([
-                          _actionButton("รอบอร์ด", "wait_for_board", "workflow_action_wait_for_board"),
-                          _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
-                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
-                        ]);
-                      }
-                    } else if (status == "waiting_board") {
-                      if (showRobot) {
-                        actionButtons.addAll([
-                          _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
-                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
-                        ]);
-                      }
-                    } else if (status == "assembling") {
-                      if (showRobot) {
-                        actionButtons.addAll([
-                          _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                          _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
-                        ]);
-                      }
-                    } else if (status == "pending_qc") {
-                      if (showQc) {
-                        actionButtons.addAll([
-                          _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
-                          _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
-                          _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
-                        ]);
-                      }
-                    } else if (status == "pending_delivery") {
-                      if (showDelivery) {
-                        actionButtons.addAll([
-                          _actionButton("รอจัดส่ง", "wait_delivery", "workflow_action_wait_delivery"),
-                          _actionButton("จัดส่งแล้ว", "delivered", "workflow_action_delivered"),
-                        ]);
+                    } else {
+                      // ── Legacy non-structured buttons ────────────────────────
+                      final status = wfStatus;
+                      if (status == "pending_board" || status == "rejected_board") {
+                        if (showBoard) {
+                          actionButtons.addAll([
+                            _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                          ]);
+                        }
+                      } else if (status == "pending_robot" || status == "rejected_robot") {
+                        if (showRobot) {
+                          actionButtons.addAll([
+                            _actionButton("รอบอร์ด", "wait_for_board", "workflow_action_wait_for_board"),
+                            _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                          ]);
+                        }
+                      } else if (status == "waiting_board") {
+                        if (showRobot) {
+                          actionButtons.addAll([
+                            _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                          ]);
+                        }
+                      } else if (status == "assembling") {
+                        if (showRobot) {
+                          actionButtons.addAll([
+                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                          ]);
+                        }
+                      } else if (status == "pending_qc") {
+                        if (showQc) {
+                          actionButtons.addAll([
+                            _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
+                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                          ]);
+                        }
+                      } else if (status == "pending_delivery") {
+                        if (showDelivery) {
+                          actionButtons.add(
+                            _actionButton("รอจัดส่ง", "wait_delivery", "workflow_action_wait_delivery"),
+                          );
+                        }
                       }
                     }
 
@@ -3201,69 +3318,197 @@ class _OrderTile extends StatelessWidget {
     Widget? primaryWorkflowAction;
     final secondaryWorkflowActions = <Widget>[];
 
-    if (hasProduction &&
-        (currentUser.isAdmin || isProducer) &&
-        (order.status == "new" ||
-            order.status == "assigned" ||
-            order.status == "rework_required")) {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: () => onStatusChanged("in_production"),
-        icon: Icons.precision_manufacturing_rounded,
-        label: "เริ่มผลิต",
-      );
-    } else if (qcEnabled &&
-        (currentUser.isAdmin || isProducer) &&
-        (order.status == "in_production" ||
-            ((!hasProduction) &&
-                (order.status == "new" ||
-                    order.status == "assigned" ||
-                    order.status == "rework_required")))) {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: () => onStatusChanged("qc_pending"),
-        icon: Icons.fact_check_outlined,
-        label: "ส่ง QC",
-      );
-    } else if (qcEnabled &&
-        (currentUser.isAdmin || isQc) &&
-        order.status == "qc_pending") {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: () => onStatusChanged("qc_passed"),
-        icon: Icons.verified_rounded,
-        label: "QC ผ่าน",
-      );
-      secondaryWorkflowActions.add(
-        buildSecondaryAction(
-          onPressed: () => onStatusChanged("rework_required"),
-          icon: Icons.undo_rounded,
-          label: "ตีกลับแก้ไข",
-        ),
-      );
-    } else if ((currentUser.isAdmin || isDelivery) &&
-        ((hasProduction && qcAssigned && order.status == "qc_passed") ||
-            (hasProduction && !qcAssigned && order.status == "in_production") ||
-            (!hasProduction &&
-                !qcAssigned &&
-                (order.status == "new" || order.status == "assigned")))) {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: () => onStatusChanged("preparing"),
-        icon: Icons.inventory_2_outlined,
-        label: "เริ่มจัดสินค้า",
-      );
-    } else if ((currentUser.isAdmin || isDelivery) &&
-        order.status == "preparing") {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: () => onStatusChanged("out_for_delivery"),
-        icon: Icons.local_shipping_outlined,
-        label: "ออกจัดส่ง",
-      );
-    } else if (canOperate && order.status == "out_for_delivery") {
-      primaryWorkflowAction = buildPrimaryAction(
-        onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
-        icon: Icons.done_all_rounded,
-        label: "ส่งสำเร็จ",
-      );
+    Future<void> handleTileWorkflowAction(String action) async {
+      String? note;
+      if (action == "reject_to_board" || action == "reject_to_robot") {
+        note = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) {
+            final controller = TextEditingController();
+            return AlertDialog(
+              title: const Text("ระบุเหตุผลที่ต้องแก้ไข"),
+              content: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: "กรุณาระบุเหตุผล...",
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text("ยกเลิก"),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    if (text.isEmpty) {
+                      showAppSnack(context, "กรุณาระบุเหตุผลก่อนส่งกลับ");
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(text);
+                  },
+                  child: const Text("ตกลง"),
+                ),
+              ],
+            );
+          },
+        );
+        if (note == null || note.isEmpty) {
+          return;
+        }
+      }
+
+      try {
+        await api.updateOrderWorkflow(order.id, action, note);
+        if (context.mounted) {
+          showAppSnack(context, "ดำเนินการสำเร็จ");
+          onChatUpdated();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          showAppSnack(context, "เกิดข้อผิดพลาด: $e");
+        }
+      }
     }
 
+    if (_orderIsStructured(order)) {
+      final assignedBoard = order.boardProductionUserId ?? "";
+      final assignedRobot = order.robotProductionUserId ?? "";
+      final assignedQc = order.qcUserId ?? "";
+      final assignedDeliv = order.deliveryUserId ?? "";
+      final uid = currentUser.userId;
+
+      final showBoard = currentUser.isAdmin || (assignedBoard.isNotEmpty ? assignedBoard == uid : isProducerRole);
+      final showRobot = currentUser.isAdmin || (assignedRobot.isNotEmpty ? assignedRobot == uid : isProducerRole);
+      final showQc = currentUser.isAdmin || (assignedQc.isNotEmpty ? assignedQc == uid : isQcRole);
+      final showDelivery = currentUser.isAdmin || (assignedDeliv.isNotEmpty ? assignedDeliv == uid : isDeliveryRole);
+
+      final wfStatus = order.orderWorkflowStatus;
+      if (wfStatus == "pending_board" || wfStatus == "rejected_board") {
+        if (showBoard) {
+          primaryWorkflowAction = buildPrimaryAction(
+            onPressed: () => handleTileWorkflowAction("send_to_robot"),
+            icon: Icons.precision_manufacturing_rounded,
+            label: "ส่งให้ฝ่ายผลิตหุ่นยนต์",
+          );
+        }
+      } else if (wfStatus == "pending_robot" || wfStatus == "rejected_robot") {
+        if (showRobot) {
+          primaryWorkflowAction = buildPrimaryAction(
+            onPressed: () => handleTileWorkflowAction("send_to_qc"),
+            icon: Icons.fact_check_outlined,
+            label: "ส่งให้ QC",
+          );
+        }
+      } else if (wfStatus == "pending_qc") {
+        if (showQc) {
+          primaryWorkflowAction = buildPrimaryAction(
+            onPressed: () => handleTileWorkflowAction("qc_pass"),
+            icon: Icons.verified_rounded,
+            label: "ผ่าน",
+          );
+          secondaryWorkflowActions.add(
+            buildSecondaryAction(
+              onPressed: () => handleTileWorkflowAction("reject_to_board"),
+              icon: Icons.undo_rounded,
+              label: "ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด",
+            ),
+          );
+          secondaryWorkflowActions.add(
+            buildSecondaryAction(
+              onPressed: () => handleTileWorkflowAction("reject_to_robot"),
+              icon: Icons.undo_rounded,
+              label: "ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์",
+            ),
+          );
+        }
+      } else if (wfStatus == "pending_delivery") {
+        if (showDelivery) {
+          if (order.status == "qc_passed") {
+            primaryWorkflowAction = buildPrimaryAction(
+              onPressed: () => onStatusChanged("preparing"),
+              icon: Icons.inventory_2_outlined,
+              label: "เริ่มจัดสินค้า",
+            );
+          } else if (order.status == "preparing") {
+            primaryWorkflowAction = buildPrimaryAction(
+              onPressed: () => onStatusChanged("out_for_delivery"),
+              icon: Icons.local_shipping_outlined,
+              label: "ออกจัดส่ง",
+            );
+          } else if (order.status == "out_for_delivery") {
+            primaryWorkflowAction = buildPrimaryAction(
+              onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
+              icon: Icons.done_all_rounded,
+              label: "ส่งสำเร็จ",
+            );
+          }
+        }
+      }
+    } else {
+      if (hasProduction &&
+          (currentUser.isAdmin || isProducer) &&
+          (order.status == "new" ||
+              order.status == "assigned" ||
+              order.status == "rework_required")) {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: () => onStatusChanged("in_production"),
+          icon: Icons.precision_manufacturing_rounded,
+          label: "เริ่มผลิต",
+        );
+      } else if (qcEnabled &&
+          (currentUser.isAdmin || isProducer) &&
+          (order.status == "in_production" ||
+              ((!hasProduction) &&
+                  (order.status == "new" ||
+                      order.status == "assigned" ||
+                      order.status == "rework_required")))) {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: () => onStatusChanged("qc_pending"),
+          icon: Icons.fact_check_outlined,
+          label: "ส่ง QC",
+        );
+      } else if (qcEnabled &&
+          (currentUser.isAdmin || isQc) &&
+          order.status == "qc_pending") {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: () => onStatusChanged("qc_passed"),
+          icon: Icons.verified_rounded,
+          label: "QC ผ่าน",
+        );
+        secondaryWorkflowActions.add(
+          buildSecondaryAction(
+            onPressed: () => onStatusChanged("rework_required"),
+            icon: Icons.undo_rounded,
+            label: "ตีกลับแก้ไข",
+          ),
+        );
+      } else if ((currentUser.isAdmin || isDelivery) &&
+          ((hasProduction && qcAssigned && order.status == "qc_passed") ||
+              (hasProduction && !qcAssigned && order.status == "in_production") ||
+              (!hasProduction &&
+                  !qcAssigned &&
+                  (order.status == "new" || order.status == "assigned")))) {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: () => onStatusChanged("preparing"),
+          icon: Icons.inventory_2_outlined,
+          label: "เริ่มจัดสินค้า",
+        );
+      } else if ((currentUser.isAdmin || isDelivery) &&
+          order.status == "preparing") {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: () => onStatusChanged("out_for_delivery"),
+          icon: Icons.local_shipping_outlined,
+          label: "ออกจัดส่ง",
+        );
+      } else if (canOperate && order.status == "out_for_delivery") {
+        primaryWorkflowAction = buildPrimaryAction(
+          onPressed: canMarkDelivered ? () => onStatusChanged("delivered") : null,
+          icon: Icons.done_all_rounded,
+          label: "ส่งสำเร็จ",
+        );
+      }
+    }
     if (hasBackorder) {
       secondaryWorkflowActions.add(
         buildSecondaryAction(
@@ -4227,6 +4472,36 @@ String stripLabelPrefixes(String line) {
   return line;
 }
 
+
+bool _orderIsStructured(DeliveryOrder order) {
+  final hasBoard = (order.boardProductionUserId ?? "").trim().isNotEmpty;
+  final hasRobot = (order.robotProductionUserId ?? "").trim().isNotEmpty;
+  if (hasBoard || hasRobot) {
+    return true;
+  }
+  // Historical orders with legacy production assignment are not structured.
+  final hasLegacyProd = (order.productionUserId ?? "").trim().isNotEmpty ||
+      (order.productionUserName ?? "").trim().isNotEmpty;
+  if (hasLegacyProd) {
+    return false;
+  }
+  // Historical orders where status advanced while workflow status remained at default pending_board
+  if (order.orderWorkflowStatus == "pending_board" &&
+      order.status != "new" &&
+      order.status != "assigned") {
+    return false;
+  }
+  const structuredWfStates = {
+    "pending_board",
+    "rejected_board",
+    "pending_robot",
+    "rejected_robot",
+    "pending_qc",
+    "pending_delivery",
+    "delivered",
+  };
+  return structuredWfStates.contains(order.orderWorkflowStatus);
+}
 
 String _workflowStatusLabel(String status) {
   switch (status) {
