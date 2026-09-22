@@ -52,6 +52,8 @@ class FakeDashboardStockApiService extends StockApiService {
     ];
   }
 
+  List<DeliveryOrder>? getOrdersResult;
+
   @override
   Future<List<DeliveryOrder>> getOrders({
     bool assignedOnly = false,
@@ -60,6 +62,7 @@ class FakeDashboardStockApiService extends StockApiService {
     required String requesterId,
   }) async {
     getOrdersCalled = true;
+    if (getOrdersResult != null) return getOrdersResult!;
     return [
       DeliveryOrder(
         id: "ORDER_ABC",
@@ -303,6 +306,38 @@ void main() {
       final state = tester.state<DashboardPageState>(find.byType(DashboardPage));
       state.widget.onOpenCustomLabel(state.context, "test_label");
       expect(openCustomLabelCalled, isTrue);
+    });
+
+    testWidgets("cancelled orders are excluded from active dashboard orders", (WidgetTester tester) async {
+      configureViewport(tester);
+      fakeApi.getOrdersResult = [
+        DeliveryOrder(
+          id: "ORDER_ACTIVE",
+          customerName: "Active Customer",
+          createdById: "CREATOR_1",
+          createdByName: "Bob Creator",
+          status: "pending",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+        DeliveryOrder(
+          id: "ORDER_CANCELLED",
+          customerName: "Cancelled Customer",
+          createdById: "CREATOR_1",
+          createdByName: "Bob Creator",
+          status: "cancelled",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("Active Customer"), findsOneWidget);
+      expect(find.textContaining("Cancelled Customer"), findsNothing);
     });
   });
 }

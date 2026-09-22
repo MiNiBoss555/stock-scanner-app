@@ -545,6 +545,7 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void _openOrder(DeliveryOrder order) {
+    if (order.status == "cancelled") return;
     // Keep this lightweight: the order is already visible in the list.
     setState(() {
       _orderPickerId = order.id;
@@ -615,8 +616,13 @@ class _OrdersPageState extends State<OrdersPage> {
       widget.api.getUsers(activeOnly: true),
       widget.api.getProducts(),
     ]);
+    final orders = results[0] as List<DeliveryOrder>;
+    if (_orderPickerId != null &&
+        orders.any((o) => o.id == _orderPickerId && o.status == "cancelled")) {
+      _orderPickerId = null;
+    }
     return _OrdersPageData(
-      orders: results[0] as List<DeliveryOrder>,
+      orders: orders,
       users: results[1] as List<AppUser>,
       products: results[2] as List<Product>,
     );
@@ -1416,6 +1422,11 @@ class _OrdersPageState extends State<OrdersPage> {
     List<AppUser> activeStaff,
     _OrdersPageData data,
   ) async {
+    for (final order in cancelled) {
+      if (!_orderProofPhotos.containsKey(order.id)) {
+        unawaited(_loadProofPhotosForOrder(order.id));
+      }
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _CancelledOrdersPage(
@@ -1449,6 +1460,9 @@ class _OrdersPageState extends State<OrdersPage> {
       );
       if (status == "delivered" && mounted) {
         await _showDeliveredCatAnimation();
+      }
+      if (status == "cancelled" && _orderPickerId == order.id) {
+        _orderPickerId = null;
       }
       showAppSnack(context, "อัปเดตสถานะแล้ว");
       await _refresh();
@@ -1714,6 +1728,9 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void _openProofGallery(DeliveryOrder order) {
+    if (!_orderProofPhotos.containsKey(order.id)) {
+      unawaited(_loadProofPhotosForOrder(order.id));
+    }
     final photos = _orderProofPhotos[order.id] ?? const <String>[];
     showModalBottomSheet<void>(
       context: context,
@@ -1901,6 +1918,9 @@ class _OrdersPageState extends State<OrdersPage> {
 
   void _openBackorderReport(List<DeliveryOrder> orders) {
     final backorders = orders.where((order) {
+      if (order.status == "cancelled") {
+        return false;
+      }
       return order.items.any((item) => item.deliveredQuantity < item.quantity);
     }).toList();
     showModalBottomSheet<void>(
@@ -1954,7 +1974,8 @@ class _OrdersPageState extends State<OrdersPage> {
               }
               final data = snapshot.data!;
               for (final order in data.orders) {
-                if (!_orderProofPhotos.containsKey(order.id)) {
+                if (order.status != "cancelled" &&
+                    !_orderProofPhotos.containsKey(order.id)) {
                   unawaited(_loadProofPhotosForOrder(order.id));
                 }
               }
@@ -2596,7 +2617,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                       child: Material(
                                         type: MaterialType.transparency,
                                         child: DropdownMenu<String>(
-                                          initialSelection: _orderPickerId,
+                                          initialSelection: active.any((o) => o.id == _orderPickerId)
+                                              ? _orderPickerId
+                                              : null,
                                           expandedInsets: EdgeInsets.zero,
                                           enableFilter: true,
                                           enableSearch: true,
@@ -2626,10 +2649,12 @@ class _OrdersPageState extends State<OrdersPage> {
                                         ),
                                       ),
                                     ),
-                                  if (cancelled.isNotEmpty)
+                                  if (_selectedTab == OrderStatusTab.cancelled &&
+                                      cancelled.isNotEmpty) ...[
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 10),
                                       child: OutlinedButton.icon(
+                                        key: const Key("cancelled_orders_archive_button"),
                                         onPressed: () => _openCancelledOrders(
                                             cancelled, activeStaff, data),
                                         icon: const Icon(Icons.archive_outlined),
@@ -2637,8 +2662,39 @@ class _OrdersPageState extends State<OrdersPage> {
                                             "ดูออเดอร์ที่ยกเลิก (${cancelled.length})"),
                                       ),
                                     ),
-                                  ...active.map(
-                                    (order) => _OrderTile(
+                                    ...cancelled.map(
+                                      (order) => _OrderTile(
+                                        order: order,
+                                        api: widget.api,
+                                        currentUser: widget.currentUser,
+                                        onOpenDetails: () => _showOrderPreview(order),
+                                        printUrl: widget.api.orderPrintUrl(
+                                          orderId: order.id,
+                                          requesterId: widget.currentUser.userId,
+                                        ),
+                                        packingSlipUrl: widget.api.orderPackingSlipUrl(
+                                          orderId: order.id,
+                                          requesterId: widget.currentUser.userId,
+                                        ),
+                                        pdfUrl: widget.api.orderPdfUrl(
+                                          orderId: order.id,
+                                          requesterId: widget.currentUser.userId,
+                                        ),
+                                        onAssign: () => _assignOrder(order, activeStaff),
+                                        onUploadProof: () => _uploadProofPhoto(order),
+                                        onOpenProofGallery: () => _openProofGallery(order),
+                                        onResolveBackorder: () => _resolveBackorder(order),
+                                        proofCount: (_orderProofPhotos[order.id] ?? const <String>[]).length,
+                                        onDeliverPartial: () => _deliverPartial(order),
+                                        onFixDeliveryStatus: () => _fixDeliveryStatus(order),
+                                        onStatusChanged: (status) => _updateStatus(order, status),
+                                        onChatUpdated: _refresh,
+                                      ),
+                                    ),
+                                  ],
+                                  if (_selectedTab != OrderStatusTab.cancelled)
+                                    ...active.map(
+                                      (order) => _OrderTile(
                                       order: order,
                                       api: widget.api,
                                       currentUser: widget.currentUser,

@@ -82,18 +82,35 @@ class FakeStockApiService extends StockApiService {
     required String orderId,
     required String status,
   }) async {
-    return ordersList.firstWhere(
-      (o) => o.id == orderId,
-      orElse: () => DeliveryOrder(
-        id: orderId,
-        customerName: "Dummy",
-        createdById: requesterId,
-        createdByName: "Creator",
+    final idx = ordersList.indexWhere((o) => o.id == orderId);
+    if (idx != -1) {
+      final old = ordersList[idx];
+      ordersList[idx] = DeliveryOrder(
+        id: old.id,
+        customerName: old.customerName,
+        createdById: old.createdById,
+        createdByName: old.createdByName,
         status: status,
-        items: [],
-        createdAt: DateTime.now(),
+        items: old.items,
+        createdAt: old.createdAt,
         updatedAt: DateTime.now(),
-      ),
+        customerPhone: old.customerPhone,
+        customerAddress: old.customerAddress,
+        note: old.note,
+        assignedToId: old.assignedToId,
+        assignedToName: old.assignedToName,
+      );
+      return ordersList[idx];
+    }
+    return DeliveryOrder(
+      id: orderId,
+      customerName: "Dummy",
+      createdById: requesterId,
+      createdByName: "Creator",
+      status: status,
+      items: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
   }
 
@@ -776,6 +793,164 @@ void main() {
 
         await tester.tap(find.widgetWithText(TextButton, "ยกเลิก"));
         await tester.pumpAndSettle();
+      });
+    });
+
+    group("Cancelled Orders Active-View Regression Tests", () {
+      testWidgets("Cancelled order with remaining quantity does not appear in backorder report while active does", (WidgetTester tester) async {
+        final activeOrder = DeliveryOrder(
+          id: "active_backorder_1",
+          customerName: "Active Backorder Customer",
+          createdById: "creator_id",
+          createdByName: "Creator",
+          status: "assigned",
+          items: [
+            OrderItemModel(
+              barcode: "b1",
+              productName: "Active Item",
+              quantity: 5,
+              unit: "pcs",
+              deliveredQuantity: 2,
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        final cancelledOrder = DeliveryOrder(
+          id: "cancelled_backorder_1",
+          customerName: "Cancelled Backorder Customer",
+          createdById: "creator_id",
+          createdByName: "Creator",
+          status: "cancelled",
+          items: [
+            OrderItemModel(
+              barcode: "b2",
+              productName: "Cancelled Item",
+              quantity: 5,
+              unit: "pcs",
+              deliveredQuantity: 1,
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        fakeApi.ordersList = [activeOrder, cancelledOrder];
+
+        await tester.pumpWidget(createTestWidget(OrdersPage(
+          api: fakeApi,
+          currentUser: testUser,
+        )));
+        await tester.pumpAndSettle();
+
+        // Open backorder report
+        final btn = find.text("เปิดรายงานแบบเต็ม");
+        expect(btn, findsOneWidget);
+        await tester.tap(btn);
+        await tester.pumpAndSettle();
+
+        // Active order appears in report, cancelled order does NOT
+        expect(find.descendant(of: find.byType(BottomSheet), matching: find.text("Active Backorder Customer")), findsOneWidget);
+        expect(find.descendant(of: find.byType(BottomSheet), matching: find.text("Cancelled Backorder Customer")), findsNothing);
+      });
+
+      testWidgets("Cancelled order does not appear in active order picker", (WidgetTester tester) async {
+        final activeOrder = DeliveryOrder(
+          id: "active_picker_1",
+          customerName: "Active Picker Customer",
+          createdById: "creator_id",
+          createdByName: "Creator",
+          status: "pending",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        final cancelledOrder = DeliveryOrder(
+          id: "cancelled_picker_1",
+          customerName: "Cancelled Picker Customer",
+          createdById: "creator_id",
+          createdByName: "Creator",
+          status: "cancelled",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        fakeApi.ordersList = [activeOrder, cancelledOrder];
+
+        await tester.pumpWidget(createTestWidget(OrdersPage(
+          api: fakeApi,
+          currentUser: testUser,
+        )));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DropdownMenu<String>), findsOneWidget);
+        final dropdown = tester.widget<DropdownMenu<String>>(find.byType(DropdownMenu<String>));
+        final entryValues = dropdown.dropdownMenuEntries.map((e) => e.value).toList();
+        expect(entryValues, contains("active_picker_1"));
+        expect(entryValues, isNot(contains("cancelled_picker_1")));
+      });
+
+      testWidgets("Cancelling currently selected order clears stale picker selection", (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 2000);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final order1 = DeliveryOrder(
+          id: "order_to_cancel_id",
+          customerName: "Order To Cancel Name",
+          createdById: testUser.userId,
+          createdByName: testUser.userName,
+          status: "pending",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        final order2 = DeliveryOrder(
+          id: "order_active_id",
+          customerName: "Order Active Name",
+          createdById: testUser.userId,
+          createdByName: testUser.userName,
+          status: "pending",
+          items: const [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        fakeApi.ordersList = [order1, order2];
+
+        await tester.pumpWidget(createTestWidget(OrdersPage(
+          api: fakeApi,
+          currentUser: testUser,
+        )));
+        await tester.pumpAndSettle();
+
+        // Left swipe on order_to_cancel_id card to open action menu
+        final dismissible = find.byKey(const Key("dismissible_order_to_cancel_id"));
+        expect(dismissible, findsOneWidget);
+        await tester.drag(dismissible, const Offset(-500, 0));
+        await tester.pumpAndSettle();
+
+        // Tap cancel order action
+        final cancelTile = find.byKey(const Key("order_action_cancel_order_to_cancel_id"));
+        expect(cancelTile, findsOneWidget);
+        await tester.tap(cancelTile);
+        await tester.pumpAndSettle();
+
+        // Confirm cancel dialog
+        final confirmBtn = find.widgetWithText(FilledButton, "ยืนยัน");
+        expect(confirmBtn, findsOneWidget);
+        await tester.tap(confirmBtn);
+        await tester.pumpAndSettle();
+
+        // Check that dropdown selection is not pointing to cancelled order
+        final dropdown = tester.widget<DropdownMenu<String>>(find.byType(DropdownMenu<String>));
+        expect(dropdown.initialSelection, isNull);
       });
     });
   });
