@@ -119,9 +119,11 @@ class BarTenderPrintService {
     required bool includeCopy,
   }) async {
     final file = await saveCsvFile(order: order, includeCopy: includeCopy);
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: "text/csv")],
-      text: "BarTender UltraLite Data Source - ออเดอร์ ${order.customerName} (${order.id})",
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: "text/csv")],
+        text: "BarTender UltraLite Data Source - ออเดอร์ ${order.customerName} (${order.id})",
+      ),
     );
   }
 

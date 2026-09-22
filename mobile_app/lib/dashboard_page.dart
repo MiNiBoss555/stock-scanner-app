@@ -8,7 +8,6 @@ import "theme/app_theme.dart";
 import "dashboard_home.dart";
 import "chat_assistant_page.dart";
 import "orders_page.dart";
-import "login_page.dart";
 import "services/version_check_service.dart";
 
 class DashboardPage extends StatefulWidget {

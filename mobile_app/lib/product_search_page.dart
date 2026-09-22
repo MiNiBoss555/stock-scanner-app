@@ -419,9 +419,11 @@ class _ProductSearchPageState extends State<ProductSearchPage> {
       final file = File(path);
       await file.writeAsBytes(fileBytes, flush: true);
 
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: "รายการสินค้าทั้งหมด (${products.length} รายการ)",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(path)],
+          text: "รายการสินค้าทั้งหมด (${products.length} รายการ)",
+        ),
       );
     } catch (e) {
       if (mounted) {
