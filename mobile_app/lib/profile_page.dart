@@ -1599,6 +1599,7 @@ class _PageHeader extends StatelessWidget {
 
 class UserAvatar extends StatefulWidget {
   const UserAvatar({
+    super.key,
     required this.imageUrl,
     required this.name,
     this.radius = 22,

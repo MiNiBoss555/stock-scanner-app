@@ -74,7 +74,7 @@ class _BrandLogoIcon extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: _brandPrimary.withOpacity(0.25),
+            color: _brandPrimary.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -85,7 +85,7 @@ class _BrandLogoIcon extends StatelessWidget {
         children: [
           Icon(
             Icons.inventory_2_rounded,
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.white.withValues(alpha: 0.95),
             size: size * 0.54,
           ),
           Positioned(
@@ -141,14 +141,14 @@ BoxDecoration _softPanelDecoration({
 }) {
   final tint = (surfaceStrength * 0.17).clamp(0.08, 0.20);
   final panelColor = Color.lerp(_brandSurface, tone, tint)!;
-  final borderColor = Color.lerp(panelColor, tone, 0.30)!.withOpacity(0.70);
+  final borderColor = Color.lerp(panelColor, tone, 0.30)!.withValues(alpha: 0.70);
   return BoxDecoration(
     color: panelColor,
     borderRadius: BorderRadius.circular(radius),
     border: Border.all(color: borderColor),
     boxShadow: [
       BoxShadow(
-        color: tone.withOpacity(0.06),
+        color: tone.withValues(alpha: 0.06),
         blurRadius: 16,
         offset: const Offset(0, 10),
       ),
@@ -505,9 +505,9 @@ class _WebLandingPage extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.62),
-                  Colors.black.withOpacity(0.45),
-                  Colors.black.withOpacity(0.65),
+                  Colors.black.withValues(alpha: 0.62),
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha: 0.65),
                 ],
               ),
             ),
@@ -523,10 +523,10 @@ class _WebLandingPage extends StatelessWidget {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.14),
+                          color: Colors.white.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(14),
                           border:
-                              Border.all(color: Colors.white.withOpacity(0.18)),
+                              Border.all(color: Colors.white.withValues(alpha: 0.18)),
                         ),
                         child: const Icon(Icons.local_shipping_outlined,
                             color: Colors.white),
@@ -544,14 +544,14 @@ class _WebLandingPage extends StatelessWidget {
                         FilledButton(
                           onPressed: onEnter,
                           style: FilledButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.18),
+                            backgroundColor: Colors.white.withValues(alpha: 0.18),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                               side: BorderSide(
-                                  color: Colors.white.withOpacity(0.18)),
+                                  color: Colors.white.withValues(alpha: 0.18)),
                             ),
                           ),
                           child: const Text("เข้าใช้งาน"),
@@ -664,7 +664,7 @@ class _WebLandingPage extends StatelessWidget {
                     alignment: Alignment.bottomRight,
                     child: AppVersionText(
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.55),
+                            color: Colors.white.withValues(alpha: 0.55),
                           ),
                     ),
                   ),
@@ -696,7 +696,7 @@ class _LandingHeroText extends StatelessWidget {
         Text(
           "Thailand",
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.white.withOpacity(0.88),
+                color: Colors.white.withValues(alpha: 0.88),
                 fontWeight: FontWeight.w700,
               ),
         ),
@@ -716,7 +716,7 @@ class _LandingHeroText extends StatelessWidget {
           child: Text(
             "จัดการสต็อก ออเดอร์ และการจัดส่งได้ในที่เดียว เหมาะสำหรับเปิดบน Chrome เพื่อคัดลอกข้อมูลลูกค้าจากแชทแล้ววางสร้างออเดอร์ได้ทันที",
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.82),
+                  color: Colors.white.withValues(alpha: 0.82),
                   height: 1.5,
                 ),
           ),
@@ -750,7 +750,7 @@ class _LandingNavItem extends StatelessWidget {
     return Text(
       label,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Colors.white.withOpacity(0.85),
+            color: Colors.white.withValues(alpha: 0.85),
             fontWeight: FontWeight.w600,
           ),
     );
@@ -776,12 +776,12 @@ class _LandingTile extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
+        color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.20)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 28,
             offset: const Offset(0, 14),
           ),
@@ -794,7 +794,7 @@ class _LandingTile extends StatelessWidget {
             Align(
               alignment: Alignment.topRight,
               child:
-                  Icon(icon, color: Colors.white.withOpacity(0.88), size: 28),
+                  Icon(icon, color: Colors.white.withValues(alpha: 0.88), size: 28),
             ),
             Align(
               alignment: Alignment.bottomLeft,
@@ -1121,14 +1121,14 @@ class _StockHomePageState extends State<StockHomePage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: isSelected ? _brandPrimary.withOpacity(0.08) : Colors.transparent,
+              color: isSelected ? _brandPrimary.withValues(alpha: 0.08) : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
                 Icon(
                   isSelected ? data["selectedIcon"] as IconData : data["icon"] as IconData,
-                  color: isSelected ? _brandPrimary : _brandInk.withOpacity(0.70),
+                  color: isSelected ? _brandPrimary : _brandInk.withValues(alpha: 0.70),
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -1136,7 +1136,7 @@ class _StockHomePageState extends State<StockHomePage> {
                   child: Text(
                     data["label"] as String,
                     style: TextStyle(
-                      color: isSelected ? _brandPrimary : _brandInk.withOpacity(0.85),
+                      color: isSelected ? _brandPrimary : _brandInk.withValues(alpha: 0.85),
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                       fontSize: 13,
                     ),
@@ -1154,7 +1154,7 @@ class _StockHomePageState extends State<StockHomePage> {
       width: 260,
       decoration: BoxDecoration(
         color: _brandCard,
-        border: Border(right: BorderSide(color: _brandPrimary.withOpacity(0.08))),
+        border: Border(right: BorderSide(color: _brandPrimary.withValues(alpha: 0.08))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1174,13 +1174,13 @@ class _StockHomePageState extends State<StockHomePage> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _brandPrimary.withOpacity(0.04),
+                color: _brandPrimary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: _brandPrimary.withOpacity(0.12),
+                    backgroundColor: _brandPrimary.withValues(alpha: 0.12),
                     child: Text(
                       widget.currentUser.userName.substring(0, min(1, widget.currentUser.userName.length)).toUpperCase(),
                       style: const TextStyle(color: _brandPrimary, fontWeight: FontWeight.bold),
@@ -1198,7 +1198,7 @@ class _StockHomePageState extends State<StockHomePage> {
                         ),
                         Text(
                           widget.currentUser.role.toUpperCase(),
-                          style: TextStyle(fontSize: 10, color: _brandInk.withOpacity(0.60), fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 10, color: _brandInk.withValues(alpha: 0.60), fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -1255,9 +1255,9 @@ class _StockHomePageState extends State<StockHomePage> {
                   onPressed: () => _openMorePage(context),
                   icon: const _BrandLogoIcon(size: 24),
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.92),
+                    backgroundColor: Colors.white.withValues(alpha: 0.92),
                     foregroundColor: _brandDeep,
-                    side: BorderSide(color: _brandPrimary.withOpacity(0.12)),
+                    side: BorderSide(color: _brandPrimary.withValues(alpha: 0.12)),
                   ),
                   tooltip: "เพิ่มเติม",
                 ),
@@ -1270,12 +1270,12 @@ class _StockHomePageState extends State<StockHomePage> {
         minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Container(
           decoration: BoxDecoration(
-            color: _brandCard.withOpacity(0.96),
+            color: _brandCard.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: _brandPrimary.withOpacity(0.10)),
+            border: Border.all(color: _brandPrimary.withValues(alpha: 0.10)),
             boxShadow: [
               BoxShadow(
-                color: _brandPrimary.withOpacity(0.10),
+                color: _brandPrimary.withValues(alpha: 0.10),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -1723,7 +1723,7 @@ class _SplashScreenState extends State<_SplashScreen>
                         child: Container(
                           height: 10,
                           decoration: BoxDecoration(
-                            color: _brandPrimary.withOpacity(0.12),
+                            color: _brandPrimary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
@@ -1739,7 +1739,7 @@ class _SplashScreenState extends State<_SplashScreen>
                               width: 14,
                               height: 3,
                               decoration: BoxDecoration(
-                                color: _brandDeep.withOpacity(0.22),
+                                color: _brandDeep.withValues(alpha: 0.22),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -1753,7 +1753,7 @@ class _SplashScreenState extends State<_SplashScreen>
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: _brandPrimary.withOpacity(0.12),
+                            color: _brandPrimary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Icon(
@@ -1780,7 +1780,7 @@ class _SplashScreenState extends State<_SplashScreen>
             Text(
               "แมวกำลังช่วยเช็กสต็อกให้คุณ",
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: _brandInk.withOpacity(0.7),
+                    color: _brandInk.withValues(alpha: 0.7),
                   ),
             ),
           ],
@@ -1814,11 +1814,11 @@ class _PageHeader extends StatelessWidget {
         color: headerColor,
         borderRadius: BorderRadius.circular(_radiusXl),
         border: Border.all(
-          color: isDark ? darkCardBorder.withOpacity(0.6) : _brandPrimary.withOpacity(0.16),
+          color: isDark ? darkCardBorder.withValues(alpha: 0.6) : _brandPrimary.withValues(alpha: 0.16),
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.25) : _brandPrimary.withOpacity(0.10),
+            color: isDark ? Colors.black.withValues(alpha: 0.25) : _brandPrimary.withValues(alpha: 0.10),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -1836,8 +1836,8 @@ class _PageHeader extends StatelessWidget {
               ),
               style: IconButton.styleFrom(
                 backgroundColor: isDark
-                    ? darkCard.withOpacity(0.82)
-                    : Colors.white.withOpacity(0.82),
+                    ? darkCard.withValues(alpha: 0.82)
+                    : Colors.white.withValues(alpha: 0.82),
               ),
             ),
             const SizedBox(height: _spaceXs),
@@ -1852,7 +1852,7 @@ class _PageHeader extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isDark ? darkTextSecondary : _brandInk.withOpacity(0.82),
+                  color: isDark ? darkTextSecondary : _brandInk.withValues(alpha: 0.82),
                 ),
           ),
           const SizedBox(height: _spaceSm),
@@ -1924,7 +1924,7 @@ class _MovementTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: _tone().withOpacity(0.14),
+          backgroundColor: _tone().withValues(alpha: 0.14),
           child: Icon(Icons.swap_horiz, color: _tone()),
         ),
         title: Text("${item.productName} x${item.quantity}"),
@@ -1954,7 +1954,7 @@ class _NotificationTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: _brandPrimary.withOpacity(0.10),
+          backgroundColor: _brandPrimary.withValues(alpha: 0.10),
           child: const Icon(Icons.notifications_active_outlined,
               color: _brandPrimary),
         ),
@@ -1986,12 +1986,12 @@ class _EmptyTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: _brandPrimary.withOpacity(0.10),
+              color: _brandPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.notifications_none_rounded,
-              color: _brandPrimary.withOpacity(0.82),
+              color: _brandPrimary.withValues(alpha: 0.82),
               size: 22,
             ),
           ),
@@ -2012,7 +2012,7 @@ class _EmptyTile extends StatelessWidget {
                 Text(
                   message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _brandInk.withOpacity(0.70),
+                        color: _brandInk.withValues(alpha: 0.70),
                         height: 1.35,
                       ),
                 ),
@@ -2048,7 +2048,7 @@ class _ErrorState extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: _profileAccent.withOpacity(0.28),
+                  color: _profileAccent.withValues(alpha: 0.28),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
@@ -2068,7 +2068,7 @@ class _ErrorState extends StatelessWidget {
                 message.replaceFirst("Exception: ", ""),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: _brandInk.withOpacity(0.72),
+                      color: _brandInk.withValues(alpha: 0.72),
                     ),
               ),
             ],
