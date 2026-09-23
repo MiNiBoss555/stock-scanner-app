@@ -78,7 +78,7 @@ extension OrderStatusTabInfo on OrderStatusTab {
     final s = (status ?? "").toLowerCase().trim();
     switch (this) {
       case OrderStatusTab.all:
-        return true;
+        return s != "cancelled";
       case OrderStatusTab.pending:
         return s == "" || s == "new" || s == "pending";
       case OrderStatusTab.working:

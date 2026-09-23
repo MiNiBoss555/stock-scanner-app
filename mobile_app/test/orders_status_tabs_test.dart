@@ -264,4 +264,135 @@ void main() {
     expect(find.byKey(const Key("empty_search_state")), findsOneWidget);
     expect(find.text("ไม่พบออเดอร์"), findsOneWidget);
   });
+
+  testWidgets("All tab count excludes cancelled orders", (tester) async {
+    final api = FakeOrdersApi(
+      orders: [
+        buildOrder(id: "1", customerName: "Active Order", status: "pending", createdByName: "Creator"),
+        buildOrder(id: "2", customerName: "Delivered Order", status: "delivered", createdByName: "Creator"),
+        buildOrder(id: "3", customerName: "Cancelled Order", status: "cancelled", createdByName: "Creator"),
+      ],
+    );
+
+    await tester.pumpWidget(createTestWidget(api));
+    await tester.pumpAndSettle();
+
+    // 1 active + 1 delivered = 2 for 'ทั้งหมด' (cancelled excluded)
+    final allTab = find.byKey(const Key("tab_ทั้งหมด"));
+    expect(allTab, findsOneWidget);
+    expect(find.descendant(of: allTab, matching: find.text("2")), findsOneWidget);
+
+    // Scroll to 'ยกเลิก' tab and verify count is 1
+    final cancelledTab = find.byKey(const Key("tab_ยกเลิก"));
+    await tester.scrollUntilVisible(
+      cancelledTab,
+      100,
+      scrollable: horizontalScrollable,
+    );
+    await tester.pumpAndSettle();
+    expect(cancelledTab, findsOneWidget);
+    expect(find.descendant(of: cancelledTab, matching: find.text("1")), findsOneWidget);
+  });
+
+  testWidgets("Default 'ทั้งหมด' view shows active and delivered, hides cancelled content", (tester) async {
+    final api = FakeOrdersApi(
+      orders: [
+        buildOrder(id: "1", customerName: "Active Order", status: "pending", createdByName: "Creator"),
+        buildOrder(id: "2", customerName: "Delivered Order", status: "delivered", createdByName: "Creator"),
+        buildOrder(id: "3", customerName: "Cancelled Order", status: "cancelled", createdByName: "Creator"),
+      ],
+    );
+
+    await tester.pumpWidget(createTestWidget(api));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Active Order"), findsOneWidget);
+    expect(find.text("Delivered Order"), findsOneWidget);
+    expect(find.text("Cancelled Order"), findsNothing);
+    expect(find.byKey(const Key("cancelled_orders_archive_button")), findsNothing);
+  });
+
+  testWidgets("Tap 'ยกเลิก' tab makes cancelled order and archive available", (tester) async {
+    final api = FakeOrdersApi(
+      orders: [
+        buildOrder(id: "1", customerName: "Active Order", status: "pending", createdByName: "Creator"),
+        buildOrder(id: "2", customerName: "Cancelled Order", status: "cancelled", createdByName: "Creator"),
+      ],
+    );
+
+    await tester.pumpWidget(createTestWidget(api));
+    await tester.pumpAndSettle();
+
+    // Initially on 'ทั้งหมด'
+    expect(find.text("Active Order"), findsOneWidget);
+    expect(find.text("Cancelled Order"), findsNothing);
+
+    // Tap 'ยกเลิก' tab
+    final cancelledTab = find.byKey(const Key("tab_ยกเลิก"));
+    await tester.scrollUntilVisible(
+      cancelledTab,
+      100,
+      scrollable: horizontalScrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(cancelledTab);
+    await tester.pumpAndSettle();
+
+    // Now cancelled order and archive button are available
+    expect(find.text("Cancelled Order"), findsOneWidget);
+    expect(find.text("Active Order"), findsNothing);
+    expect(find.byKey(const Key("cancelled_orders_archive_button")), findsOneWidget);
+  });
+
+  testWidgets("Searching while on 'ทั้งหมด' does not leak cancelled orders into active results", (tester) async {
+    final api = FakeOrdersApi(
+      orders: [
+        buildOrder(id: "1", customerName: "Somchai Active", status: "pending", createdByName: "Creator"),
+        buildOrder(id: "2", customerName: "Somchai Cancelled", status: "cancelled", createdByName: "Creator"),
+      ],
+    );
+
+    await tester.pumpWidget(createTestWidget(api));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(searchField, "Somchai");
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Somchai Active"), findsOneWidget);
+    expect(find.text("Somchai Cancelled"), findsNothing);
+  });
+
+  testWidgets("Searching while on 'ยกเลิก' finds matching cancelled history", (tester) async {
+    final api = FakeOrdersApi(
+      orders: [
+        buildOrder(id: "1", customerName: "Somchai Active", status: "pending", createdByName: "Creator"),
+        buildOrder(id: "2", customerName: "Somchai Cancelled", status: "cancelled", createdByName: "Creator"),
+        buildOrder(id: "3", customerName: "Somsri Cancelled", status: "cancelled", createdByName: "Creator"),
+      ],
+    );
+
+    await tester.pumpWidget(createTestWidget(api));
+    await tester.pumpAndSettle();
+
+    // Tap 'ยกเลิก' tab
+    final cancelledTab = find.byKey(const Key("tab_ยกเลิก"));
+    await tester.scrollUntilVisible(
+      cancelledTab,
+      100,
+      scrollable: horizontalScrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(cancelledTab);
+    await tester.pumpAndSettle();
+
+    // Search for 'Somchai'
+    await tester.enterText(searchField, "Somchai");
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Somchai Cancelled"), findsOneWidget);
+    expect(find.text("Somsri Cancelled"), findsNothing);
+    expect(find.text("Somchai Active"), findsNothing);
+  });
 }
