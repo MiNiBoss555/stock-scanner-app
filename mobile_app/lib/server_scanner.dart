@@ -105,13 +105,13 @@ class ServerScanner {
 
         final completer = Completer<String?>();
 
-        final futures = batch.map((url) async {
-          if (await pingServer(url)) {
-            if (!completer.isCompleted) {
+        for (final url in batch) {
+          pingServer(url).then((ok) {
+            if (ok && !completer.isCompleted) {
               completer.complete(url);
             }
-          }
-        });
+          });
+        }
 
         // Timeout each batch fast (1.5s max per batch)
         final foundUrl = await Future.any([

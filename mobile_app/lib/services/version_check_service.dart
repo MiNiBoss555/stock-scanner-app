@@ -36,7 +36,8 @@ class AppVersionCheckService {
           }
         }
       }
-    } catch (e) {
+    } catch (_) {
+      // Ignored: silent fallback when checking for updates.
     }
   }
 

@@ -441,7 +441,7 @@ void main() {
 
       setUp(() {
         final binding = TestWidgetsFlutterBinding.instance;
-        final view = binding.platformDispatcher.views.first as TestFlutterView;
+        final view = binding.platformDispatcher.views.first;
         view.physicalSize = const Size(800, 2000);
         view.devicePixelRatio = 1.0;
 
@@ -547,7 +547,7 @@ void main() {
 
       tearDown(() {
         final binding = TestWidgetsFlutterBinding.instance;
-        final view = binding.platformDispatcher.views.first as TestFlutterView;
+        final view = binding.platformDispatcher.views.first;
         view.resetPhysicalSize();
         view.resetDevicePixelRatio();
 

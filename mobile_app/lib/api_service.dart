@@ -13,8 +13,6 @@ class StockApiService {
   static const Duration _requestTimeout = Duration(seconds: 18);
   static const String _loginTimeoutMessage =
       "Server is taking longer than usual. Please wait a moment and try again.";
-  static const String _timeoutMessage =
-      "เชื่อมต่อเซิร์ฟเวอร์ช้าเกินไป กรุณาตรวจสอบ backend แล้วลองใหม่";
 
   static String? _accessToken;
 

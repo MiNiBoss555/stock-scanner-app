@@ -367,8 +367,6 @@ class _SharedReceiptBillCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hash = order.id.hashCode.abs();
-    final queueCode = "V${(hash % 90 + 10)}"; 
     final dueTone = _dueTone(order);
     
     final itemRows = <Widget>[];
