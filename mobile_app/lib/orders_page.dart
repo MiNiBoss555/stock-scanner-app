@@ -84,7 +84,7 @@ class _OrdersPageState extends State<OrdersPage> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => FractionallySizedBox(
+      builder: (sheetContext) => FractionallySizedBox(
         heightFactor: 0.72,
         child: SafeArea(
           child: Container(
@@ -103,7 +103,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       children: [
                         Text(
                           "ใบสรุปออเดอร์",
-                          style: Theme.of(context)
+                          style: Theme.of(sheetContext)
                               .textTheme
                               .titleMedium
                               ?.copyWith(fontWeight: FontWeight.w800),
@@ -111,7 +111,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         const SizedBox(height: 2),
                         Text(
                           order.customerName,
-                          style: Theme.of(context)
+                          style: Theme.of(sheetContext)
                               .textTheme
                               .bodyMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
@@ -202,7 +202,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     const SizedBox(height: 12),
                     FilledButton.icon(
                       onPressed: () {
-                        Navigator.of(context).pop();
+                        Navigator.of(sheetContext).pop();
                         _openOrder(order);
                       },
                       icon: const Icon(Icons.open_in_new_rounded),
@@ -220,10 +220,6 @@ class _OrdersPageState extends State<OrdersPage> {
                         position.contains("ผลิต");
                     final isQcRole = role == "qc" || role.contains("quality") || role.contains("ตรวจ");
                     final isDeliveryRole = role.contains("delivery") || role.contains("ส่ง");
-
-                    final isBoard = isProducerRole && (position.contains("บอร์ด") || position.contains("board"));
-                    final isRobot = isProducerRole && (position.contains("หุ่นยนต์") || position.contains("robot"));
-                    final isGenericProd = isProducerRole && !isBoard && !isRobot;
 
                     final isStructured = _orderIsStructured(order);
 
@@ -257,7 +253,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       String? note;
                       if (action == "reject_to_board" || action == "reject_to_robot") {
                         note = await showDialog<String>(
-                          context: context,
+                          context: sheetContext,
                           builder: (dialogContext) {
                             final controller = TextEditingController();
                             return AlertDialog(
@@ -277,7 +273,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                   onPressed: () {
                                     final text = controller.text.trim();
                                     if (text.isEmpty) {
-                                      showAppSnack(context, "กรุณาระบุเหตุผลก่อนส่งกลับ");
+                                      showAppSnack(dialogContext, "กรุณาระบุเหตุผลก่อนส่งกลับ");
                                       return;
                                     }
                                     Navigator.of(dialogContext).pop(text);
@@ -295,16 +291,16 @@ class _OrdersPageState extends State<OrdersPage> {
 
                       try {
                         await widget.api.updateOrderWorkflow(order.id, action, note);
-                        if (mounted) {
-                          Navigator.of(context).pop(); // Close bottom sheet
-                          showAppSnack(context, "ดำเนินการสำเร็จ");
-                          setState(() {
-                            _future = _load(); // Refresh orders
-                          });
-                        }
+                        if (!sheetContext.mounted) return;
+                        Navigator.of(sheetContext).pop(); // Close bottom sheet
+                        showAppSnack(sheetContext, "ดำเนินการสำเร็จ");
+                        if (!mounted) return;
+                        setState(() {
+                          _future = _load(); // Refresh orders
+                        });
                       } catch (e) {
-                        if (mounted) {
-                          showAppSnack(context, "เกิดข้อผิดพลาด: $e");
+                        if (sheetContext.mounted) {
+                          showAppSnack(sheetContext, "เกิดข้อผิดพลาด: $e");
                         }
                       }
                     }
@@ -316,21 +312,21 @@ class _OrdersPageState extends State<OrdersPage> {
                           orderId: order.id,
                           status: status,
                         );
-                        if (mounted) {
-                          Navigator.of(context).pop();
-                          showAppSnack(context, "อัปเดตสถานะแล้ว");
-                          setState(() {
-                            _future = _load();
-                          });
-                        }
+                        if (!sheetContext.mounted) return;
+                        Navigator.of(sheetContext).pop();
+                        showAppSnack(sheetContext, "อัปเดตสถานะแล้ว");
+                        if (!mounted) return;
+                        setState(() {
+                          _future = _load();
+                        });
                       } catch (e) {
-                        if (mounted) {
-                          showAppSnack(context, "เกิดข้อผิดพลาด: $e");
+                        if (sheetContext.mounted) {
+                          showAppSnack(sheetContext, "เกิดข้อผิดพลาด: $e");
                         }
                       }
                     }
 
-                    Widget _actionButton(String label, String action, String keyStr) {
+                    Widget actionButton(String label, String action, String keyStr) {
                       return ElevatedButton(
                         key: Key(keyStr),
                         onPressed: () => handleWorkflowAction(action),
@@ -346,7 +342,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       );
                     }
 
-                    Widget _statusButton(String label, String status, String keyStr) {
+                    Widget statusButton(String label, String status, String keyStr) {
                       return ElevatedButton(
                         key: Key(keyStr),
                         onPressed: () => handleStatusAction(status),
@@ -372,21 +368,21 @@ class _OrdersPageState extends State<OrdersPage> {
                       if (wfStatus == "pending_board" || wfStatus == "rejected_board") {
                         if (showBoard) {
                           actionButtons.add(
-                            _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                            actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
                           );
                         }
                       } else if (wfStatus == "pending_robot" || wfStatus == "rejected_robot") {
                         if (showRobot) {
                           actionButtons.add(
-                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
                           );
                         }
                       } else if (wfStatus == "pending_qc") {
                         if (showQc) {
                           actionButtons.addAll([
-                            _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
-                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
-                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                            actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
+                            actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                            actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
                           ]);
                         }
                       } else if (wfStatus == "pending_delivery") {
@@ -395,11 +391,11 @@ class _OrdersPageState extends State<OrdersPage> {
                           final orderStatus = order.status;
                           if (orderStatus == "qc_passed") {
                             actionButtons.add(
-                              _statusButton("เริ่มจัดสินค้า", "preparing", "status_action_preparing"),
+                              statusButton("เริ่มจัดสินค้า", "preparing", "status_action_preparing"),
                             );
                           } else if (orderStatus == "preparing") {
                             actionButtons.add(
-                              _statusButton("ออกจัดส่ง", "out_for_delivery", "status_action_out_for_delivery"),
+                              statusButton("ออกจัดส่ง", "out_for_delivery", "status_action_out_for_delivery"),
                             );
                           } else if (orderStatus == "out_for_delivery") {
                             final bool hasProof =
@@ -427,47 +423,47 @@ class _OrdersPageState extends State<OrdersPage> {
                       if (status == "pending_board" || status == "rejected_board") {
                         if (showBoard) {
                           actionButtons.addAll([
-                            _actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
-                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                            actionButton("ส่งให้ฝ่ายผลิตหุ่นยนต์", "send_to_robot", "workflow_action_send_to_robot"),
+                            actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
                           ]);
                         }
                       } else if (status == "pending_robot" || status == "rejected_robot") {
                         if (showRobot) {
                           actionButtons.addAll([
-                            _actionButton("รอบอร์ด", "wait_for_board", "workflow_action_wait_for_board"),
-                            _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
-                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                            actionButton("รอบอร์ด", "wait_for_board", "workflow_action_wait_for_board"),
+                            actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                            actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
                           ]);
                         }
                       } else if (status == "waiting_board") {
                         if (showRobot) {
                           actionButtons.addAll([
-                            _actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
-                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                            actionButton("กำลังประกอบ", "assembling", "workflow_action_assembling"),
+                            actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
                           ]);
                         }
                       } else if (status == "assembling") {
                         if (showRobot) {
                           actionButtons.addAll([
-                            _actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
-                            _actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
+                            actionButton("ส่งให้ QC", "send_to_qc", "workflow_action_send_to_qc"),
+                            actionButton("ส่งให้จัดส่ง", "send_to_delivery", "workflow_action_send_to_delivery"),
                           ]);
                         }
                       } else if (status == "pending_qc") {
                         if (showQc) {
                           actionButtons.addAll([
-                            _actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
-                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
-                            _actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
+                            actionButton("ผ่าน", "qc_pass", "workflow_action_qc_pass"),
+                            actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตบอร์ด", "reject_to_board", "workflow_action_reject_to_board"),
+                            actionButton("ไม่ผ่าน ส่งกลับฝ่ายผลิตหุ่นยนต์", "reject_to_robot", "workflow_action_reject_to_robot"),
                           ]);
                         }
                       } else if (status == "pending_delivery") {
                         if (showDelivery) {
                           actionButtons.add(
-                            _actionButton("รอจัดส่ง", "wait_delivery", "workflow_action_wait_delivery"),
+                            actionButton("รอจัดส่ง", "wait_delivery", "workflow_action_wait_delivery"),
                           );
                         }
                       }
@@ -485,7 +481,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         const SizedBox(height: 8),
                         Text(
                           "จัดการขั้นตอนงาน",
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                                 color: Colors.black.withValues(alpha: 0.60),
                                 fontWeight: FontWeight.w700,
                               ),
@@ -506,16 +502,6 @@ class _OrdersPageState extends State<OrdersPage> {
         ),
       ),
     );
-  }
-
-  String _formatUserDisplay(String? name, String? id) {
-    if (name == null || name.isEmpty || name == "-") {
-      return "-";
-    }
-    if (id == null || id.isEmpty) {
-      return name;
-    }
-    return "$name ($id)";
   }
 
   Widget _receiptRow(String label, String value, {bool bold = false, Color? valueColor}) {
@@ -964,7 +950,9 @@ class _OrdersPageState extends State<OrdersPage> {
             lower.startsWith("tel") ||
             lower.startsWith("phone") ||
             lower.startsWith("หมายเหตุ") ||
-            lower.startsWith("note")) return false;
+            lower.startsWith("note")) {
+          return false;
+        }
         return true;
       }).toList();
       if (candidates.isNotEmpty) {
@@ -982,14 +970,18 @@ class _OrdersPageState extends State<OrdersPage> {
       final parsed = _parseCustomerFromText(text);
       if (!mounted) return;
       setState(() {
-        if (parsed["name"]!.trim().isNotEmpty)
+        if (parsed["name"]!.trim().isNotEmpty) {
           _customerNameController.text = parsed["name"]!.trim();
-        if (parsed["phone"]!.trim().isNotEmpty)
+        }
+        if (parsed["phone"]!.trim().isNotEmpty) {
           _customerPhoneController.text = parsed["phone"]!.trim();
-        if (parsed["address"]!.trim().isNotEmpty)
+        }
+        if (parsed["address"]!.trim().isNotEmpty) {
           _customerAddressController.text = parsed["address"]!.trim();
-        if (parsed["note"]!.trim().isNotEmpty)
+        }
+        if (parsed["note"]!.trim().isNotEmpty) {
           _noteController.text = parsed["note"]!.trim();
+        }
       });
       if (mounted) showAppSnack(context, "วางข้อมูลลูกค้าแล้ว");
     } catch (e) {
@@ -1191,7 +1183,6 @@ class _OrdersPageState extends State<OrdersPage> {
       if (selection == null) return;
 
       String? targetPath;
-      String? selectedImagePath;
 
       if (selection == "camera") {
         try {
@@ -1206,7 +1197,6 @@ class _OrdersPageState extends State<OrdersPage> {
           await docScanner.close();
 
           if (result.images != null && result.images!.isNotEmpty) {
-            selectedImagePath = result.images!.first;
             targetPath = result.images!.first;
           } else {
             // Cancelled scanning activity
@@ -1218,7 +1208,6 @@ class _OrdersPageState extends State<OrdersPage> {
             imageQuality: 80,
           );
           if (file == null) return;
-          selectedImagePath = file.path;
           targetPath = await _runManualCrop(file.path);
           if (targetPath == null) return;
         }
@@ -1228,7 +1217,6 @@ class _OrdersPageState extends State<OrdersPage> {
           imageQuality: 80,
         );
         if (file == null) return;
-        selectedImagePath = file.path;
 
         setState(() {
           _isSaving = true;
@@ -1269,7 +1257,6 @@ class _OrdersPageState extends State<OrdersPage> {
       Map<String, String?> parsed = {};
       bool isComplete = false;
       bool isQuotaExceeded = false;
-      String ocrSource = "Unknown";
 
       try {
         final geminiParsed = await widget.api.ocrShippingLabel(
@@ -1288,19 +1275,16 @@ class _OrdersPageState extends State<OrdersPage> {
             "address": address,
           };
           isComplete = true;
-          ocrSource = "Gemini";
         } else {
           parsed = {
             "name": name.isEmpty ? null : name,
             "phone": phone.isEmpty ? null : phone,
             "address": address.isEmpty ? null : address,
           };
-          ocrSource = "Gemini rejected low quality";
         }
       } catch (e) {
         final errStr = e.toString().toLowerCase();
         isQuotaExceeded = errStr.contains("429") || errStr.contains("quota") || errStr.contains("resource exceeded");
-        ocrSource = isQuotaExceeded ? "Gemini Quota Exceeded" : "MLKit fallback";
         if (mounted) {
           showAppSnack(
             context,
@@ -1343,7 +1327,8 @@ class _OrdersPageState extends State<OrdersPage> {
               parsed["address"] ??= addressVal;
             }
           }
-        } catch (e) {
+        } catch (_) {
+          // Ignored: silent fallback when MLKit recognition fails.
         }
       }
 
@@ -1464,9 +1449,11 @@ class _OrdersPageState extends State<OrdersPage> {
       if (status == "cancelled" && _orderPickerId == order.id) {
         _orderPickerId = null;
       }
+      if (!mounted) return;
       showAppSnack(context, "อัปเดตสถานะแล้ว");
       await _refresh();
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(
         context,
         error.toString().replaceFirst("Exception: ", ""),
@@ -1500,8 +1487,10 @@ class _OrdersPageState extends State<OrdersPage> {
         filePath: file.path,
       );
       await _loadProofPhotosForOrder(order.id);
+      if (!mounted) return;
       showAppSnack(context, "อัปโหลดรูปหลักฐานแล้ว");
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
     }
   }
@@ -1578,6 +1567,7 @@ class _OrdersPageState extends State<OrdersPage> {
       },
     );
     if (confirmed != true) return;
+    if (!mounted) return;
     try {
       final items = <Map<String, dynamic>>[];
       for (final item in order.items) {
@@ -1603,6 +1593,7 @@ class _OrdersPageState extends State<OrdersPage> {
           status: "out_for_delivery",
         );
       }
+      if (!mounted) return;
       showAppSnack(context, "บันทึกการส่งบางส่วนแล้ว");
       await _loadProofPhotosForOrder(order.id);
       if (!mounted) return;
@@ -1611,6 +1602,7 @@ class _OrdersPageState extends State<OrdersPage> {
       });
       await _future;
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
     }
   }
@@ -1689,6 +1681,7 @@ class _OrdersPageState extends State<OrdersPage> {
       },
     );
     if (confirmed != true) return;
+    if (!mounted) return;
     try {
       final items = <Map<String, dynamic>>[];
       final List<String> correctionLogs = [];
@@ -1716,13 +1709,14 @@ class _OrdersPageState extends State<OrdersPage> {
         items: items,
         note: auditNote,
       );
-      showAppSnack(context, "แก้ไขจำนวนส่งเรียบร้อยแล้ว");
       if (!mounted) return;
+      showAppSnack(context, "แก้ไขจำนวนส่งเรียบร้อยแล้ว");
       setState(() {
         _future = _load();
       });
       await _future;
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
     }
   }
@@ -1896,9 +1890,11 @@ class _OrdersPageState extends State<OrdersPage> {
         qcUserId: qc,
         deliveryUserId: delivery,
       );
+      if (!mounted) return;
       showAppSnack(context, "บันทึกทีมงานเรียบร้อย");
       await _refresh();
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(context, error.toString().replaceFirst("Exception: ", ""));
     }
   }
@@ -1909,9 +1905,11 @@ class _OrdersPageState extends State<OrdersPage> {
         requesterId: widget.currentUser.userId,
         orderId: order.id,
       );
+      if (!mounted) return;
       showAppSnack(context, "ปิดค้างจ่ายแล้ว");
       await _refresh();
     } catch (error) {
+      if (!mounted) return;
       showAppSnack(context, error.toString().replaceFirst("Exception: ", ""),
           isError: true);
     }
@@ -2135,10 +2133,12 @@ class _OrdersPageState extends State<OrdersPage> {
                                           ),
                                           validator: (value) {
                                             final v = value?.trim() ?? "";
-                                            if (v.isEmpty)
+                                            if (v.isEmpty) {
                                               return "กรุณากรอกเบอร์โทร";
-                                            if (v.length < 9)
+                                            }
+                                            if (v.length < 9) {
                                               return "เบอร์โทรสั้นเกินไป";
+                                            }
                                             return null;
                                           },
                                         ),
@@ -2446,16 +2446,18 @@ class _OrdersPageState extends State<OrdersPage> {
                                         lastDate:
                                             now.add(const Duration(days: 365)),
                                       );
-                                      if (pickedDate == null || !mounted)
+                                      if (pickedDate == null || !context.mounted) {
                                         return;
+                                      }
                                       final pickedTime = await showTimePicker(
                                         context: context,
                                         initialTime: TimeOfDay.fromDateTime(
                                           _scheduledDeliveryAt ?? now,
                                         ),
                                       );
-                                      if (pickedTime == null || !mounted)
+                                      if (pickedTime == null || !mounted) {
                                         return;
+                                      }
                                       setState(() {
                                         _scheduledDeliveryAt = DateTime(
                                           pickedDate.year,
@@ -2968,7 +2970,6 @@ class _BackorderReportSheetState extends State<_BackorderReportSheet> {
 
 class _DraftOrderItem {
   _DraftOrderItem({
-    this.barcode,
     String productQuery = "",
     String quantity = "1",
   })  : productController = TextEditingController(text: productQuery),
@@ -3158,28 +3159,28 @@ class _OrderTile extends StatelessWidget {
     if (readOnly || o.status == "cancelled") {
       return false;
     }
-    String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
-    bool _hasThaiWord(String haystack, String needle) =>
+    String roleNorm(String? value) => (value ?? "").trim().toLowerCase();
+    bool hasThaiWord(String haystack, String needle) =>
         haystack.contains(needle);
-    String _nameNorm(String? value) =>
+    String nameNorm(String? value) =>
         (value ?? "").trim().toLowerCase().replaceAll(RegExp(r"\s+"), " ");
 
-    final role = _roleNorm(user.role);
-    final position = _roleNorm(user.position);
+    final role = roleNorm(user.role);
+    final position = roleNorm(user.position);
     final isProducerRole =
-        role.contains("production") || _hasThaiWord(role, "ผลิต") ||
-        position.contains("production") || _hasThaiWord(position, "ผลิต");
+        role.contains("production") || hasThaiWord(role, "ผลิต") ||
+        position.contains("production") || hasThaiWord(position, "ผลิต");
     final isQcRole =
         role == "qc" || role.contains("quality") || role.contains("ตรวจ");
     final isDeliveryRole =
-        role.contains("delivery") || _hasThaiWord(role, "ส่ง");
+        role.contains("delivery") || hasThaiWord(role, "ส่ง");
 
     final isProducerNameMatch =
-        _nameNorm(user.userName) == _nameNorm(o.productionUserName);
+        nameNorm(user.userName) == nameNorm(o.productionUserName);
     final isQcNameMatch =
-        _nameNorm(user.userName) == _nameNorm(o.qcUserName);
+        nameNorm(user.userName) == nameNorm(o.qcUserName);
     final isDeliveryNameMatch =
-        _nameNorm(user.userName) == _nameNorm(o.deliveryUserName);
+        nameNorm(user.userName) == nameNorm(o.deliveryUserName);
 
     final isProducer = user.userId == (o.productionUserId ?? "") ||
         isProducerNameMatch ||
@@ -3282,30 +3283,28 @@ class _OrderTile extends StatelessWidget {
     final isCancelled = order.status == "cancelled";
     final isEffectivelyReadOnly = readOnly || isCancelled;
 
-    String _roleNorm(String? value) => (value ?? "").trim().toLowerCase();
-    bool _hasThaiWord(String haystack, String needle) =>
+    String roleNorm(String? value) => (value ?? "").trim().toLowerCase();
+    bool hasThaiWord(String haystack, String needle) =>
         haystack.contains(needle);
-    String _nameNorm(String? value) =>
+    String nameNorm(String? value) =>
         (value ?? "").trim().toLowerCase().replaceAll(RegExp(r"\s+"), " ");
 
-    final canAssign =
-        currentUser.isAdmin || currentUser.userId == order.createdById;
-    final role = _roleNorm(currentUser.role);
-    final position = _roleNorm(currentUser.position);
+    final role = roleNorm(currentUser.role);
+    final position = roleNorm(currentUser.position);
     final isProducerRole =
-        role.contains("production") || _hasThaiWord(role, "ผลิต") ||
-        position.contains("production") || _hasThaiWord(position, "ผลิต");
+        role.contains("production") || hasThaiWord(role, "ผลิต") ||
+        position.contains("production") || hasThaiWord(position, "ผลิต");
     final isQcRole =
         role == "qc" || role.contains("quality") || role.contains("ตรวจ");
     final isDeliveryRole =
-        role.contains("delivery") || _hasThaiWord(role, "ส่ง");
+        role.contains("delivery") || hasThaiWord(role, "ส่ง");
 
     final isProducerNameMatch =
-        _nameNorm(currentUser.userName) == _nameNorm(order.productionUserName);
+        nameNorm(currentUser.userName) == nameNorm(order.productionUserName);
     final isQcNameMatch =
-        _nameNorm(currentUser.userName) == _nameNorm(order.qcUserName);
+        nameNorm(currentUser.userName) == nameNorm(order.qcUserName);
     final isDeliveryNameMatch =
-        _nameNorm(currentUser.userName) == _nameNorm(order.deliveryUserName);
+        nameNorm(currentUser.userName) == nameNorm(order.deliveryUserName);
 
     final isProducer = currentUser.userId == (order.productionUserId ?? "") ||
         isProducerNameMatch ||
@@ -4584,50 +4583,4 @@ bool _orderIsStructured(DeliveryOrder order) {
     "delivered",
   };
   return structuredWfStates.contains(order.orderWorkflowStatus);
-}
-
-String _workflowStatusLabel(String status) {
-  switch (status) {
-    case "pending_board":
-      return "รอผลิตบอร์ด";
-    case "pending_robot":
-      return "รอผลิตหุ่นยนต์";
-    case "waiting_board":
-      return "รอประกอบบอร์ด";
-    case "assembling":
-      return "กำลังประกอบ";
-    case "pending_qc":
-      return "รอตรวจสอบ QC";
-    case "rejected_board":
-      return "บอร์ดไม่ผ่าน QC";
-    case "rejected_robot":
-      return "หุ่นยนต์ไม่ผ่าน QC";
-    case "pending_delivery":
-      return "รอจัดส่ง";
-    case "delivered":
-      return "จัดส่งสำเร็จ";
-    default:
-      return status;
-  }
-}
-
-SemanticStatus _workflowStatusSemantic(String status) {
-  switch (status) {
-    case "pending_board":
-    case "pending_robot":
-      return SemanticStatus.pending;
-    case "waiting_board":
-    case "assembling":
-    case "pending_delivery":
-      return SemanticStatus.working;
-    case "pending_qc":
-      return SemanticStatus.qc;
-    case "rejected_board":
-    case "rejected_robot":
-      return SemanticStatus.rejected;
-    case "delivered":
-      return SemanticStatus.delivered;
-    default:
-      return SemanticStatus.neutral;
-  }
 }
